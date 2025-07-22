@@ -1,18 +1,14 @@
-"""Utilities to upload and manage models in Supabase Storage."""
 from __future__ import annotations
 
 import hashlib
 import io
-import pickle
-import joblib
-import joblib
-from tenacity import retry, wait_exponential, stop_after_attempt
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple
 
+import joblib
 from jsonschema import validate
-
 from supabase import Client, create_client
+from tenacity import retry, wait_exponential, stop_after_attempt
 
 
 @dataclass
@@ -28,17 +24,16 @@ class ModelEntry:
     tags: Optional[dict] = None
 
 
+# Require at least one numeric metric
 METRICS_SCHEMA = {
     "type": "object",
-    "properties": {
-        "sharpe": {"type": "number"},
-    },
-    "required": ["sharpe"],
+    "patternProperties": {"^.+$": {"type": "number"}},
+    "minProperties": 1,
 }
 
 
 class ModelRegistry:
-    """Registry for ML models backed by Supabase."""
+    """Registry for ML models stored in Supabase."""
 
     def __init__(self, url: str, key: str, bucket: str = "models") -> None:
         self.supabase: Client = create_client(url, key)
@@ -48,20 +43,8 @@ class ModelRegistry:
         return hashlib.sha256(data).hexdigest()
 
     @retry(wait=wait_exponential(multiplier=1, min=1, max=10), stop=stop_after_attempt(5))
-    def upload_bytes(
-        self, payload: bytes, name: str, metrics: Dict[str, Any]
-    ) -> ModelEntry:
-        """Upload raw ``payload`` bytes as a model artifact.
-
-        Parameters
-        ----------
-        payload:
-            Serialized model bytes.
-        name:
-            Logical model family name.
-        metrics:
-            Dictionary of evaluation metrics.
-        """
+    def upload_bytes(self, payload: bytes, name: str, metrics: Dict[str, Any]) -> ModelEntry:
+        """Upload raw byte payload as a model artifact."""
         digest = self._hash_bytes(payload)
         path = f"{name}/{digest}.bin"
         self.supabase.storage.from_(self.bucket).upload(path, io.BytesIO(payload))
@@ -75,7 +58,6 @@ class ModelRegistry:
         data = self.supabase.table("models").insert(row).execute().data[0]
         return ModelEntry(**data)
 
-    def upload(self, model_obj: Any, name: str, metrics: Dict[str, Any]) -> ModelEntry:
     def upload(
         self,
         model_obj: Any,
@@ -83,41 +65,22 @@ class ModelRegistry:
         metrics: Dict[str, Any],
         tags: Optional[dict] = None,
     ) -> ModelEntry:
-        """Serialize and upload ``model_obj``.
-
-        Parameters
-        ----------
-        model_obj:
-            Arbitrary Python object representing the model.
-        name:
-            Logical name for the model family.
-        metrics:
-            Dictionary of evaluation metrics.
-        tags:
-            Optional dictionary of metadata tags.
-        """
-        if not isinstance(metrics, dict) or not all(
-            isinstance(v, (int, float)) for v in metrics.values()
-        ):
+        """Serialize and upload ``model_obj`` with ``metrics``."""
+        if not isinstance(metrics, dict):
+            raise ValueError("metrics must be a dict")
+        if not all(isinstance(v, (int, float)) for v in metrics.values()):
             raise ValueError("metrics must be a dict of numeric values")
 
-        buffer = io.BytesIO()
-        joblib.dump(model_obj, buffer)
-        data_bytes = buffer.getvalue()
-        digest = self._hash_bytes(data_bytes)
+        validate(instance=metrics, schema=METRICS_SCHEMA)
+
         buffer = io.BytesIO()
         joblib.dump(model_obj, buffer)
         payload = buffer.getvalue()
-        validate(instance=metrics, schema=METRICS_SCHEMA)
-
-        payload = pickle.dumps(model_obj)
         digest = self._hash_bytes(payload)
         path = f"{name}/{digest}.pkl"
 
-        # Upload bytes to Storage
-        self.supabase.storage.from_(self.bucket).upload(path, io.BytesIO(data_bytes))
+        self.supabase.storage.from_(self.bucket).upload(path, io.BytesIO(payload))
 
-        # Insert metadata row
         row = {
             "name": name,
             "file_path": path,
@@ -146,33 +109,8 @@ class ModelRegistry:
         """Mark a model row as approved."""
         self.supabase.table("models").update({"approved": True}).eq("id", model_id).execute()
 
-    def list_models(
-        self, *, tag: Optional[str] = None, approved: Optional[bool] = None
-    ) -> list[ModelEntry]:
-        """Return models optionally filtered by tag and approval."""
-        query = self.supabase.table("models").select("*")
-        if approved is not None:
-            query = query.eq("approved", approved)
-        if tag is not None:
-            query = query.contains("tags", [tag])
-        res = query.execute()
     def list_models(self, name: str, tag_filter: Optional[dict] = None) -> list[ModelEntry]:
-        """Return all models matching ``name`` and optional tag filters.
-
-        Parameters
-        ----------
-        name : str
-            Model family name to filter on.
-        tag_filter : dict, optional
-            Mapping of JSON tag keys to desired values. Each key/value pair
-            is added to the query using the ``tags->`` syntax.
-
-        Returns
-        -------
-        list[ModelEntry]
-            List of ``ModelEntry`` objects ordered by newest first.
-        """
-
+        """Return all models matching ``name`` and optional tag filters."""
         query = self.supabase.table("models").select("*").eq("name", name)
         if tag_filter:
             for key, value in tag_filter.items():

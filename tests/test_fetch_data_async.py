@@ -37,14 +37,7 @@ async def test_fetch_data_async_pagination(monkeypatch):
     monkeypatch.setenv("SUPABASE_URL", "https://sb.example.com")
     monkeypatch.setenv("SUPABASE_KEY", "test")
 
-    df = await fetch_data_async("trade_logs", page_size=chunk_size)
-    df = await fetch_data_range_async(
-        "trade_logs", "start", "end", chunk_size=chunk_size
-        "trade_logs",
-        "start",
-        "end",
-        chunk_size=chunk_size,
-    )
+    df = await fetch_data_range_async("trade_logs", "start", "end", chunk_size=chunk_size)
 
     expected = pd.concat([pd.DataFrame(p) for p in pages], ignore_index=True)
     pd.testing.assert_frame_equal(df, expected)

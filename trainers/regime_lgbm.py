@@ -7,6 +7,10 @@ from lightgbm import Booster
 from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
 from typing import Tuple, Dict
+import os
+import logging
+
+from registry import ModelRegistry
 
 
 def train_regime_lgbm(
@@ -105,5 +109,17 @@ def train_regime_lgbm(
         final_set,
         num_boost_round=final_num_boost_round,
     )
+
+    url = os.environ.get("SUPABASE_URL")
+    key = os.environ.get("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABASE_KEY")
+    if url and key:
+        try:
+            registry = ModelRegistry(url, key)
+            entry = registry.upload(final_model, "regime_lgbm", metrics)
+            logging.info("Uploaded model %s", entry.file_path)
+        except Exception as exc:
+            logging.exception("Failed to upload model: %s", exc)
+    else:
+        logging.info("SUPABASE credentials not set; skipping upload")
 
     return final_model, metrics
