@@ -1,0 +1,7 @@
+numpy
+pandas
+lightgbm
+scikit-learn
+supabase
+tenacity
+pytest
