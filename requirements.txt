@@ -1,5 +1,7 @@
 pandas
 numpy
+numpy
+pandas
 lightgbm
 scikit-learn
 supabase
