@@ -1,3 +1,5 @@
+"""Async data loading utilities for Supabase-backed datasets."""
+
 from __future__ import annotations
 
 import os
@@ -46,14 +48,22 @@ def fetch_trade_logs(start_ts: datetime, end_ts: datetime) -> pd.DataFrame:
     return df
 
 
-async def fetch_data_async(
+async def fetch_all_rows_async(
+async def fetch_table_async(
     table: str,
+    start_ts: Optional[str] = None,
+    end_ts: Optional[str] = None,
     *,
     page_size: int = 1000,
     params: Optional[Dict[str, str]] = None,
     client: Optional[httpx.AsyncClient] = None,
+    chunk_size: int = 1000,
 ) -> pd.DataFrame:
-    """Fetch all rows from ``table`` asynchronously handling pagination.
+    """Fetch rows from ``table`` asynchronously.
+
+    When ``start_ts`` and ``end_ts`` are provided rows are fetched in
+    ``chunk_size`` batches between the timestamps. Otherwise the entire table
+    is retrieved in pages of ``page_size``.
 
     Parameters
     ----------
@@ -73,6 +83,9 @@ async def fetch_data_async(
     pd.DataFrame
         DataFrame containing all retrieved rows.
     """
+
+    if start_ts is not None and end_ts is not None:
+        return await fetch_data_range_async(table, start_ts, end_ts, chunk_size)
 
     own_client = False
     if client is None:
@@ -113,6 +126,21 @@ async def fetch_data_async(
             await client.aclose()
 
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+
+
+async def fetch_data_async(
+    table: str,
+    start_ts: str,
+    end_ts: str,
+    *,
+    chunk_size: int = 1000,
+) -> pd.DataFrame:
+    """Backward compatible wrapper for ``fetch_data_range_async``."""
+    chunk_size: int = 1000,
+) -> pd.DataFrame:
+    """Backward compatible wrapper for fetching rows in a date range."""
+
+    return await fetch_data_range_async(table, start_ts, end_ts, chunk_size)
 async def _fetch_chunks(
     client: httpx.AsyncClient,
     endpoint: str,
