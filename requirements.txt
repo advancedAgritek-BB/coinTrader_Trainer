@@ -1,3 +1,4 @@
+httpx
 lightgbm
 numpy
 pandas
