@@ -38,3 +38,85 @@ def test_gpu_params_passed_to_lightgbm(monkeypatch):
     train_regime_lgbm(X, y, params, use_gpu=True)
 
     assert captured.get("device_type") == "gpu"
+
+
+def test_cfg_loader_gpu_defaults(monkeypatch):
+    import ml_trainer
+    rng = np.random.default_rng(1)
+    X = pd.DataFrame(rng.normal(size=(10, 2)))
+    y = pd.Series([0, 1] * 5)
+
+    captured = {}
+
+    def fake_train(params, *args, **kwargs):
+        captured.update(params)
+        class FakeBooster:
+            best_iteration = 1
+            def predict(self, data, num_iteration=None):
+                return np.zeros(len(data))
+        return FakeBooster()
+
+    monkeypatch.setattr(lgb, "train", fake_train)
+
+    cfg = ml_trainer.load_cfg("cfg.yaml")
+    params = cfg.get("regime_lgbm", {}).copy()
+    params.pop("device_type", None)
+    params.pop("gpu_platform_id", None)
+    params.pop("gpu_device_id", None)
+
+    train_regime_lgbm(X, y, params, use_gpu=True)
+
+    assert captured.get("device_type") == "gpu"
+
+
+def test_cli_gpu_overrides(monkeypatch):
+    import ml_trainer
+
+    captured = {}
+
+    def fake_train(params, *args, **kwargs):
+        captured.update(params)
+        class FakeBooster:
+            best_iteration = 1
+            def predict(self, data, num_iteration=None):
+                return np.zeros(len(data))
+        return FakeBooster()
+
+    monkeypatch.setattr(lgb, "train", fake_train)
+    monkeypatch.setattr(
+        ml_trainer,
+        "_make_dummy_data",
+        lambda n=200: (
+            pd.DataFrame(np.random.normal(size=(10, 2))),
+            pd.Series([0, 1] * 5),
+        ),
+    )
+
+    original_load = ml_trainer.load_cfg
+
+    def patched_load(path):
+        cfg = original_load(path)
+        cfg.get("regime_lgbm", {}).pop("device_type", None)
+        return cfg
+
+    monkeypatch.setattr(ml_trainer, "load_cfg", patched_load)
+
+    argv = [
+        "ml_trainer",
+        "train",
+        "regime",
+        "--cfg",
+        "cfg.yaml",
+        "--use-gpu",
+        "--gpu-platform-id",
+        "1",
+        "--gpu-device-id",
+        "2",
+    ]
+    monkeypatch.setattr(sys, "argv", argv)
+
+    ml_trainer.main()
+
+    assert captured.get("device_type") == "gpu"
+    assert captured.get("gpu_platform_id") == 1
+    assert captured.get("gpu_device_id") == 2
