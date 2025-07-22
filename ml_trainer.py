@@ -31,6 +31,9 @@ def main() -> None:
     train_p = sub.add_parser("train", help="Train a model")
     train_p.add_argument("task", help="Task to train, e.g. 'regime'")
     train_p.add_argument("--cfg", default="cfg.yaml", help="Config file path")
+    train_p.add_argument("--use-gpu", action="store_true", help="Enable GPU training")
+    train_p.add_argument("--gpu-platform-id", type=int, default=None, help="OpenCL platform id")
+    train_p.add_argument("--gpu-device-id", type=int, default=None, help="OpenCL device id")
 
     args = parser.parse_args()
 
@@ -41,6 +44,12 @@ def main() -> None:
             raise SystemExit(f"Unknown task: {args.task}")
         trainer_fn, cfg_key = TRAINERS[args.task]
         params = cfg.get(cfg_key, {})
+        if args.use_gpu:
+            params["device_type"] = "gpu"
+            if args.gpu_platform_id is not None:
+                params["gpu_platform_id"] = args.gpu_platform_id
+            if args.gpu_device_id is not None:
+                params["gpu_device_id"] = args.gpu_device_id
         X, y = _make_dummy_data()
         model, metrics = trainer_fn(X, y, params)
         print("Training completed. Metrics:")

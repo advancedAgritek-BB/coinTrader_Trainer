@@ -36,6 +36,8 @@ def train_regime_lgbm(X: pd.DataFrame, y: pd.Series, params: dict) -> Tuple[Boos
     recall_scores = []
     best_iterations = []
 
+    gpu_keys = ("device_type", "gpu_platform_id", "gpu_device_id")
+
     for train_idx, valid_idx in skf.split(X, y):
         X_train, X_valid = X.iloc[train_idx], X.iloc[valid_idx]
         y_train, y_valid = y.iloc[train_idx], y.iloc[valid_idx]
@@ -43,8 +45,13 @@ def train_regime_lgbm(X: pd.DataFrame, y: pd.Series, params: dict) -> Tuple[Boos
         train_set = lgb.Dataset(X_train, label=y_train)
         valid_set = lgb.Dataset(X_valid, label=y_valid)
 
+        train_params = dict(params)
+        for k in gpu_keys:
+            if k in params:
+                train_params[k] = params[k]
+
         booster = lgb.train(
-            params,
+            train_params,
             train_set,
             valid_sets=[valid_set],
             callbacks=[
@@ -73,6 +80,9 @@ def train_regime_lgbm(X: pd.DataFrame, y: pd.Series, params: dict) -> Tuple[Boos
 
     final_params = dict(params)
     final_params.pop("early_stopping_rounds", None)
+    for k in gpu_keys:
+        if k in params:
+            final_params[k] = params[k]
 
     final_model = lgb.train(
         final_params,
