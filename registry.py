@@ -7,6 +7,8 @@ import pickle
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple
 
+from jsonschema import validate
+
 from supabase import Client, create_client
 
 
@@ -20,6 +22,16 @@ class ModelEntry:
     sha256: str
     metrics: Dict[str, Any]
     approved: bool
+    tags: Optional[dict] = None
+
+
+METRICS_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "sharpe": {"type": "number"},
+    },
+    "required": ["sharpe"],
+}
 
 
 class ModelRegistry:
@@ -32,7 +44,13 @@ class ModelRegistry:
     def _hash_bytes(self, data: bytes) -> str:
         return hashlib.sha256(data).hexdigest()
 
-    def upload(self, model_obj: Any, name: str, metrics: Dict[str, Any]) -> ModelEntry:
+    def upload(
+        self,
+        model_obj: Any,
+        name: str,
+        metrics: Dict[str, Any],
+        tags: Optional[dict] = None,
+    ) -> ModelEntry:
         """Serialize and upload ``model_obj``.
 
         Parameters
@@ -43,7 +61,11 @@ class ModelRegistry:
             Logical name for the model family.
         metrics:
             Dictionary of evaluation metrics.
+        tags:
+            Optional dictionary of metadata tags.
         """
+        validate(instance=metrics, schema=METRICS_SCHEMA)
+
         payload = pickle.dumps(model_obj)
         digest = self._hash_bytes(payload)
         path = f"{name}/{digest}.pkl"
@@ -58,6 +80,7 @@ class ModelRegistry:
             "sha256": digest,
             "metrics": metrics,
             "approved": False,
+            "tags": tags or {},
         }
         data = self.supabase.table("models").insert(row).execute().data[0]
         return ModelEntry(**data)
