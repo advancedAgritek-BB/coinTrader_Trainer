@@ -8,3 +8,8 @@ regime_lgbm:
   feature_fraction: 0.9
   bagging_fraction: 0.8
   bagging_freq: 5
+  # GPU options
+  # Set device_type to 'gpu' to enable GPU training
+  device_type: cpu
+  gpu_platform_id: null
+  gpu_device_id: null
