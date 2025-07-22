@@ -24,7 +24,6 @@ async def test_fetch_data_async_pagination(monkeypatch):
         return httpx.Response(200, json=data)
 
     transport = httpx.MockTransport(handler)
-
     real_client = httpx.AsyncClient
 
     def fake_client(**kwargs):
@@ -34,6 +33,9 @@ async def test_fetch_data_async_pagination(monkeypatch):
     monkeypatch.setenv("SUPABASE_URL", "https://sb.example.com")
     monkeypatch.setenv("SUPABASE_KEY", "test")
 
+    df = await fetch_data_range_async(
+        "trade_logs", "start", "end", chunk_size=chunk_size
+    )
     df = await fetch_data_range_async("trade_logs", "start", "end", chunk_size=chunk_size)
     df = await fetch_data_async("trade_logs", page_size=chunk_size)
 
