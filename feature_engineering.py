@@ -25,11 +25,21 @@ def _atr(df: pd.DataFrame, period: int = 3) -> pd.Series:
     tr2 = (high - close).abs()
     tr3 = (low - close).abs()
     tr = np.maximum.reduce([tr1, tr2, tr3])
+    tr = pd.Series(tr, index=df.index)
     atr = tr.rolling(window=period, min_periods=period).mean()
     return atr
 
 
-def make_features(df: pd.DataFrame) -> pd.DataFrame:
+def make_features(
+    df: pd.DataFrame,
+    *,
+    ema_short_period: int = 12,
+    ema_long_period: int = 26,
+    rsi_period: int = 14,
+    volatility_window: int = 20,
+    atr_window: int = 3,
+    use_gpu: bool = False,
+) -> pd.DataFrame:
     """Generate features for trading models.
 
     Parameters
@@ -37,30 +47,61 @@ def make_features(df: pd.DataFrame) -> pd.DataFrame:
     df : pd.DataFrame
         Data frame containing at least ``ts`` and ``price`` columns and
         ``high`` and ``low`` for ATR computation.
+    ema_short_period : int, optional
+        Period for the short-term exponential moving average.
+    ema_long_period : int, optional
+        Period for the long-term exponential moving average.
+    rsi_period : int, optional
+        Window for computing the RSI indicator.
+    volatility_window : int, optional
+        Window for computing the rolling volatility of log returns.
+    atr_window : int, optional
+        Window for computing the Average True Range.
+    use_gpu : bool, optional
+        If ``True``, perform a round-trip through ``cudf`` to allow GPU
+        acceleration. Only ``cudf.from_pandas`` and ``to_pandas`` are used
+        so a stub ``cudf`` module can be supplied for testing.
 
     Returns
     -------
     pd.DataFrame
         Data frame sorted by ``ts`` with additional feature columns:
-        ``log_ret``, ``rsi14``, ``volatility20`` and ``atr3``. Missing
-        values are forward-filled and any remaining ``NaN`` rows dropped.
+        ``ema_short``, ``ema_long``, ``macd`` and parameterized columns
+        for RSI, volatility and ATR. Missing values are forward-filled and
+        any remaining ``NaN`` rows dropped.
     """
 
     if 'ts' not in df.columns or 'price' not in df.columns:
         raise ValueError("DataFrame must contain 'ts' and 'price' columns")
 
+    if use_gpu:
+        import cudf
+
+        gdf = cudf.from_pandas(df)
+        df = gdf.to_pandas()
+
     df = df.sort_values('ts').reset_index(drop=True).copy()
 
     df['log_ret'] = np.log(df['price'] / df['price'].shift(1))
 
-    df['rsi14'] = _rsi(df['price'], 14)
+    # Exponential moving averages and MACD
+    df['ema_short'] = df['price'].ewm(span=ema_short_period, adjust=False).mean()
+    df['ema_long'] = df['price'].ewm(span=ema_long_period, adjust=False).mean()
+    df['macd'] = df['ema_short'] - df['ema_long']
 
-    df['volatility20'] = df['log_ret'].rolling(window=20, min_periods=20).std()
+    rsi_col = f'rsi{rsi_period}'
+    df[rsi_col] = _rsi(df['price'], rsi_period)
 
+    vol_col = f'volatility{volatility_window}'
+    df[vol_col] = df['log_ret'].rolling(
+        window=volatility_window, min_periods=volatility_window
+    ).std()
+
+    atr_col = f'atr{atr_window}'
     if {'high', 'low'}.issubset(df.columns):
-        df['atr3'] = _atr(df, 3)
+        df[atr_col] = _atr(df, atr_window)
     else:
-        df['atr3'] = np.nan
+        df[atr_col] = np.nan
 
     df = df.ffill().dropna()
     return df
