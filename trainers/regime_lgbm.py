@@ -6,6 +6,8 @@ import lightgbm as lgb
 from lightgbm import Booster
 from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
+from typing import Tuple, Dict
+import optuna
 from typing import Tuple, Dict, Optional
 
 from registry import ModelRegistry
@@ -16,6 +18,8 @@ def train_regime_lgbm(
     y: pd.Series,
     params: dict,
     use_gpu: bool = True,
+    tune: bool = False,
+    n_trials: int = 50,
     registry: Optional[ModelRegistry] = None,
     model_name: str = "regime_lgbm",
 ) -> Tuple[Booster, Dict[str, float]]:
@@ -33,6 +37,11 @@ def train_regime_lgbm(
         Enable GPU training if ``True`` (default). When enabled the model is
         initialised with ``device_type='gpu'``, ``tree_learner='data'``,
         ``gpu_platform_id=0`` and ``gpu_device_id=0``.
+    tune : bool, optional
+        If ``True`` perform hyperparameter tuning with Optuna to optimise
+        ``learning_rate`` before training. Defaults to ``False``.
+    n_trials : int, optional
+        Number of Optuna trials when ``tune`` is enabled. Defaults to ``50``.
     registry : ModelRegistry, optional
         If provided, the trained model will be uploaded using this registry.
     model_name : str, optional
@@ -57,12 +66,6 @@ def train_regime_lgbm(
 
     skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 
-    acc_scores = []
-    f1_scores = []
-    precision_scores = []
-    recall_scores = []
-    best_iterations = []
-
     gpu_defaults = {
         "device_type": "gpu",
         "tree_learner": "data",
@@ -70,6 +73,68 @@ def train_regime_lgbm(
         "gpu_device_id": 0,
     }
 
+    def _cross_validate(train_params: dict) -> Tuple[Dict[str, float], int]:
+        acc_scores = []
+        f1_scores = []
+        precision_scores = []
+        recall_scores = []
+        best_iterations = []
+
+        for train_idx, valid_idx in skf.split(X, y):
+            X_train, X_valid = X.iloc[train_idx], X.iloc[valid_idx]
+            y_train, y_valid = y.iloc[train_idx], y.iloc[valid_idx]
+
+            train_set = lgb.Dataset(X_train, label=y_train)
+            valid_set = lgb.Dataset(X_valid, label=y_valid)
+
+            booster = lgb.train(
+                train_params,
+                train_set,
+                valid_sets=[valid_set],
+                callbacks=[
+                    lgb.early_stopping(train_params.get("early_stopping_rounds", 50), verbose=False)
+                ],
+            )
+
+            best_iterations.append(booster.best_iteration)
+            preds = booster.predict(X_valid, num_iteration=booster.best_iteration)
+            y_pred = (preds >= 0.5).astype(int)
+
+            acc_scores.append(accuracy_score(y_valid, y_pred))
+            f1_scores.append(f1_score(y_valid, y_pred))
+            precision_scores.append(precision_score(y_valid, y_pred))
+            recall_scores.append(recall_score(y_valid, y_pred))
+
+        metrics = {
+            "accuracy": float(np.mean(acc_scores)),
+            "f1": float(np.mean(f1_scores)),
+            "precision_long": float(np.mean(precision_scores)),
+            "recall_long": float(np.mean(recall_scores)),
+        }
+        final_num_boost_round = int(np.mean(best_iterations)) if best_iterations else train_params.get("num_boost_round", 100)
+        return metrics, final_num_boost_round
+
+    if tune:
+        def objective(trial: optuna.Trial) -> float:
+            lr = trial.suggest_float("learning_rate", 0.01, 0.1)
+            trial_params = dict(params)
+            trial_params["learning_rate"] = lr
+            if use_gpu:
+                for k, v in gpu_defaults.items():
+                    trial_params.setdefault(k, v)
+            m, _ = _cross_validate(trial_params)
+            return m["f1"]
+
+        study = optuna.create_study(direction="maximize")
+        study.optimize(objective, n_trials=n_trials)
+        params["learning_rate"] = study.best_params["learning_rate"]
+
+    train_params = dict(params)
+    if use_gpu:
+        for k, v in gpu_defaults.items():
+            train_params.setdefault(k, v)
+
+    metrics, final_num_boost_round = _cross_validate(train_params)
     # Automatically determine scale_pos_weight if not provided
     if "scale_pos_weight" not in params:
         pos = int(y.sum())
@@ -135,11 +200,9 @@ def train_regime_lgbm(
     )
     final_set = lgb.Dataset(X, label=y)
 
-    final_params = dict(params)
+    final_set = lgb.Dataset(X, label=y)
+    final_params = dict(train_params)
     final_params.pop("early_stopping_rounds", None)
-    if use_gpu:
-        for k, v in gpu_defaults.items():
-            final_params.setdefault(k, v)
 
     final_model = lgb.train(
         final_params,

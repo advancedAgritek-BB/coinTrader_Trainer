@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import hashlib
 import io
+import joblib
+from tenacity import retry, wait_exponential, stop_after_attempt
 import pickle
 import joblib
 from dataclasses import dataclass
@@ -110,6 +112,16 @@ class ModelRegistry:
         metrics:
             Dictionary of evaluation metrics.
         """
+        buffer = io.BytesIO()
+        joblib.dump(model_obj, buffer)
+        payload = buffer.getvalue()
+        digest = self._hash_bytes(payload)
+        path = f"{name}/{digest}.pkl"
+
+        # Upload bytes to Storage
+        self.supabase.storage.from_(self.bucket).upload(path, io.BytesIO(payload))
+
+        # Insert metadata row
         if not isinstance(metrics, dict) or not all(
             isinstance(v, (int, float)) for v in metrics.values()
         ):
@@ -150,6 +162,7 @@ class ModelRegistry:
 
     def approve(self, model_id: int) -> None:
         """Mark a model row as approved."""
+        self.supabase.table("models").update({"approved": True}).eq("id", model_id).execute()
         self.supabase.table("models").update({"approved": True}).eq(
             "id", model_id
         ).execute()

@@ -34,6 +34,22 @@ def test_train_regime_lgbm_returns_model_and_metrics():
         assert isinstance(metrics[key], float)
 
 
+def test_train_regime_lgbm_with_tuning():
+    rng = np.random.default_rng(1)
+    X = pd.DataFrame(rng.normal(size=(20, 5)), columns=[f"f{i}" for i in range(5)])
+    y = pd.Series([0, 1] * 10)
+
+    params = {
+        "objective": "binary",
+        "verbose": -1,
+        "num_boost_round": 10,
+        "early_stopping_rounds": 5,
+    }
+
+    model, metrics = train_regime_lgbm(X, y, params, use_gpu=False, tune=True, n_trials=2)
+
+    assert isinstance(model, Booster)
+    assert isinstance(metrics, dict)
 def _fake_booster():
     class FakeBooster:
         best_iteration = 1
