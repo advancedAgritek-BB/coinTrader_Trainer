@@ -6,12 +6,8 @@ import hashlib
 import io
 import pickle
 import joblib
-import joblib
-from tenacity import retry, wait_exponential, stop_after_attempt
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple
-
-from jsonschema import validate
 
 from supabase import Client, create_client
 
@@ -26,16 +22,6 @@ class ModelEntry:
     sha256: str
     metrics: Dict[str, Any]
     approved: bool
-    tags: Optional[dict] = None
-
-
-METRICS_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "sharpe": {"type": "number"},
-    },
-    "required": ["sharpe"],
-}
 
 
 class ModelRegistry:
@@ -85,6 +71,7 @@ class ModelRegistry:
         metrics: Dict[str, Any],
         tags: Optional[dict] = None,
     ) -> ModelEntry:
+    def upload(self, model_obj: Any, name: str, metrics: Dict[str, Any]) -> ModelEntry:
         """Serialize and upload ``model_obj``.
 
         Parameters
@@ -95,8 +82,6 @@ class ModelRegistry:
             Logical name for the model family.
         metrics:
             Dictionary of evaluation metrics.
-        tags:
-            Optional dictionary of metadata tags.
         """
         if not isinstance(metrics, dict) or not all(
             isinstance(v, (int, float)) for v in metrics.values()
@@ -107,13 +92,6 @@ class ModelRegistry:
         joblib.dump(model_obj, buffer)
         data_bytes = buffer.getvalue()
         digest = self._hash_bytes(data_bytes)
-        buffer = io.BytesIO()
-        joblib.dump(model_obj, buffer)
-        payload = buffer.getvalue()
-        validate(instance=metrics, schema=METRICS_SCHEMA)
-
-        payload = pickle.dumps(model_obj)
-        digest = self._hash_bytes(payload)
         path = f"{name}/{digest}.pkl"
 
         # Upload bytes to Storage
@@ -126,7 +104,6 @@ class ModelRegistry:
             "sha256": digest,
             "metrics": metrics,
             "approved": False,
-            "tags": tags or {},
         }
         data = self.supabase.table("models").insert(row).execute().data[0]
         return ModelEntry(**data)

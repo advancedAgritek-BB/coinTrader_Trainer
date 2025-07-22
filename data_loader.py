@@ -1,11 +1,10 @@
-"""Async data loading utilities for Supabase-backed datasets."""
-
 from __future__ import annotations
 
 import os
 from datetime import datetime
 from typing import Optional, Dict
 from typing import AsyncGenerator
+import pytz
 
 import httpx
 
@@ -39,6 +38,17 @@ def _fetch_logs(
         .select("*")
         .gte("timestamp", start_ts.isoformat())
         .lt("timestamp", end_ts.isoformat())
+    symbol: Optional[str] = None,
+) -> list[dict]:
+    """Fetch rows from the trade_logs table with retry."""
+    start_ts = start_ts.astimezone(pytz.UTC).isoformat()
+    end_ts = end_ts.astimezone(pytz.UTC).isoformat()
+
+    query = (
+        client.table("trade_logs")
+        .select("*")
+        .gte("timestamp", start_ts)
+        .lt("timestamp", end_ts)
     )
     if symbol is not None:
         query = query.eq("symbol", symbol)
@@ -76,31 +86,36 @@ def fetch_trade_logs(
 
 
 async def fetch_table_async(
+    cache_path: str = "cache.parquet",
+) -> pd.DataFrame:
+    """Return trade logs between two timestamps as a DataFrame."""
+    if os.path.exists(cache_path):
+        return pd.read_parquet(cache_path)
+
+    client = _get_client()
+    rows = _fetch_logs(client, start_ts, end_ts, symbol)
+    df = pd.DataFrame(rows)
+    for col in df.columns:
+        df[col] = pd.to_numeric(df[col], errors="ignore")
+    df.to_parquet(cache_path)
+    return df
+
+
+async def fetch_data_async(
     table: str,
-    start_ts: Optional[str] = None,
-    end_ts: Optional[str] = None,
     *,
-    chunk_size: int = 1000,
-    page_size: Optional[int] = None,
+    page_size: int = 1000,
     params: Optional[Dict[str, str]] = None,
     client: Optional[httpx.AsyncClient] = None,
 ) -> pd.DataFrame:
-    """Fetch rows from ``table`` asynchronously.
-
-    When ``start_ts`` and ``end_ts`` are provided rows are fetched in
-    ``chunk_size`` batches between the timestamps. Otherwise the entire table
-    is retrieved in pages of ``page_size``.
+    """Fetch all rows from ``table`` asynchronously handling pagination.
 
     Parameters
     ----------
     table : str
         Table name to query from Supabase REST API.
-    start_ts, end_ts : str, optional
-        When provided, fetch rows between these timestamps in ``chunk_size`` batches.
-    chunk_size : int, optional
-        Batch size used when ``start_ts`` and ``end_ts`` are specified. Defaults to ``1000``.
     page_size : int, optional
-        Number of rows per request when ``start_ts``/``end_ts`` are omitted. Defaults to ``1000``.
+        Number of rows per request. Defaults to ``1000``.
     params : dict, optional
         Additional query parameters added to the request. ``select`` defaults
         to ``"*"``.
@@ -113,12 +128,6 @@ async def fetch_table_async(
     pd.DataFrame
         DataFrame containing all retrieved rows.
     """
-
-    if start_ts is not None and end_ts is not None:
-        return await fetch_data_range_async(table, start_ts, end_ts, chunk_size)
-
-    if page_size is None:
-        page_size = 1000
 
     own_client = False
     if client is None:
