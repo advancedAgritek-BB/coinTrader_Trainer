@@ -26,29 +26,55 @@ def _get_client() -> Client:
 
 
 @retry(wait=wait_exponential(multiplier=1, min=1, max=10), stop=stop_after_attempt(5))
-def _fetch_logs(client: Client, start_ts: datetime, end_ts: datetime) -> list[dict]:
+def _fetch_logs(
+    client: Client,
+    start_ts: datetime,
+    end_ts: datetime,
+    *,
+    symbol: Optional[str] = None,
+) -> list[dict]:
     """Fetch rows from the trade_logs table with retry."""
-    response = (
+    query = (
         client.table("trade_logs")
         .select("*")
         .gte("timestamp", start_ts.isoformat())
         .lt("timestamp", end_ts.isoformat())
-        .execute()
     )
+    if symbol is not None:
+        query = query.eq("symbol", symbol)
+    response = query.execute()
     return response.data
 
 
-def fetch_trade_logs(start_ts: datetime, end_ts: datetime) -> pd.DataFrame:
-    """Return trade logs between two timestamps as a DataFrame."""
+def fetch_trade_logs(
+    start_ts: datetime,
+    end_ts: datetime,
+    *,
+    symbol: Optional[str] = None,
+    cache_file: Optional[str] = None,
+) -> pd.DataFrame:
+    """Return trade logs between two timestamps as a DataFrame.
+
+    When ``cache_file`` is provided and exists, the Parquet file is loaded
+    instead of querying Supabase. Otherwise rows are fetched and optionally
+    written to ``cache_file``.
+    """
+
+    if cache_file and os.path.exists(cache_file):
+        return pd.read_parquet(cache_file)
+
     client = _get_client()
-    rows = _fetch_logs(client, start_ts, end_ts)
+    rows = _fetch_logs(client, start_ts, end_ts, symbol=symbol)
     df = pd.DataFrame(rows)
     for col in df.columns:
         df[col] = pd.to_numeric(df[col], errors="ignore")
+
+    if cache_file:
+        df.to_parquet(cache_file)
+
     return df
 
 
-async def fetch_all_rows_async(
 async def fetch_table_async(
     table: str,
     start_ts: Optional[str] = None,
@@ -58,7 +84,6 @@ async def fetch_table_async(
     page_size: Optional[int] = None,
     params: Optional[Dict[str, str]] = None,
     client: Optional[httpx.AsyncClient] = None,
-    chunk_size: int = 1000,
 ) -> pd.DataFrame:
     """Fetch rows from ``table`` asynchronously.
 
@@ -136,6 +161,29 @@ async def fetch_table_async(
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
 
+async def fetch_all_rows_async(
+    table: str,
+    start_ts: Optional[str] = None,
+    end_ts: Optional[str] = None,
+    *,
+    chunk_size: int = 1000,
+    page_size: Optional[int] = None,
+    params: Optional[Dict[str, str]] = None,
+    client: Optional[httpx.AsyncClient] = None,
+) -> pd.DataFrame:
+    """Backward compatible wrapper for ``fetch_table_async``."""
+
+    return await fetch_table_async(
+        table,
+        start_ts=start_ts,
+        end_ts=end_ts,
+        chunk_size=chunk_size,
+        page_size=page_size,
+        params=params,
+        client=client,
+    )
+
+
 async def fetch_data_async(
     table: str,
     start_ts: str,
@@ -143,12 +191,11 @@ async def fetch_data_async(
     *,
     chunk_size: int = 1000,
 ) -> pd.DataFrame:
-    """Backward compatible wrapper for ``fetch_data_range_async``."""
-    chunk_size: int = 1000,
-) -> pd.DataFrame:
     """Backward compatible wrapper for fetching rows in a date range."""
 
     return await fetch_data_range_async(table, start_ts, end_ts, chunk_size)
+
+
 async def _fetch_chunks(
     client: httpx.AsyncClient,
     endpoint: str,
