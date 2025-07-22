@@ -78,3 +78,27 @@ class ModelRegistry:
     def approve(self, model_id: int) -> None:
         """Mark a model row as approved."""
         self.supabase.table("models").update({"approved": True}).eq("id", model_id).execute()
+
+    def list_models(self, name: str, tag_filter: Optional[dict] = None) -> list[ModelEntry]:
+        """Return all models matching ``name`` and optional tag filters.
+
+        Parameters
+        ----------
+        name : str
+            Model family name to filter on.
+        tag_filter : dict, optional
+            Mapping of JSON tag keys to desired values. Each key/value pair
+            is added to the query using the ``tags->`` syntax.
+
+        Returns
+        -------
+        list[ModelEntry]
+            List of ``ModelEntry`` objects ordered by newest first.
+        """
+
+        query = self.supabase.table("models").select("*").eq("name", name)
+        if tag_filter:
+            for key, value in tag_filter.items():
+                query = query.eq(f"tags->>{key}", value)
+        res = query.order("created_at", desc=True).execute()
+        return [ModelEntry(**row) for row in res.data]

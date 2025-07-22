@@ -50,12 +50,19 @@ def fetch_trade_logs(start_ts: datetime, end_ts: datetime) -> pd.DataFrame:
 
 async def fetch_data_async(
     table: str,
+    start_ts: Optional[str] = None,
+    end_ts: Optional[str] = None,
     *,
     page_size: int = 1000,
     params: Optional[Dict[str, str]] = None,
     client: Optional[httpx.AsyncClient] = None,
+    chunk_size: int = 1000,
 ) -> pd.DataFrame:
-    """Fetch all rows from ``table`` asynchronously handling pagination.
+    """Fetch rows from ``table`` asynchronously.
+
+    When ``start_ts`` and ``end_ts`` are provided rows are fetched in
+    ``chunk_size`` batches between the timestamps. Otherwise the entire table
+    is retrieved in pages of ``page_size``.
 
     Parameters
     ----------
@@ -75,6 +82,9 @@ async def fetch_data_async(
     pd.DataFrame
         DataFrame containing all retrieved rows.
     """
+
+    if start_ts is not None and end_ts is not None:
+        return await fetch_data_range_async(table, start_ts, end_ts, chunk_size)
 
     own_client = False
     if client is None:
