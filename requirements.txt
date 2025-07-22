@@ -7,3 +7,5 @@ scikit-learn
 supabase
 tenacity
 httpx
+joblib
+jsonschema

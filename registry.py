@@ -3,7 +3,8 @@ from __future__ import annotations
 
 import hashlib
 import io
-import pickle
+import joblib
+from tenacity import retry, wait_exponential, stop_after_attempt
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple
 
@@ -32,6 +33,7 @@ class ModelRegistry:
     def _hash_bytes(self, data: bytes) -> str:
         return hashlib.sha256(data).hexdigest()
 
+    @retry(wait=wait_exponential(multiplier=1, min=1, max=10), stop=stop_after_attempt(5))
     def upload(self, model_obj: Any, name: str, metrics: Dict[str, Any]) -> ModelEntry:
         """Serialize and upload ``model_obj``.
 
@@ -44,7 +46,9 @@ class ModelRegistry:
         metrics:
             Dictionary of evaluation metrics.
         """
-        payload = pickle.dumps(model_obj)
+        buffer = io.BytesIO()
+        joblib.dump(model_obj, buffer)
+        payload = buffer.getvalue()
         digest = self._hash_bytes(payload)
         path = f"{name}/{digest}.pkl"
 
@@ -72,7 +76,7 @@ class ModelRegistry:
             return None
         row = ModelEntry(**res.data[0])
         file_bytes = self.supabase.storage.from_(self.bucket).download(row.file_path)
-        model = pickle.loads(file_bytes)
+        model = joblib.load(io.BytesIO(file_bytes))
         return model, row
 
     def approve(self, model_id: int) -> None:
