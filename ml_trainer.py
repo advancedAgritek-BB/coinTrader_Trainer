@@ -1,3 +1,5 @@
+"""Command line interface for running coinTrader training tasks."""
+
 import argparse
 import yaml
 import numpy as np
@@ -10,10 +12,24 @@ TRAINERS = {
 }
 
 def load_cfg(path: str) -> dict:
+    """Load configuration from a YAML file.
+
+    Parameters
+    ----------
+    path : str
+        Path to a ``.yaml`` or ``.yml`` configuration file.
+
+    Returns
+    -------
+    dict
+        Parsed configuration dictionary.  If the file is empty an empty
+        dictionary is returned.
+    """
     with open(path, "r") as f:
         return yaml.safe_load(f) or {}
 
 def _make_dummy_data(n: int = 200) -> tuple[pd.DataFrame, pd.Series]:
+    """Generate a small synthetic dataset for demonstration purposes."""
     rng = np.random.default_rng(0)
     df = pd.DataFrame({
         "price": rng.random(n) * 100,
@@ -25,6 +41,7 @@ def _make_dummy_data(n: int = 200) -> tuple[pd.DataFrame, pd.Series]:
     return X, y
 
 def main() -> None:
+    """Entry point for the ``coinTrainer`` command line interface."""
     parser = argparse.ArgumentParser(description="coinTrader trainer CLI")
     sub = parser.add_subparsers(dest="command", required=True)
 

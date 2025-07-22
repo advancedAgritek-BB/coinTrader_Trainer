@@ -1,3 +1,5 @@
+"""Shared pytest fixtures for test suite."""
+
 import numpy as np
 import pandas as pd
 import pytest

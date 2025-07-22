@@ -1,3 +1,5 @@
+"""Tests for ``fetch_data_range_async`` pagination."""
+
 import os
 import sys
 import pandas as pd
@@ -36,6 +38,10 @@ async def test_fetch_data_async_pagination(monkeypatch):
 
     df = await fetch_data_range_async(
         "trade_logs", "start", "end", chunk_size=chunk_size
+        "trade_logs",
+        "start",
+        "end",
+        chunk_size=chunk_size,
     )
 
     expected = pd.concat([pd.DataFrame(p) for p in pages], ignore_index=True)
