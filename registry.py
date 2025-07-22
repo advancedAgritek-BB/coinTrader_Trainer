@@ -30,10 +30,7 @@ class ModelEntry:
 
 METRICS_SCHEMA = {
     "type": "object",
-    "properties": {
-        "sharpe": {"type": "number"},
-    },
-    "required": ["sharpe"],
+    "additionalProperties": {"type": "number"},
 }
 
 
@@ -75,7 +72,6 @@ class ModelRegistry:
         data = self.supabase.table("models").insert(row).execute().data[0]
         return ModelEntry(**data)
 
-    def upload(self, model_obj: Any, name: str, metrics: Dict[str, Any]) -> ModelEntry:
     def upload(
         self,
         model_obj: Any,
@@ -150,32 +146,11 @@ class ModelRegistry:
         self, *, tag: Optional[str] = None, approved: Optional[bool] = None
     ) -> list[ModelEntry]:
         """Return models optionally filtered by tag and approval."""
+
         query = self.supabase.table("models").select("*")
         if approved is not None:
             query = query.eq("approved", approved)
         if tag is not None:
             query = query.contains("tags", [tag])
         res = query.execute()
-    def list_models(self, name: str, tag_filter: Optional[dict] = None) -> list[ModelEntry]:
-        """Return all models matching ``name`` and optional tag filters.
-
-        Parameters
-        ----------
-        name : str
-            Model family name to filter on.
-        tag_filter : dict, optional
-            Mapping of JSON tag keys to desired values. Each key/value pair
-            is added to the query using the ``tags->`` syntax.
-
-        Returns
-        -------
-        list[ModelEntry]
-            List of ``ModelEntry`` objects ordered by newest first.
-        """
-
-        query = self.supabase.table("models").select("*").eq("name", name)
-        if tag_filter:
-            for key, value in tag_filter.items():
-                query = query.eq(f"tags->>{key}", value)
-        res = query.order("created_at", desc=True).execute()
         return [ModelEntry(**row) for row in res.data]

@@ -4,11 +4,9 @@ from __future__ import annotations
 
 import os
 from datetime import datetime
-from typing import Optional, Dict
-from typing import AsyncGenerator
+from typing import Optional, Dict, AsyncGenerator
 
 import httpx
-
 import pandas as pd
 from supabase import create_client, Client
 from tenacity import retry, wait_exponential, stop_after_attempt
@@ -48,8 +46,7 @@ def fetch_trade_logs(start_ts: datetime, end_ts: datetime) -> pd.DataFrame:
     return df
 
 
-async def fetch_all_rows_async(
-async def fetch_table_async(
+async def fetch_data_async(
     table: str,
     start_ts: Optional[str] = None,
     end_ts: Optional[str] = None,
@@ -58,35 +55,12 @@ async def fetch_table_async(
     page_size: Optional[int] = None,
     params: Optional[Dict[str, str]] = None,
     client: Optional[httpx.AsyncClient] = None,
-    chunk_size: int = 1000,
 ) -> pd.DataFrame:
     """Fetch rows from ``table`` asynchronously.
 
-    When ``start_ts`` and ``end_ts`` are provided rows are fetched in
-    ``chunk_size`` batches between the timestamps. Otherwise the entire table
-    is retrieved in pages of ``page_size``.
-
-    Parameters
-    ----------
-    table : str
-        Table name to query from Supabase REST API.
-    start_ts, end_ts : str, optional
-        When provided, fetch rows between these timestamps in ``chunk_size`` batches.
-    chunk_size : int, optional
-        Batch size used when ``start_ts`` and ``end_ts`` are specified. Defaults to ``1000``.
-    page_size : int, optional
-        Number of rows per request when ``start_ts``/``end_ts`` are omitted. Defaults to ``1000``.
-    params : dict, optional
-        Additional query parameters added to the request. ``select`` defaults
-        to ``"*"``.
-    client : httpx.AsyncClient, optional
-        Client instance preconfigured with base URL and auth headers. When not
-        provided one is created from ``SUPABASE_URL`` and ``SUPABASE_KEY``.
-
-    Returns
-    -------
-    pd.DataFrame
-        DataFrame containing all retrieved rows.
+    When ``start_ts`` and ``end_ts`` are provided rows are fetched in ``chunk_size``
+    batches between the timestamps. Otherwise the entire table is retrieved in
+    pages of ``page_size``.
     """
 
     if start_ts is not None and end_ts is not None:
@@ -136,19 +110,6 @@ async def fetch_table_async(
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
 
-async def fetch_data_async(
-    table: str,
-    start_ts: str,
-    end_ts: str,
-    *,
-    chunk_size: int = 1000,
-) -> pd.DataFrame:
-    """Backward compatible wrapper for ``fetch_data_range_async``."""
-    chunk_size: int = 1000,
-) -> pd.DataFrame:
-    """Backward compatible wrapper for fetching rows in a date range."""
-
-    return await fetch_data_range_async(table, start_ts, end_ts, chunk_size)
 async def _fetch_chunks(
     client: httpx.AsyncClient,
     endpoint: str,
@@ -184,11 +145,7 @@ async def fetch_data_range_async(
     end_ts: str,
     chunk_size: int = 1000,
 ) -> pd.DataFrame:
-    """Fetch ``table`` rows between ``start_ts`` and ``end_ts`` asynchronously.
-
-    Data are retrieved in ``chunk_size`` batches and concatenated into a single
-    ``DataFrame``. Numeric columns are coerced to numbers when possible.
-    """
+    """Fetch ``table`` rows between ``start_ts`` and ``end_ts`` asynchronously."""
 
     url = os.environ.get("SUPABASE_URL")
     key = os.environ.get("SUPABASE_KEY")
@@ -202,9 +159,7 @@ async def fetch_data_range_async(
 
     chunks: list[pd.DataFrame] = []
     async with httpx.AsyncClient(headers=headers, timeout=None) as client:
-        async for chunk in _fetch_chunks(
-            client, endpoint, start_ts, end_ts, chunk_size
-        ):
+        async for chunk in _fetch_chunks(client, endpoint, start_ts, end_ts, chunk_size):
             chunks.append(chunk)
 
     if not chunks:
