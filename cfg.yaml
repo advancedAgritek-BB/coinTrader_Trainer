@@ -1,0 +1,10 @@
+regime_lgbm:
+  objective: binary
+  metric: binary_logloss
+  learning_rate: 0.1
+  num_boost_round: 50
+  early_stopping_rounds: 10
+  num_leaves: 31
+  feature_fraction: 0.9
+  bagging_fraction: 0.8
+  bagging_freq: 5
