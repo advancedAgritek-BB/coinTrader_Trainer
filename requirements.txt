@@ -1,3 +1,5 @@
+pandas
+numpy
 numpy
 pandas
 lightgbm
