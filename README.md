@@ -37,6 +37,31 @@ Modules can then be imported as normal.  For example:
 from coinTrader_Trainer import data_loader
 ```
 
+## GPU Setup
+
+LightGBM wheels from PyPI do not include GPU support. Build from source and
+enable the GPU backend:
+
+```bash
+git clone --recursive https://github.com/microsoft/LightGBM
+cd LightGBM
+mkdir build && cd build
+cmake .. -DUSE_GPU=1
+make -j$(nproc)
+cd ../python-package
+python setup.py install --precompile
+```
+
+See the [GPU tutorial](https://lightgbm.readthedocs.io/en/latest/GPU-Tutorial.html)
+for full instructions.  For an AMD Radeon RX 7900 TX install ROCm or the
+appropriate OpenCL drivers so the GPU is recognized by `rocminfo` or `clinfo`.
+
+Once LightGBM is built with GPU support you can train using the CLI:
+
+```bash
+python ml_trainer.py train regime --use-gpu
+```
+
 ## Running the CLI
 
 Model training can be launched via the ``ml_trainer.py`` command line
