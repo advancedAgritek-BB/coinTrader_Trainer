@@ -37,6 +37,25 @@ Modules can then be imported as normal.  For example:
 from coinTrader_Trainer import data_loader
 ```
 
+### Async Data Fetching
+
+`data_loader` now provides a `fetch_data_async` coroutine for retrieving trade
+logs without blocking the event loop.  It mirrors `fetch_trade_logs` but must be
+awaited:
+
+```python
+import asyncio
+from datetime import datetime, timedelta
+from coinTrader_Trainer.data_loader import fetch_data_async
+
+end = datetime.utcnow()
+start = end - timedelta(days=1)
+df = asyncio.run(fetch_data_async(start, end))
+```
+
+Because the function is asynchronous, callers must run it in an `asyncio`
+event loop.  Inside existing async code simply use ``await fetch_data_async(...)``.
+
 ## GPU Setup
 
 LightGBM wheels from PyPI do not include GPU support. Build from source and
