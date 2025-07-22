@@ -1,3 +1,5 @@
+"""Unit tests for the LightGBM regime trainer."""
+
 import os
 import sys
 import numpy as np

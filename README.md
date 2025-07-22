@@ -40,7 +40,8 @@ from coinTrader_Trainer import data_loader
 ### Async Data Fetching
 
 `data_loader` now provides asynchronous helpers for retrieving trade logs
-without blocking the event loop. `fetch_data_async` pages through a table while
+without blocking the event loop. `fetch_all_rows_async` pages through a table while
+without blocking the event loop. `fetch_table_async` pages through a table while
 `fetch_data_range_async` fetches rows between two timestamps. Both functions
 return a ``pandas.DataFrame`` and must be awaited:
 
@@ -57,7 +58,7 @@ df = asyncio.run(
 ```
 
 Because the functions are asynchronous, callers must run them in an `asyncio`
-event loop.  Inside existing async code simply use ``await fetch_data_async(...)``.
+event loop.  Inside existing async code simply use ``await fetch_data_range_async(...)``.
 
 ## GPU Setup
 

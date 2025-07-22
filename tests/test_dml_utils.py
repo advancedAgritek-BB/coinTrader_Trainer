@@ -1,3 +1,5 @@
+"""Tests for DirectML device detection helpers."""
+
 import os
 import sys
 import types
