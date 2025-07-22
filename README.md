@@ -18,6 +18,9 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
+If you update the repository at a later date, run the installation
+command again so new dependencies such as ``pyyaml`` are installed.
+
 If you prefer to install packages individually:
 
 ```bash
