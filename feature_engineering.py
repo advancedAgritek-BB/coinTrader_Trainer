@@ -1,8 +1,11 @@
+"""Feature generation utilities used by coinTrader models."""
+
 import pandas as pd
 import numpy as np
 
 
 def _rsi(series: pd.Series, period: int = 14) -> pd.Series:
+    """Return the Relative Strength Index for ``series``."""
     delta = series.diff()
     gain = delta.clip(lower=0)
     loss = -delta.clip(upper=0)
@@ -14,6 +17,7 @@ def _rsi(series: pd.Series, period: int = 14) -> pd.Series:
 
 
 def _atr(df: pd.DataFrame, period: int = 3) -> pd.Series:
+    """Return the Average True Range for ``df``."""
     high = df['high']
     low = df['low']
     close = df['price'].shift()
