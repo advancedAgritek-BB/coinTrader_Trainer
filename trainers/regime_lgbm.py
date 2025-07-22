@@ -1,3 +1,5 @@
+"""LightGBM trainer for predicting trading regimes."""
+
 import numpy as np
 import pandas as pd
 import lightgbm as lgb

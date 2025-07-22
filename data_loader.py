@@ -1,3 +1,5 @@
+"""Async data loading utilities for Supabase-backed datasets."""
+
 from __future__ import annotations
 
 import os
