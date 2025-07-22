@@ -2,6 +2,10 @@
 from __future__ import annotations
 
 from typing import Any
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 import logging
 
@@ -21,6 +25,10 @@ def get_dml_device() -> Any:
         import torch_directml  # type: ignore
 
         device = torch_directml.device()
+        logger.info("Using DirectML device")
+        return device
+    except Exception:
+        logger.warning("DirectML not available, falling back to CPU")
         logger.info("Selected DirectML device: %s", device)
         return device
     except Exception as exc:  # pragma: no cover - best-effort fallback
@@ -29,5 +37,7 @@ def get_dml_device() -> Any:
             import torch  # type: ignore
 
             return torch.device("cpu")
+        except Exception:
+            logger.warning("PyTorch not installed, returning 'cpu' string")
         except Exception:  # pragma: no cover - PyTorch missing
             return "cpu"

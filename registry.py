@@ -15,6 +15,10 @@ from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple
 
 import joblib
+from dataclasses import dataclass
+from typing import Any, Dict, Optional, Tuple
+
+import joblib
 from jsonschema import validate
 import joblib
 from tenacity import retry, wait_exponential, stop_after_attempt
@@ -43,6 +47,8 @@ class ModelEntry:
 # Require at least one numeric metric
 METRICS_SCHEMA = {
     "type": "object",
+    "properties": {"sharpe": {"type": "number"}},
+    "required": ["sharpe"],
     "patternProperties": {"^.+$": {"type": "number"}},
     "minProperties": 1,
     "additionalProperties": {"type": "number"},
@@ -61,6 +67,7 @@ class ModelRegistry:
 
     @retry(wait=wait_exponential(multiplier=1, min=1, max=10), stop=stop_after_attempt(5))
     def upload_bytes(self, payload: bytes, name: str, metrics: Dict[str, Any]) -> ModelEntry:
+        """Upload raw ``payload`` bytes as a model artifact."""
         """Upload raw byte payload as a model artifact."""
         """Upload raw payload bytes and metadata."""
         validate(instance=metrics, schema=METRICS_SCHEMA)
@@ -101,6 +108,8 @@ class ModelRegistry:
         metrics: Dict[str, Any],
         tags: Optional[dict] = None,
     ) -> ModelEntry:
+        """Serialize and upload ``model_obj``."""
+        if not isinstance(metrics, dict) or not all(isinstance(v, (int, float)) for v in metrics.values()):
         """Serialize and upload ``model_obj`` with ``metrics``."""
         if not isinstance(metrics, dict):
             raise ValueError("metrics must be a dict")
@@ -154,6 +163,9 @@ class ModelRegistry:
 
         buffer = io.BytesIO()
         joblib.dump(model_obj, buffer)
+        payload = buffer.getvalue()
+
+        digest = self._hash_bytes(payload)
         data_bytes = buffer.getvalue()
         digest = self._hash_bytes(data_bytes)
         path = f"{name}/{digest}.pkl"
@@ -192,6 +204,7 @@ class ModelRegistry:
             "id", model_id
         ).execute()
 
+    def list_models(self, *, tag: Optional[str] = None, approved: Optional[bool] = None) -> list[ModelEntry]:
     def list_models(self, name: str, tag_filter: Optional[dict] = None) -> list[ModelEntry]:
         """Return all models matching ``name`` and optional tag filters."""
     def list_models(
