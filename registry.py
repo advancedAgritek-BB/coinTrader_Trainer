@@ -11,6 +11,11 @@ from __future__ import annotations
 
 import hashlib
 import io
+from dataclasses import dataclass
+from typing import Any, Dict, Optional, Tuple
+
+import joblib
+from jsonschema import validate
 import joblib
 from tenacity import retry, wait_exponential, stop_after_attempt
 import pickle
@@ -35,14 +40,17 @@ class ModelEntry:
     tags: Optional[dict] = None
 
 
+# Require at least one numeric metric
 METRICS_SCHEMA = {
     "type": "object",
+    "patternProperties": {"^.+$": {"type": "number"}},
+    "minProperties": 1,
     "additionalProperties": {"type": "number"},
 }
 
 
 class ModelRegistry:
-    """Registry for ML models backed by Supabase."""
+    """Registry for ML models stored in Supabase."""
 
     def __init__(self, url: str, key: str, bucket: str = "models") -> None:
         self.supabase: Client = create_client(url, key)
@@ -53,6 +61,7 @@ class ModelRegistry:
 
     @retry(wait=wait_exponential(multiplier=1, min=1, max=10), stop=stop_after_attempt(5))
     def upload_bytes(self, payload: bytes, name: str, metrics: Dict[str, Any]) -> ModelEntry:
+        """Upload raw byte payload as a model artifact."""
         """Upload raw payload bytes and metadata."""
         validate(instance=metrics, schema=METRICS_SCHEMA)
     @retry(
@@ -92,6 +101,22 @@ class ModelRegistry:
         metrics: Dict[str, Any],
         tags: Optional[dict] = None,
     ) -> ModelEntry:
+        """Serialize and upload ``model_obj`` with ``metrics``."""
+        if not isinstance(metrics, dict):
+            raise ValueError("metrics must be a dict")
+        if not all(isinstance(v, (int, float)) for v in metrics.values()):
+            raise ValueError("metrics must be a dict of numeric values")
+
+        validate(instance=metrics, schema=METRICS_SCHEMA)
+
+        buffer = io.BytesIO()
+        joblib.dump(model_obj, buffer)
+        payload = buffer.getvalue()
+        digest = self._hash_bytes(payload)
+        path = f"{name}/{digest}.pkl"
+
+        self.supabase.storage.from_(self.bucket).upload(path, io.BytesIO(payload))
+
         """Serialize ``model_obj`` and upload it."""
         if not isinstance(metrics, dict) or not all(isinstance(v, (int, float)) for v in metrics.values()):
             raise ValueError("metrics must be a dict of numeric values")
@@ -167,6 +192,8 @@ class ModelRegistry:
             "id", model_id
         ).execute()
 
+    def list_models(self, name: str, tag_filter: Optional[dict] = None) -> list[ModelEntry]:
+        """Return all models matching ``name`` and optional tag filters."""
     def list_models(
         self, *, tag: Optional[str] = None, approved: Optional[bool] = None
     ) -> list[ModelEntry]:

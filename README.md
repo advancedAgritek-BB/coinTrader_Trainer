@@ -197,3 +197,10 @@ The job defined in
 [`\.github/workflows/train.yml`](\.github/workflows/train.yml) executes at
 3\:00 UTC on a macOS runner.  To use it, set the repository secrets
 `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` and `TELEGRAM_TOKEN`.
+
+## Automatic Model Uploads
+
+The `train_regime_lgbm` function uploads the trained model to Supabase
+Storage when `SUPABASE_URL` and either `SUPABASE_SERVICE_KEY` or
+`SUPABASE_KEY` are present in the environment. Uploaded artifacts are
+stored in the `models` bucket and recorded in the `models` table.

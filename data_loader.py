@@ -10,7 +10,7 @@ import pytz
 
 import httpx
 import pandas as pd
-from supabase import create_client, Client
+from supabase import Client, create_client
 from tenacity import retry, wait_exponential, stop_after_attempt
 
 
@@ -25,6 +25,7 @@ def _get_client() -> Client:
 
 @retry(wait=wait_exponential(multiplier=1, min=1, max=10), stop=stop_after_attempt(5))
 def _fetch_logs(client: Client, start_ts: datetime, end_ts: datetime) -> list[dict]:
+    """Fetch rows from ``trade_logs`` with retries."""
     """Fetch rows from the ``trade_logs`` table with retry."""
     response = (
 def _fetch_logs(
@@ -68,6 +69,7 @@ def _fetch_logs(
 
 
 def fetch_trade_logs(start_ts: datetime, end_ts: datetime) -> pd.DataFrame:
+    """Return trade logs between ``start_ts`` and ``end_ts`` as a DataFrame."""
     """Return trade logs between two timestamps as a ``DataFrame``."""
 def fetch_trade_logs(
     start_ts: datetime,
