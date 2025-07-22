@@ -30,6 +30,8 @@ def _atr(df: pd.DataFrame, period: int = 3) -> pd.Series:
     tr1 = high - low
     tr2 = (high - close).abs()
     tr3 = (low - close).abs()
+    tr = np.maximum.reduce([tr1, tr2, tr3])
+    tr = pd.Series(tr, index=df.index)
     tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
     atr = tr.rolling(window=period, min_periods=period).mean()
     return atr
@@ -38,6 +40,14 @@ def _atr(df: pd.DataFrame, period: int = 3) -> pd.Series:
 def make_features(
     df: pd.DataFrame,
     *,
+    ema_short_period: int = 12,
+    ema_long_period: int = 26,
+    rsi_period: int = 14,
+    volatility_window: int = 20,
+    atr_window: int = 3,
+    use_gpu: bool = False,
+) -> pd.DataFrame:
+    """Generate features for trading models.
     rsi_period: int = 14,
     vol_window: int = 20,
     atr_period: int = 3,
@@ -53,6 +63,20 @@ def make_features(
     df : pd.DataFrame
         Data frame containing at least ``ts`` and ``price`` columns and
         ``high`` and ``low`` for ATR computation.
+    ema_short_period : int, optional
+        Period for the short-term exponential moving average.
+    ema_long_period : int, optional
+        Period for the long-term exponential moving average.
+    rsi_period : int, optional
+        Window for computing the RSI indicator.
+    volatility_window : int, optional
+        Window for computing the rolling volatility of log returns.
+    atr_window : int, optional
+        Window for computing the Average True Range.
+    use_gpu : bool, optional
+        If ``True``, perform a round-trip through ``cudf`` to allow GPU
+        acceleration. Only ``cudf.from_pandas`` and ``to_pandas`` are used
+        so a stub ``cudf`` module can be supplied for testing.
     rsi_period : int, optional
         Period for the RSI indicator. Defaults to ``14``.
     vol_window : int, optional
@@ -71,6 +95,10 @@ def make_features(
     Returns
     -------
     pd.DataFrame
+        Data frame sorted by ``ts`` with additional feature columns:
+        ``ema_short``, ``ema_long``, ``macd`` and parameterized columns
+        for RSI, volatility and ATR. Missing values are forward-filled and
+        any remaining ``NaN`` rows dropped.
         Processed DataFrame with technical indicator columns added.
     """
 
@@ -78,6 +106,12 @@ def make_features(
 
     if 'ts' not in df.columns or 'price' not in df.columns:
         raise ValueError("DataFrame must contain 'ts' and 'price' columns")
+
+    if use_gpu:
+        import cudf
+
+        gdf = cudf.from_pandas(df)
+        df = gdf.to_pandas()
 
     df = df.sort_values('ts').reset_index(drop=True).copy()
 
@@ -95,6 +129,24 @@ def make_features(
         window=vol_window, min_periods=vol_window
     ).std()
 
+    # Exponential moving averages and MACD
+    df['ema_short'] = df['price'].ewm(span=ema_short_period, adjust=False).mean()
+    df['ema_long'] = df['price'].ewm(span=ema_long_period, adjust=False).mean()
+    df['macd'] = df['ema_short'] - df['ema_long']
+
+    rsi_col = f'rsi{rsi_period}'
+    df[rsi_col] = _rsi(df['price'], rsi_period)
+
+    vol_col = f'volatility{volatility_window}'
+    df[vol_col] = df['log_ret'].rolling(
+        window=volatility_window, min_periods=volatility_window
+    ).std()
+
+    atr_col = f'atr{atr_window}'
+    if {'high', 'low'}.issubset(df.columns):
+        df[atr_col] = _atr(df, atr_window)
+    else:
+        df[atr_col] = np.nan
     if {'high', 'low'}.issubset(frame.columns):
         frame[f'atr{atr_period}'] = _atr(frame, atr_period)
     else:
