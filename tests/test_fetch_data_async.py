@@ -1,5 +1,3 @@
-"""Tests for ``fetch_data_range_async`` pagination."""
-
 import os
 import sys
 import pandas as pd
@@ -8,6 +6,7 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from data_loader import fetch_data_async, fetch_data_range_async
+from data_loader import fetch_data_async
 
 
 @pytest.mark.asyncio
@@ -20,14 +19,12 @@ async def test_fetch_data_async_pagination(monkeypatch):
     ]
 
     def handler(request: httpx.Request) -> httpx.Response:
-        rng = request.headers.get("Range", "0-0").split("=")[-1]
-        start = int(rng.split("-")[0])
-        idx = start // chunk_size
+        offset = int(request.url.params.get("offset", "0"))
+        idx = offset // chunk_size
         data = pages[idx] if idx < len(pages) else []
         return httpx.Response(200, json=data)
 
     transport = httpx.MockTransport(handler)
-
     real_client = httpx.AsyncClient
 
     def fake_client(**kwargs):
@@ -37,13 +34,15 @@ async def test_fetch_data_async_pagination(monkeypatch):
     monkeypatch.setenv("SUPABASE_URL", "https://sb.example.com")
     monkeypatch.setenv("SUPABASE_KEY", "test")
 
-    df = await fetch_data_async("trade_logs", page_size=chunk_size)
     df = await fetch_data_range_async(
         "trade_logs",
         "start",
         "end",
         chunk_size=chunk_size,
+        "trade_logs", "start", "end", chunk_size=chunk_size
     )
+    df = await fetch_data_range_async("trade_logs", "start", "end", chunk_size=chunk_size)
+    df = await fetch_data_async("trade_logs", page_size=chunk_size)
 
     expected = pd.concat([pd.DataFrame(p) for p in pages], ignore_index=True)
     pd.testing.assert_frame_equal(df, expected)

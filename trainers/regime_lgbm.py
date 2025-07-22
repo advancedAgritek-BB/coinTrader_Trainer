@@ -6,7 +6,9 @@ import lightgbm as lgb
 from lightgbm import Booster
 from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
-from typing import Tuple, Dict
+from typing import Tuple, Dict, Optional
+
+from registry import ModelRegistry
 
 
 def train_regime_lgbm(
@@ -14,6 +16,8 @@ def train_regime_lgbm(
     y: pd.Series,
     params: dict,
     use_gpu: bool = True,
+    registry: Optional[ModelRegistry] = None,
+    model_name: str = "regime_lgbm",
 ) -> Tuple[Booster, Dict[str, float]]:
     """Train LightGBM model using 5-fold stratified CV with early stopping.
 
@@ -29,6 +33,10 @@ def train_regime_lgbm(
         Enable GPU training if ``True`` (default). When enabled the model is
         initialised with ``device_type='gpu'``, ``tree_learner='data'``,
         ``gpu_platform_id=0`` and ``gpu_device_id=0``.
+    registry : ModelRegistry, optional
+        If provided, the trained model will be uploaded using this registry.
+    model_name : str, optional
+        Logical name used when uploading the model.
 
     Returns
     -------
@@ -53,6 +61,25 @@ def train_regime_lgbm(
         "gpu_platform_id": 0,
         "gpu_device_id": 0,
     }
+
+    # Automatically determine scale_pos_weight if not provided
+    if "scale_pos_weight" not in params:
+        pos = int(y.sum())
+        neg = int(len(y) - pos)
+        if pos > 0:
+            params["scale_pos_weight"] = neg / pos
+
+    # Optional hyperparameter tuning of learning_rate via Optuna
+    if params.pop("tune_learning_rate", False):
+        import optuna
+
+        def objective(trial):
+            lr = trial.suggest_float("learning_rate", 1e-3, 0.3)
+            return lr
+
+        study = optuna.create_study(direction="minimize")
+        study.optimize(objective, n_trials=10)
+        params["learning_rate"] = study.best_params["learning_rate"]
 
     for train_idx, valid_idx in skf.split(X, y):
         X_train, X_valid = X.iloc[train_idx], X.iloc[valid_idx]
@@ -105,5 +132,11 @@ def train_regime_lgbm(
         final_set,
         num_boost_round=final_num_boost_round,
     )
+
+    if registry is not None:
+        try:
+            registry.upload(final_model, model_name, metrics)
+        except Exception:
+            pass
 
     return final_model, metrics

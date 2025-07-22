@@ -11,3 +11,5 @@ jsonschema
 httpx
 joblib
 jsonschema
+pyarrow
+pytz
