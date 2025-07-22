@@ -24,6 +24,19 @@ If you prefer to install packages individually:
 pip install pandas numpy lightgbm scikit-learn supabase tenacity
 ```
 
+With the new ``src/`` layout install the package in editable mode so
+Python can resolve imports:
+
+```bash
+pip install -e .
+```
+
+Modules can then be imported as normal.  For example:
+
+```python
+from coinTrader_Trainer import data_loader
+```
+
 ## Running the CLI
 
 Model training can be launched via the ``ml_trainer.py`` command line
