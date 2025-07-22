@@ -18,6 +18,14 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
+For GPU-accelerated feature engineering install
+[`cudf`](https://rapids.ai/). The package requires CUDA
+and is not included in ``requirements.txt`` by default:
+
+```bash
+pip install cudf-cu12 --extra-index-url=https://pypi.nvidia.com
+```
+
 If you prefer to install packages individually:
 
 ```bash
@@ -59,6 +67,23 @@ df = asyncio.run(
 
 Because the functions are asynchronous, callers must run them in an `asyncio`
 event loop.  Inside existing async code simply use ``await fetch_data_range_async(...)``.
+
+### Feature Engineering Options
+
+The ``make_features`` function now accepts several parameters to customise the
+technical indicators that are produced:
+
+* ``rsi_period`` – lookback window for the relative strength index (default ``14``)
+* ``atr_period`` – average true range window (default ``3``)
+* ``volatility_period`` – period used to compute log return volatility (default ``20``)
+* ``ema_periods`` – list of exponential moving average periods to generate
+
+GPU acceleration is possible when the `cudf` package is installed.  Pass
+``use_gpu=True`` to ``make_features`` to switch to GPU-backed DataFrame
+operations.
+
+Set ``log_time=True`` to print the total processing time for feature
+generation.
 
 ## GPU Setup
 
