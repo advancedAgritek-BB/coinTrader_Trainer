@@ -26,10 +26,22 @@ param(
     [string]$OpenCLLibrary = ''
 )
 
+# Verify required AMD OpenCL drivers are available
+if (-not (Get-Command clinfo -ErrorAction SilentlyContinue)) {
+    Write-Error "AMD Radeon drivers with OpenCL not detected…"
+    Exit 1
+}
+
+$clinfoOutput = clinfo
+if ($clinfoOutput -notmatch 'Radeon RX 7900 XT') {
+    Write-Error "AMD Radeon drivers with OpenCL not detected…"
+    Exit 1
+}
+
 $env:BOOST_ROOT = $BoostRoot
 
 if (-not (Test-Path $SourceDir)) {
-    git clone --recursive https://github.com/microsoft/LightGBM $SourceDir
+    git clone --recursive https://github.com/microsoft/LightGBM.git --branch v4.5.0 $SourceDir
 }
 
 Push-Location $SourceDir
@@ -44,13 +56,18 @@ $cmakeArgs = @('..', '-DUSE_GPU=1', '-DCMAKE_BUILD_TYPE=Release')
 if ($OpenCLInclude) { $cmakeArgs += "-DOpenCL_INCLUDE_DIR=$OpenCLInclude" }
 if ($OpenCLLibrary) { $cmakeArgs += "-DOpenCL_LIBRARY=$OpenCLLibrary" }
 
-cmake @cmakeArgs
-cmake --build . --config Release
-Pop-Location
+try {
+    cmake @cmakeArgs
+    cmake --build . --config Release
+    Pop-Location
 
-Push-Location 'python-package'
-python setup.py bdist_wheel
-Pop-Location
+    Push-Location 'python-package'
+    python setup.py bdist_wheel
+    Pop-Location
+} catch {
+    Write-Error "Build failed: $_"
+    Exit 1
+}
 
 Pop-Location
 

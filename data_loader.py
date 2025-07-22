@@ -48,6 +48,7 @@ def fetch_trade_logs(start_ts: datetime, end_ts: datetime) -> pd.DataFrame:
     return df
 
 
+async def fetch_all_rows_async(
 async def fetch_table_async(
     table: str,
     start_ts: Optional[str] = None,
@@ -131,6 +132,10 @@ async def fetch_data_async(
     table: str,
     start_ts: str,
     end_ts: str,
+    *,
+    chunk_size: int = 1000,
+) -> pd.DataFrame:
+    """Backward compatible wrapper for ``fetch_data_range_async``."""
     chunk_size: int = 1000,
 ) -> pd.DataFrame:
     """Backward compatible wrapper for fetching rows in a date range."""
