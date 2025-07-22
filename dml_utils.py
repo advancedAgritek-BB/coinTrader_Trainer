@@ -7,14 +7,19 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+import logging
+
+
+logger = logging.getLogger(__name__)
+
 
 def get_dml_device() -> Any:
     """Return a DirectML ``device`` or CPU fallback.
 
     The function attempts to create a ``torch_directml.device`` instance.
-    If the package is not available or any error occurs, a CPU device is
-    returned.  When PyTorch itself is not installed, the string ``"cpu"``
-    is returned.
+    On success the chosen device is logged at ``INFO`` level.  If DirectML
+    is unavailable a warning is logged and a CPU device is returned.  When
+    PyTorch itself is not installed, the string ``"cpu"`` is returned.
     """
     try:
         import torch_directml  # type: ignore
@@ -24,10 +29,15 @@ def get_dml_device() -> Any:
         return device
     except Exception:
         logger.warning("DirectML not available, falling back to CPU")
+        logger.info("Selected DirectML device: %s", device)
+        return device
+    except Exception as exc:  # pragma: no cover - best-effort fallback
+        logger.warning("DirectML unavailable, falling back to CPU: %s", exc)
         try:
-            import torch
+            import torch  # type: ignore
 
             return torch.device("cpu")
         except Exception:
             logger.warning("PyTorch not installed, returning 'cpu' string")
+        except Exception:  # pragma: no cover - PyTorch missing
             return "cpu"

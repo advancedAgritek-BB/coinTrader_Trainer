@@ -5,6 +5,8 @@ import sys
 import numpy as np
 import pandas as pd
 from lightgbm import Booster
+import types
+import lightgbm as lgb
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from trainers.regime_lgbm import train_regime_lgbm
@@ -30,3 +32,98 @@ def test_train_regime_lgbm_returns_model_and_metrics():
     for key in ["accuracy", "f1", "precision_long", "recall_long"]:
         assert key in metrics
         assert isinstance(metrics[key], float)
+
+
+def test_train_regime_lgbm_with_tuning():
+    rng = np.random.default_rng(1)
+    X = pd.DataFrame(rng.normal(size=(20, 5)), columns=[f"f{i}" for i in range(5)])
+    y = pd.Series([0, 1] * 10)
+
+    params = {
+        "objective": "binary",
+        "verbose": -1,
+        "num_boost_round": 10,
+        "early_stopping_rounds": 5,
+    }
+
+    model, metrics = train_regime_lgbm(X, y, params, use_gpu=False, tune=True, n_trials=2)
+
+    assert isinstance(model, Booster)
+    assert isinstance(metrics, dict)
+def _fake_booster():
+    class FakeBooster:
+        best_iteration = 1
+        def predict(self, data, num_iteration=None):
+            return np.zeros(len(data))
+    return FakeBooster()
+
+
+def test_scale_pos_weight_added(monkeypatch):
+    rng = np.random.default_rng(0)
+    X = pd.DataFrame(rng.normal(size=(10, 3)))
+    y = pd.Series([0] * 7 + [1] * 3)
+
+    captured = []
+
+    def fake_train(params, *args, **kwargs):
+        captured.append(params)
+        return _fake_booster()
+
+    monkeypatch.setattr(lgb, "train", fake_train)
+
+    params = {"objective": "binary", "num_boost_round": 5, "early_stopping_rounds": 2}
+    train_regime_lgbm(X, y, params, use_gpu=False)
+
+    expected = (len(y) - y.sum()) / y.sum()
+    assert captured[0]["scale_pos_weight"] == expected
+
+
+def test_optuna_tuning_sets_learning_rate(monkeypatch):
+    rng = np.random.default_rng(0)
+    X = pd.DataFrame(rng.normal(size=(10, 3)))
+    y = pd.Series([0, 1] * 5)
+
+    best_lr = 0.05
+    calls = {}
+
+    class FakeStudy:
+        best_params = {"learning_rate": best_lr}
+        def optimize(self, obj, n_trials=10):
+            calls["optimize"] = True
+
+    def fake_create_study(direction="minimize"):
+        calls["create"] = True
+        return FakeStudy()
+
+    fake_optuna = types.SimpleNamespace(create_study=fake_create_study)
+    monkeypatch.setitem(sys.modules, "optuna", fake_optuna)
+    monkeypatch.setattr(lgb, "train", lambda *a, **k: _fake_booster())
+
+    params = {"objective": "binary", "num_boost_round": 5, "tune_learning_rate": True}
+    train_regime_lgbm(X, y, params, use_gpu=False)
+
+    assert calls.get("create")
+    assert params["learning_rate"] == best_lr
+
+
+def test_model_registry_upload_called(monkeypatch, registry_with_dummy):
+    reg, _ = registry_with_dummy
+
+    rng = np.random.default_rng(0)
+    X = pd.DataFrame(rng.normal(size=(10, 3)))
+    y = pd.Series([0, 1] * 5)
+
+    uploaded = {}
+    def fake_upload(model, name, metrics):
+        uploaded["model"] = model
+        uploaded["metrics"] = metrics
+
+    monkeypatch.setattr(lgb, "train", lambda *a, **k: _fake_booster())
+    monkeypatch.setattr(reg, "upload", fake_upload, raising=False)
+
+    params = {"objective": "binary", "num_boost_round": 5}
+    model, metrics = train_regime_lgbm(X, y, params, use_gpu=False, registry=reg)
+
+    assert uploaded["model"] is model
+    assert uploaded["metrics"] == metrics
+
