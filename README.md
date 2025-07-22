@@ -77,6 +77,28 @@ A typical training run might look like:
 python ml_trainer.py --input data.csv --output model.pkl
 ```
 
+## GPU Training
+
+LightGBM must be built with OpenCL/ROCm support to train on AMD GPUs such
+as a Radeon RX 7900 TX.  Clone the LightGBM repository and build with the
+``USE_GPU`` flag enabled:
+
+```bash
+git clone --recursive https://github.com/microsoft/LightGBM
+cd LightGBM
+mkdir build && cd build
+cmake -DUSE_GPU=1 ..
+make -j$(nproc)
+```
+
+Once installed, enable GPU mode with the ``--use-gpu`` flag when invoking
+``ml_trainer.py``.  Optional ``--gpu-platform-id`` and ``--gpu-device-id``
+can be provided to select a specific OpenCL device.
+
+```bash
+python ml_trainer.py train regime --use-gpu --gpu-device-id 0
+```
+
 ## Running Tests
 
 Tests are executed with ``pytest``.  After installing dependencies,
