@@ -4,6 +4,7 @@ import os
 from datetime import datetime
 from typing import Optional, Dict
 from typing import AsyncGenerator
+import pytz
 
 import httpx
 
@@ -24,25 +25,45 @@ def _get_client() -> Client:
 
 
 @retry(wait=wait_exponential(multiplier=1, min=1, max=10), stop=stop_after_attempt(5))
-def _fetch_logs(client: Client, start_ts: datetime, end_ts: datetime) -> list[dict]:
+def _fetch_logs(
+    client: Client,
+    start_ts: datetime,
+    end_ts: datetime,
+    symbol: Optional[str] = None,
+) -> list[dict]:
     """Fetch rows from the trade_logs table with retry."""
-    response = (
+    start_ts = start_ts.astimezone(pytz.UTC).isoformat()
+    end_ts = end_ts.astimezone(pytz.UTC).isoformat()
+
+    query = (
         client.table("trade_logs")
         .select("*")
-        .gte("timestamp", start_ts.isoformat())
-        .lt("timestamp", end_ts.isoformat())
-        .execute()
+        .gte("timestamp", start_ts)
+        .lt("timestamp", end_ts)
     )
+    if symbol is not None:
+        query = query.eq("symbol", symbol)
+    response = query.execute()
     return response.data
 
 
-def fetch_trade_logs(start_ts: datetime, end_ts: datetime) -> pd.DataFrame:
+def fetch_trade_logs(
+    start_ts: datetime,
+    end_ts: datetime,
+    *,
+    symbol: Optional[str] = None,
+    cache_path: str = "cache.parquet",
+) -> pd.DataFrame:
     """Return trade logs between two timestamps as a DataFrame."""
+    if os.path.exists(cache_path):
+        return pd.read_parquet(cache_path)
+
     client = _get_client()
-    rows = _fetch_logs(client, start_ts, end_ts)
+    rows = _fetch_logs(client, start_ts, end_ts, symbol)
     df = pd.DataFrame(rows)
     for col in df.columns:
         df[col] = pd.to_numeric(df[col], errors="ignore")
+    df.to_parquet(cache_path)
     return df
 
 
