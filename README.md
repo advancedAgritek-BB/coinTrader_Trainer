@@ -41,6 +41,7 @@ from coinTrader_Trainer import data_loader
 
 `data_loader` now provides asynchronous helpers for retrieving trade logs
 without blocking the event loop. `fetch_all_rows_async` pages through a table while
+without blocking the event loop. `fetch_table_async` pages through a table while
 `fetch_data_range_async` fetches rows between two timestamps. Both functions
 return a ``pandas.DataFrame`` and must be awaited:
 

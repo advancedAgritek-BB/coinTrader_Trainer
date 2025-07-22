@@ -3,7 +3,9 @@ lightgbm
 numpy
 pandas
 pytest
+pytest-asyncio
 scikit-learn
 supabase
 tenacity
+jsonschema
 httpx
