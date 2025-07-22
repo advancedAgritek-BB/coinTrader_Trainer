@@ -37,6 +37,16 @@ Modules can then be imported as normal.  For example:
 from coinTrader_Trainer import data_loader
 ```
 
+### Trade Log Fetching and Caching
+
+``fetch_trade_logs`` provides a simple synchronous interface for
+downloading trade logs for a specific trading pair.  Pass UTC ``datetime``
+objects for ``start_ts`` and ``end_ts``—naive timestamps are interpreted as
+UTC.  The optional ``symbol`` argument filters rows to that pair.  When a
+``cache_path`` is supplied the function will read from the Parquet file if
+it exists and write new results back to this location, avoiding repeated
+network requests.
+
 ### Async Data Fetching
 
 `data_loader` now provides asynchronous helpers for retrieving trade logs
