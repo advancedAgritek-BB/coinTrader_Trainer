@@ -44,14 +44,12 @@ def main() -> None:
             raise SystemExit(f"Unknown task: {args.task}")
         trainer_fn, cfg_key = TRAINERS[args.task]
         params = cfg.get(cfg_key, {})
-        if args.use_gpu:
-            params["device_type"] = "gpu"
-            if args.gpu_platform_id is not None:
-                params["gpu_platform_id"] = args.gpu_platform_id
-            if args.gpu_device_id is not None:
-                params["gpu_device_id"] = args.gpu_device_id
+        if args.gpu_platform_id is not None:
+            params["gpu_platform_id"] = args.gpu_platform_id
+        if args.gpu_device_id is not None:
+            params["gpu_device_id"] = args.gpu_device_id
         X, y = _make_dummy_data()
-        model, metrics = trainer_fn(X, y, params)
+        model, metrics = trainer_fn(X, y, params, use_gpu=args.use_gpu)
         print("Training completed. Metrics:")
         for k, v in metrics.items():
             print(f"{k}: {v}")
