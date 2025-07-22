@@ -142,7 +142,7 @@ async def _fetch_chunks(
         offset += chunk_size
 
 
-async def fetch_data_async(
+async def fetch_data_range_async(
     table: str,
     start_ts: str,
     end_ts: str,
