@@ -122,6 +122,18 @@ Once LightGBM is built with GPU support you can train using the CLI:
 python ml_trainer.py train regime --use-gpu
 ```
 
+When `--use-gpu` is supplied, ``ml_trainer.py`` injects default GPU
+settings into the LightGBM parameters automatically.  If you call the
+training code directly you can set the device yourself after loading the
+configuration:
+
+```python
+import yaml
+with open("cfg.yaml") as f:
+    params = yaml.safe_load(f)["regime_lgbm"]
+params.setdefault("device_type", "gpu")
+```
+
 ## Running the CLI
 
 Model training can be launched via the ``ml_trainer.py`` command line
