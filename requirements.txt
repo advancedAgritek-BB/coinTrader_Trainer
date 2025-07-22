@@ -11,3 +11,4 @@ jsonschema
 httpx
 joblib
 jsonschema
+optuna
