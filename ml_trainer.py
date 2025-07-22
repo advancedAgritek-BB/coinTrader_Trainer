@@ -12,7 +12,7 @@ TRAINERS = {
 }
 
 def load_cfg(path: str) -> dict:
-    """Load configuration from a YAML file.
+    """Load configuration from a YAML file and apply defaults.
 
     Parameters
     ----------
@@ -22,11 +22,18 @@ def load_cfg(path: str) -> dict:
     Returns
     -------
     dict
-        Parsed configuration dictionary.  If the file is empty an empty
-        dictionary is returned.
+        Parsed configuration dictionary with defaults applied.  If the file
+        is empty an empty dictionary is returned.
     """
     with open(path, "r") as f:
-        return yaml.safe_load(f) or {}
+        cfg = yaml.safe_load(f) or {}
+
+    # Ensure LightGBM trainer defaults to GPU when not specified in the config
+    regime_cfg = cfg.get("regime_lgbm")
+    if isinstance(regime_cfg, dict):
+        regime_cfg.setdefault("device_type", "gpu")
+
+    return cfg
 
 def _make_dummy_data(n: int = 200) -> tuple[pd.DataFrame, pd.Series]:
     """Generate a small synthetic dataset for demonstration purposes."""

@@ -18,10 +18,20 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
+If you update the repository at a later date, run the installation
+command again so new dependencies such as ``pyyaml`` are installed.
+For GPU-accelerated feature engineering install
+[`cudf`](https://rapids.ai/). The package requires CUDA
+and is not included in ``requirements.txt`` by default:
+
+```bash
+pip install cudf-cu12 --extra-index-url=https://pypi.nvidia.com
+```
+
 If you prefer to install packages individually:
 
 ```bash
-pip install pandas numpy lightgbm scikit-learn supabase tenacity
+pip install pandas numpy lightgbm scikit-learn supabase tenacity pyarrow pytz
 ```
 
 With the new ``src/`` layout install the package in editable mode so
@@ -36,6 +46,16 @@ Modules can then be imported as normal.  For example:
 ```python
 from coinTrader_Trainer import data_loader
 ```
+
+### Trade Log Fetching and Caching
+
+``fetch_trade_logs`` provides a simple synchronous interface for
+downloading trade logs for a specific trading pair.  Pass UTC ``datetime``
+objects for ``start_ts`` and ``end_ts``—naive timestamps are interpreted as
+UTC.  The optional ``symbol`` argument filters rows to that pair.  When a
+``cache_path`` is supplied the function will read from the Parquet file if
+it exists and write new results back to this location, avoiding repeated
+network requests.
 
 ### Async Data Fetching
 
@@ -59,6 +79,23 @@ df = asyncio.run(
 
 Because the functions are asynchronous, callers must run them in an `asyncio`
 event loop.  Inside existing async code simply use ``await fetch_data_range_async(...)``.
+
+### Feature Engineering Options
+
+The ``make_features`` function now accepts several parameters to customise the
+technical indicators that are produced:
+
+* ``rsi_period`` – lookback window for the relative strength index (default ``14``)
+* ``atr_period`` – average true range window (default ``3``)
+* ``volatility_period`` – period used to compute log return volatility (default ``20``)
+* ``ema_periods`` – list of exponential moving average periods to generate
+
+GPU acceleration is possible when the `cudf` package is installed.  Pass
+``use_gpu=True`` to ``make_features`` to switch to GPU-backed DataFrame
+operations.
+
+Set ``log_time=True`` to print the total processing time for feature
+generation.
 
 ## GPU Setup
 
@@ -93,6 +130,18 @@ Once LightGBM is built with GPU support you can train using the CLI:
 
 ```bash
 python ml_trainer.py train regime --use-gpu
+```
+
+When `--use-gpu` is supplied, ``ml_trainer.py`` injects default GPU
+settings into the LightGBM parameters automatically.  If you call the
+training code directly you can set the device yourself after loading the
+configuration:
+
+```python
+import yaml
+with open("cfg.yaml") as f:
+    params = yaml.safe_load(f)["regime_lgbm"]
+params.setdefault("device_type", "gpu")
 ```
 
 ## Running the CLI
