@@ -142,13 +142,17 @@ async def _fetch_chunks(
         offset += chunk_size
 
 
-async def fetch_data_async(
+async def fetch_data_range_async(
     table: str,
     start_ts: str,
     end_ts: str,
     chunk_size: int = 1000,
 ) -> pd.DataFrame:
-    """Fetch table rows asynchronously in chunks and return a DataFrame."""
+    """Fetch ``table`` rows between ``start_ts`` and ``end_ts`` asynchronously.
+
+    Data are retrieved in ``chunk_size`` batches and concatenated into a single
+    ``DataFrame``. Numeric columns are coerced to numbers when possible.
+    """
 
     url = os.environ.get("SUPABASE_URL")
     key = os.environ.get("SUPABASE_KEY")
