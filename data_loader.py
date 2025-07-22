@@ -48,71 +48,13 @@ def fetch_trade_logs(start_ts: datetime, end_ts: datetime) -> pd.DataFrame:
 
 async def fetch_data_async(
     table: str,
-    *,
-    page_size: int = 1000,
-    params: Optional[Dict[str, str]] = None,
-    client: Optional[httpx.AsyncClient] = None,
+    start_ts: str,
+    end_ts: str,
+    chunk_size: int = 1000,
 ) -> pd.DataFrame:
-    """Fetch all rows from ``table`` asynchronously handling pagination.
+    """Backward compatible wrapper for ``fetch_data_range_async``."""
 
-    Parameters
-    ----------
-    table : str
-        Table name to query from Supabase REST API.
-    page_size : int, optional
-        Number of rows per request. Defaults to ``1000``.
-    params : dict, optional
-        Additional query parameters added to the request. ``select`` defaults
-        to ``"*"``.
-    client : httpx.AsyncClient, optional
-        Client instance preconfigured with base URL and auth headers. When not
-        provided one is created from ``SUPABASE_URL`` and ``SUPABASE_KEY``.
-
-    Returns
-    -------
-    pd.DataFrame
-        DataFrame containing all retrieved rows.
-    """
-
-    own_client = False
-    if client is None:
-        url = os.environ.get("SUPABASE_URL")
-        key = os.environ.get("SUPABASE_KEY")
-        if not url or not key:
-            raise ValueError(
-                "SUPABASE_URL and SUPABASE_KEY environment variables must be set"
-            )
-        headers = {"apikey": key, "Authorization": f"Bearer {key}"}
-        client = httpx.AsyncClient(base_url=url, headers=headers)
-        own_client = True
-
-    params = params.copy() if params else {}
-    params.setdefault("select", "*")
-
-    frames: list[pd.DataFrame] = []
-    start = 0
-
-    try:
-        while True:
-            end = start + page_size - 1
-            resp = await client.get(
-                f"/rest/v1/{table}",
-                params=params,
-                headers={"Range-Unit": "items", "Range": f"{start}-{end}"},
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            if not data:
-                break
-            frames.append(pd.DataFrame(data))
-            if len(data) < page_size:
-                break
-            start += page_size
-    finally:
-        if own_client:
-            await client.aclose()
-
-    return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+    return await fetch_data_range_async(table, start_ts, end_ts, chunk_size)
 async def _fetch_chunks(
     client: httpx.AsyncClient,
     endpoint: str,

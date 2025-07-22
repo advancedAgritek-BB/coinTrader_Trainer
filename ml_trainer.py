@@ -1,9 +1,11 @@
 import argparse
+import os
 import yaml
 import numpy as np
 import pandas as pd
 
 from trainers.regime_lgbm import train_regime_lgbm
+from ml_trainer.build_utils import build_and_upload_lightgbm_wheel
 
 TRAINERS = {
     "regime": (train_regime_lgbm, "regime_lgbm"),
@@ -48,6 +50,11 @@ def main() -> None:
             params["gpu_platform_id"] = args.gpu_platform_id
         if args.gpu_device_id is not None:
             params["gpu_device_id"] = args.gpu_device_id
+        if args.use_gpu:
+            url = os.environ.get("SUPABASE_URL")
+            key = os.environ.get("SUPABASE_SERVICE_KEY")
+            if url and key:
+                build_and_upload_lightgbm_wheel(url, key)
         X, y = _make_dummy_data()
         model, metrics = trainer_fn(X, y, params, use_gpu=args.use_gpu)
         print("Training completed. Metrics:")
