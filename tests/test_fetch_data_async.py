@@ -20,8 +20,9 @@ async def test_fetch_data_async_pagination(monkeypatch):
     ]
 
     def handler(request: httpx.Request) -> httpx.Response:
-        offset = int(request.url.params.get("offset", "0"))
-        idx = offset // chunk_size
+        rng = request.headers.get("Range", "0-0").split("=")[-1]
+        start = int(rng.split("-")[0])
+        idx = start // chunk_size
         data = pages[idx] if idx < len(pages) else []
         return httpx.Response(200, json=data)
 
