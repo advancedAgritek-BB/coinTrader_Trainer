@@ -1,9 +1,7 @@
-pandas
-numpy
-numpy
-pandas
 lightgbm
+numpy
+pandas
+pytest
 scikit-learn
 supabase
 tenacity
-pytest
