@@ -154,6 +154,11 @@ class ModelRegistry:
             "id", model_id
         ).execute()
 
+    def list_models(
+        self, *, tag: Optional[str] = None, approved: Optional[bool] = None
+    ) -> list[ModelEntry]:
+        """Return models optionally filtered by tag and approval."""
+
     def list_models(self, *, tag: Optional[str] = None, approved: Optional[bool] = None) -> list[ModelEntry]:
         """Return models filtered by tag and approval state."""
         query = self.supabase.table("models").select("*")

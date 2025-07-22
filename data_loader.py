@@ -163,6 +163,11 @@ async def fetch_data_async(
     params: Optional[Dict[str, str]] = None,
     client: Optional[httpx.AsyncClient] = None,
 ) -> pd.DataFrame:
+    """Fetch rows from ``table`` asynchronously.
+
+    When ``start_ts`` and ``end_ts`` are provided rows are fetched in ``chunk_size``
+    batches between the timestamps. Otherwise the entire table is retrieved in
+    pages of ``page_size``.
     """Fetch all rows from ``table`` asynchronously in pages."""
     url = os.environ.get("SUPABASE_URL")
     key = os.environ.get("SUPABASE_KEY")
@@ -293,6 +298,8 @@ async def fetch_data_range_async(
     end_ts: str,
     chunk_size: int = 1000,
 ) -> pd.DataFrame:
+    """Fetch ``table`` rows between ``start_ts`` and ``end_ts`` asynchronously."""
+
     """Fetch rows between two timestamps in ``chunk_size`` batches."""
     url = os.environ.get("SUPABASE_URL")
     key = os.environ.get("SUPABASE_KEY")
