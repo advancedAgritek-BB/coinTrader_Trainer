@@ -39,6 +39,14 @@ def train_regime_lgbm(
         ``precision_long`` and ``recall_long``.
     """
 
+    # compute class weighting for unbalanced datasets if not supplied
+    pos_count = int((y == 1).sum())
+    neg_count = int((y == 0).sum())
+    scale_pos_weight = neg_count / pos_count if pos_count > 0 else 1.0
+
+    params = dict(params)
+    params.setdefault("scale_pos_weight", scale_pos_weight)
+
     skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 
     acc_scores = []
@@ -71,7 +79,9 @@ def train_regime_lgbm(
             train_set,
             valid_sets=[valid_set],
             callbacks=[
-                lgb.early_stopping(params.get("early_stopping_rounds", 50), verbose=False)
+                lgb.early_stopping(
+                    params.get("early_stopping_rounds", 50), verbose=False
+                )
             ],
         )
 
@@ -91,7 +101,11 @@ def train_regime_lgbm(
         "recall_long": float(np.mean(recall_scores)),
     }
 
-    final_num_boost_round = int(np.mean(best_iterations)) if best_iterations else params.get("num_boost_round", 100)
+    final_num_boost_round = (
+        int(np.mean(best_iterations))
+        if best_iterations
+        else params.get("num_boost_round", 100)
+    )
     final_set = lgb.Dataset(X, label=y)
 
     final_params = dict(params)
