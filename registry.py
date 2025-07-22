@@ -1,3 +1,10 @@
+import hashlib
+import io
+from dataclasses import dataclass
+from typing import Any, Dict, Optional, Tuple
+
+import joblib
+from jsonschema import validate
 """Utilities to upload and manage models in Supabase Storage."""
 
 from __future__ import annotations
@@ -10,6 +17,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple
 
 from supabase import Client, create_client
+from tenacity import retry, wait_exponential, stop_after_attempt
 
 
 @dataclass
@@ -22,6 +30,13 @@ class ModelEntry:
     sha256: str
     metrics: Dict[str, Any]
     approved: bool
+    tags: Optional[dict] = None
+
+
+METRICS_SCHEMA = {
+    "type": "object",
+    "additionalProperties": {"type": "number"},
+}
 
 
 class ModelRegistry:
@@ -34,6 +49,10 @@ class ModelRegistry:
     def _hash_bytes(self, data: bytes) -> str:
         return hashlib.sha256(data).hexdigest()
 
+    @retry(wait=wait_exponential(multiplier=1, min=1, max=10), stop=stop_after_attempt(5))
+    def upload_bytes(self, payload: bytes, name: str, metrics: Dict[str, Any]) -> ModelEntry:
+        """Upload raw payload bytes and metadata."""
+        validate(instance=metrics, schema=METRICS_SCHEMA)
     @retry(
         wait=wait_exponential(multiplier=1, min=1, max=10), stop=stop_after_attempt(5)
     )
@@ -71,6 +90,14 @@ class ModelRegistry:
         metrics: Dict[str, Any],
         tags: Optional[dict] = None,
     ) -> ModelEntry:
+        """Serialize ``model_obj`` and upload it."""
+        if not isinstance(metrics, dict) or not all(isinstance(v, (int, float)) for v in metrics.values()):
+            raise ValueError("metrics must be a dict of numeric values")
+        validate(instance=metrics, schema=METRICS_SCHEMA)
+        buffer = io.BytesIO()
+        joblib.dump(model_obj, buffer)
+        payload = buffer.getvalue()
+        digest = self._hash_bytes(payload)
     def upload(self, model_obj: Any, name: str, metrics: Dict[str, Any]) -> ModelEntry:
         """Serialize and upload ``model_obj``.
 
@@ -93,11 +120,7 @@ class ModelRegistry:
         data_bytes = buffer.getvalue()
         digest = self._hash_bytes(data_bytes)
         path = f"{name}/{digest}.pkl"
-
-        # Upload bytes to Storage
-        self.supabase.storage.from_(self.bucket).upload(path, io.BytesIO(data_bytes))
-
-        # Insert metadata row
+        self.supabase.storage.from_(self.bucket).upload(path, io.BytesIO(payload))
         row = {
             "name": name,
             "file_path": path,
@@ -108,6 +131,8 @@ class ModelRegistry:
         data = self.supabase.table("models").insert(row).execute().data[0]
         return ModelEntry(**data)
 
+    def get_latest(self, name: str, approved: bool = True) -> Optional[Tuple[Any, ModelEntry]]:
+        """Return the newest model matching ``name``."""
     def get_latest(
         self, name: str, approved: bool = True
     ) -> Optional[Tuple[Any, ModelEntry]]:
@@ -129,10 +154,8 @@ class ModelRegistry:
             "id", model_id
         ).execute()
 
-    def list_models(
-        self, *, tag: Optional[str] = None, approved: Optional[bool] = None
-    ) -> list[ModelEntry]:
-        """Return models optionally filtered by tag and approval."""
+    def list_models(self, *, tag: Optional[str] = None, approved: Optional[bool] = None) -> list[ModelEntry]:
+        """Return models filtered by tag and approval state."""
         query = self.supabase.table("models").select("*")
         if approved is not None:
             query = query.eq("approved", approved)

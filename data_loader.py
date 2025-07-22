@@ -2,29 +2,30 @@ from __future__ import annotations
 
 import os
 from datetime import datetime
+from typing import Optional, Dict, AsyncGenerator
 from typing import Optional, Dict
 from typing import AsyncGenerator
 import pytz
 
 import httpx
-
 import pandas as pd
 from supabase import create_client, Client
 from tenacity import retry, wait_exponential, stop_after_attempt
 
 
 def _get_client() -> Client:
-    """Create a Supabase client from environment variables."""
+    """Create a Supabase client from ``SUPABASE_URL`` and ``SUPABASE_KEY``."""
     url = os.environ.get("SUPABASE_URL")
     key = os.environ.get("SUPABASE_KEY")
     if not url or not key:
-        raise ValueError(
-            "SUPABASE_URL and SUPABASE_KEY environment variables must be set"
-        )
+        raise ValueError("SUPABASE_URL and SUPABASE_KEY environment variables must be set")
     return create_client(url, key)
 
 
 @retry(wait=wait_exponential(multiplier=1, min=1, max=10), stop=stop_after_attempt(5))
+def _fetch_logs(client: Client, start_ts: datetime, end_ts: datetime) -> list[dict]:
+    """Fetch rows from the ``trade_logs`` table with retry."""
+    response = (
 def _fetch_logs(
     client: Client,
     start_ts: datetime,
@@ -56,6 +57,8 @@ def _fetch_logs(
     return response.data
 
 
+def fetch_trade_logs(start_ts: datetime, end_ts: datetime) -> pd.DataFrame:
+    """Return trade logs between two timestamps as a ``DataFrame``."""
 def fetch_trade_logs(
     start_ts: datetime,
     end_ts: datetime,
@@ -108,6 +111,11 @@ async def fetch_data_async(
     params: Optional[Dict[str, str]] = None,
     client: Optional[httpx.AsyncClient] = None,
 ) -> pd.DataFrame:
+    """Fetch all rows from ``table`` asynchronously in pages."""
+    url = os.environ.get("SUPABASE_URL")
+    key = os.environ.get("SUPABASE_KEY")
+    if not url or not key:
+        raise ValueError("SUPABASE_URL and SUPABASE_KEY environment variables must be set")
     """Fetch all rows from ``table`` asynchronously handling pagination.
 
     Parameters
@@ -131,12 +139,6 @@ async def fetch_data_async(
 
     own_client = False
     if client is None:
-        url = os.environ.get("SUPABASE_URL")
-        key = os.environ.get("SUPABASE_KEY")
-        if not url or not key:
-            raise ValueError(
-                "SUPABASE_URL and SUPABASE_KEY environment variables must be set"
-            )
         headers = {"apikey": key, "Authorization": f"Bearer {key}"}
         client = httpx.AsyncClient(base_url=url, headers=headers)
         own_client = True
@@ -212,7 +214,6 @@ async def _fetch_chunks(
     end_ts: str,
     chunk_size: int,
 ) -> AsyncGenerator[pd.DataFrame, None]:
-    """Yield DataFrames of rows fetched in chunks from Supabase."""
     offset = 0
     while True:
         params = [
@@ -223,9 +224,9 @@ async def _fetch_chunks(
             ("limit", str(chunk_size)),
             ("offset", str(offset)),
         ]
-        response = await client.get(endpoint, params=params)
-        response.raise_for_status()
-        data = response.json()
+        resp = await client.get(endpoint, params=params)
+        resp.raise_for_status()
+        data = resp.json()
         if not data:
             break
         yield pd.DataFrame(data)
@@ -240,27 +241,18 @@ async def fetch_data_range_async(
     end_ts: str,
     chunk_size: int = 1000,
 ) -> pd.DataFrame:
-    """Fetch ``table`` rows between ``start_ts`` and ``end_ts`` asynchronously.
-
-    Data are retrieved in ``chunk_size`` batches and concatenated into a single
-    ``DataFrame``. Numeric columns are coerced to numbers when possible.
-    """
-
+    """Fetch rows between two timestamps in ``chunk_size`` batches."""
     url = os.environ.get("SUPABASE_URL")
     key = os.environ.get("SUPABASE_KEY")
     if not url or not key:
-        raise ValueError(
-            "SUPABASE_URL and SUPABASE_KEY environment variables must be set"
-        )
+        raise ValueError("SUPABASE_URL and SUPABASE_KEY environment variables must be set")
 
     endpoint = f"{url.rstrip('/')}/rest/v1/{table}"
     headers = {"apikey": key, "Authorization": f"Bearer {key}"}
 
     chunks: list[pd.DataFrame] = []
     async with httpx.AsyncClient(headers=headers, timeout=None) as client:
-        async for chunk in _fetch_chunks(
-            client, endpoint, start_ts, end_ts, chunk_size
-        ):
+        async for chunk in _fetch_chunks(client, endpoint, start_ts, end_ts, chunk_size):
             chunks.append(chunk)
 
     if not chunks:

@@ -5,6 +5,7 @@ import httpx
 import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+from data_loader import fetch_data_async, fetch_data_range_async
 from data_loader import fetch_data_async
 
 
@@ -34,6 +35,10 @@ async def test_fetch_data_async_pagination(monkeypatch):
     monkeypatch.setenv("SUPABASE_KEY", "test")
 
     df = await fetch_data_range_async(
+        "trade_logs",
+        "start",
+        "end",
+        chunk_size=chunk_size,
         "trade_logs", "start", "end", chunk_size=chunk_size
     )
     df = await fetch_data_range_async("trade_logs", "start", "end", chunk_size=chunk_size)
