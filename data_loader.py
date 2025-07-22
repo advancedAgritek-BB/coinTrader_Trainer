@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import os
 from datetime import datetime
+from typing import AsyncGenerator
+
+import httpx
 
 import pandas as pd
 from supabase import create_client, Client
@@ -37,6 +40,69 @@ def fetch_trade_logs(start_ts: datetime, end_ts: datetime) -> pd.DataFrame:
     client = _get_client()
     rows = _fetch_logs(client, start_ts, end_ts)
     df = pd.DataFrame(rows)
+    for col in df.columns:
+        df[col] = pd.to_numeric(df[col], errors="ignore")
+    return df
+
+
+async def _fetch_chunks(
+    client: httpx.AsyncClient,
+    endpoint: str,
+    start_ts: str,
+    end_ts: str,
+    chunk_size: int,
+) -> AsyncGenerator[pd.DataFrame, None]:
+    """Yield DataFrames of rows fetched in chunks from Supabase."""
+    offset = 0
+    while True:
+        params = [
+            ("select", "*"),
+            ("order", "timestamp.asc"),
+            ("timestamp", f"gte.{start_ts}"),
+            ("timestamp", f"lt.{end_ts}"),
+            ("limit", str(chunk_size)),
+            ("offset", str(offset)),
+        ]
+        response = await client.get(endpoint, params=params)
+        response.raise_for_status()
+        data = response.json()
+        if not data:
+            break
+        yield pd.DataFrame(data)
+        if len(data) < chunk_size:
+            break
+        offset += chunk_size
+
+
+async def fetch_data_async(
+    table: str,
+    start_ts: str,
+    end_ts: str,
+    chunk_size: int = 1000,
+) -> pd.DataFrame:
+    """Fetch table rows asynchronously in chunks and return a DataFrame."""
+
+    url = os.environ.get("SUPABASE_URL")
+    key = os.environ.get("SUPABASE_KEY")
+    if not url or not key:
+        raise ValueError(
+            "SUPABASE_URL and SUPABASE_KEY environment variables must be set"
+        )
+
+    endpoint = f"{url.rstrip('/')}/rest/v1/{table}"
+    headers = {"apikey": key, "Authorization": f"Bearer {key}"}
+
+    chunks: list[pd.DataFrame] = []
+    async with httpx.AsyncClient(headers=headers, timeout=None) as client:
+        async for chunk in _fetch_chunks(
+            client, endpoint, start_ts, end_ts, chunk_size
+        ):
+            chunks.append(chunk)
+
+    if not chunks:
+        return pd.DataFrame()
+
+    df = pd.concat(chunks, ignore_index=True)
     for col in df.columns:
         df[col] = pd.to_numeric(df[col], errors="ignore")
     return df
