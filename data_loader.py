@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from datetime import datetime, timezone
 from datetime import datetime
 from typing import Optional, Dict, AsyncGenerator
 from typing import Optional, Dict
@@ -30,6 +31,10 @@ def _fetch_logs(
     client: Client,
     start_ts: datetime,
     end_ts: datetime,
+    symbol: str | None = None,
+) -> list[dict]:
+    """Fetch rows from the ``trade_logs`` table with retry."""
+
     *,
     symbol: Optional[str] = None,
 ) -> list[dict]:
@@ -39,6 +44,11 @@ def _fetch_logs(
         .select("*")
         .gte("timestamp", start_ts.isoformat())
         .lt("timestamp", end_ts.isoformat())
+    )
+
+    if symbol is not None:
+        query = query.eq("symbol", symbol)
+
     symbol: Optional[str] = None,
 ) -> list[dict]:
     """Fetch rows from the trade_logs table with retry."""
@@ -63,6 +73,46 @@ def fetch_trade_logs(
     start_ts: datetime,
     end_ts: datetime,
     *,
+    symbol: str | None = None,
+    cache_path: str | None = None,
+) -> pd.DataFrame:
+    """Return trade logs between ``start_ts`` and ``end_ts`` as a DataFrame.
+
+    Parameters
+    ----------
+    start_ts, end_ts : datetime
+        Timestamp range expressed in UTC.  Naive values are interpreted as
+        UTC and converted accordingly.
+    symbol : str, optional
+        Restrict the returned rows to a specific trading pair.
+    cache_path : str, optional
+        Location of a Parquet file used as a cache. When provided and the
+        file exists, trade logs are loaded from this file instead of
+        fetching from Supabase.  Fresh results are written back to this
+        path on successful retrieval.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame of trade logs ordered by timestamp.
+    """
+
+    client = _get_client()
+
+    if start_ts.tzinfo is None:
+        start_ts = start_ts.replace(tzinfo=timezone.utc)
+    else:
+        start_ts = start_ts.astimezone(timezone.utc)
+
+    if end_ts.tzinfo is None:
+        end_ts = end_ts.replace(tzinfo=timezone.utc)
+    else:
+        end_ts = end_ts.astimezone(timezone.utc)
+
+    if cache_path and os.path.exists(cache_path):
+        return pd.read_parquet(cache_path)
+
+    rows = _fetch_logs(client, start_ts, end_ts, symbol)
     symbol: Optional[str] = None,
     cache_file: Optional[str] = None,
 ) -> pd.DataFrame:
@@ -82,6 +132,8 @@ def fetch_trade_logs(
     for col in df.columns:
         df[col] = pd.to_numeric(df[col], errors="ignore")
 
+    if cache_path:
+        df.to_parquet(cache_path)
     if cache_file:
         df.to_parquet(cache_file)
 
