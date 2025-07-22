@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import io
 import pickle
+import joblib
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple
 
@@ -44,12 +45,19 @@ class ModelRegistry:
         metrics:
             Dictionary of evaluation metrics.
         """
-        payload = pickle.dumps(model_obj)
-        digest = self._hash_bytes(payload)
+        if not isinstance(metrics, dict) or not all(
+            isinstance(v, (int, float)) for v in metrics.values()
+        ):
+            raise ValueError("metrics must be a dict of numeric values")
+
+        buffer = io.BytesIO()
+        joblib.dump(model_obj, buffer)
+        data_bytes = buffer.getvalue()
+        digest = self._hash_bytes(data_bytes)
         path = f"{name}/{digest}.pkl"
 
         # Upload bytes to Storage
-        self.supabase.storage.from_(self.bucket).upload(path, io.BytesIO(payload))
+        self.supabase.storage.from_(self.bucket).upload(path, io.BytesIO(data_bytes))
 
         # Insert metadata row
         row = {
@@ -72,9 +80,21 @@ class ModelRegistry:
             return None
         row = ModelEntry(**res.data[0])
         file_bytes = self.supabase.storage.from_(self.bucket).download(row.file_path)
-        model = pickle.loads(file_bytes)
+        model = joblib.load(io.BytesIO(file_bytes))
         return model, row
 
     def approve(self, model_id: int) -> None:
         """Mark a model row as approved."""
         self.supabase.table("models").update({"approved": True}).eq("id", model_id).execute()
+
+    def list_models(
+        self, *, tag: Optional[str] = None, approved: Optional[bool] = None
+    ) -> list[ModelEntry]:
+        """Return models optionally filtered by tag and approval."""
+        query = self.supabase.table("models").select("*")
+        if approved is not None:
+            query = query.eq("approved", approved)
+        if tag is not None:
+            query = query.contains("tags", [tag])
+        res = query.execute()
+        return [ModelEntry(**row) for row in res.data]
