@@ -29,7 +29,7 @@ pip install cudf-cu12 --extra-index-url=https://pypi.nvidia.com
 If you prefer to install packages individually:
 
 ```bash
-pip install pandas numpy lightgbm scikit-learn supabase tenacity
+pip install pandas numpy lightgbm scikit-learn supabase tenacity pyarrow pytz
 ```
 
 With the new ``src/`` layout install the package in editable mode so
