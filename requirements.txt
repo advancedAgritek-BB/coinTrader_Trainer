@@ -13,3 +13,5 @@ joblib
 jsonschema
 
 pyyaml
+pyarrow
+pytz

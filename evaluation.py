@@ -6,8 +6,10 @@ import numpy as np
 import pandas as pd
 
 
-def simulate_signal_pnl(df: pd.DataFrame, preds: np.ndarray) -> float:
-    """Simulate PnL based on binary predictions.
+def simulate_signal_pnl(
+    df: pd.DataFrame, preds: np.ndarray, costs: float = 0.001
+) -> dict:
+    """Simulate PnL for long/short/flat predictions.
 
     Parameters
     ----------
@@ -15,13 +17,16 @@ def simulate_signal_pnl(df: pd.DataFrame, preds: np.ndarray) -> float:
         DataFrame containing either a ``'returns'`` column with asset returns
         or a ``'close'``/``'Close'`` column for computing returns.
     preds : np.ndarray
-        Binary predictions of the same length as ``df``. A value of ``1``
-        corresponds to a long position, ``0`` to a flat position.
+        Array of predictions of the same length as ``df``. ``1`` denotes a
+        long position, ``-1`` a short position and ``0`` a flat position.
+    costs : float, optional
+        Transaction cost applied when positions change. Defaults to ``0.001``.
 
     Returns
     -------
-    float
-        Annualised Sharpe ratio squared of the resulting strategy.
+    dict
+        Dictionary containing ``'sharpe_squared'``, ``'sharpe'`` and ``
+        'sortino'`` ratios for the strategy.
     """
     if len(df) != len(preds):
         raise ValueError("`preds` length must match `df` length")
@@ -38,15 +43,21 @@ def simulate_signal_pnl(df: pd.DataFrame, preds: np.ndarray) -> float:
         )
 
     preds = np.asarray(preds, dtype=float)
-    signals = np.where(preds == 1, 1.0, 0.0)
+    signals = np.where(preds == 1, 1.0, np.where(preds == -1, -1.0, 0.0))
     strategy_returns = asset_returns * signals
 
-    mean_return = strategy_returns.mean()
-    std_return = strategy_returns.std(ddof=0)
+    signal_diff = np.diff(signals, prepend=0)
+    strategy_returns -= costs * np.abs(signal_diff)
 
-    if std_return == 0:
-        return 0.0
+    sharpe = np.sqrt(365) * (strategy_returns.mean() / strategy_returns.std(ddof=0))
+    sortino = np.sqrt(365) * (
+        strategy_returns.mean()
+        / strategy_returns[strategy_returns < 0].std(ddof=0)
+    )
 
-    sharpe = np.sqrt(365) * (mean_return / std_return)
-    return float(sharpe**2)
+    return {
+        "sharpe_squared": float(sharpe**2),
+        "sharpe": float(sharpe),
+        "sortino": float(sortino),
+    }
 

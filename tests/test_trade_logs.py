@@ -1,0 +1,46 @@
+import os
+import pandas as pd
+from datetime import datetime
+import pytest
+
+import data_loader
+
+
+def test_fetch_trade_logs_symbol_filter(monkeypatch):
+    called = {}
+
+    def fake_fetch(client, start_ts, end_ts, *, symbol=None):
+        called["symbol"] = symbol
+        return [
+            {"timestamp": start_ts.isoformat(), "symbol": symbol, "price": 1},
+        ]
+
+    monkeypatch.setattr(data_loader, "_get_client", lambda: object())
+    monkeypatch.setattr(data_loader, "_fetch_logs", fake_fetch)
+
+    start = datetime(2021, 1, 1)
+    end = datetime(2021, 1, 2)
+
+    df = data_loader.fetch_trade_logs(start, end, symbol="BTC")
+
+    assert called["symbol"] == "BTC"
+    assert not df.empty
+    assert df["symbol"].iloc[0] == "BTC"
+
+
+def test_fetch_trade_logs_uses_cache(tmp_path, monkeypatch):
+    cache_file = tmp_path / "cache.parquet"
+    df_cached = pd.DataFrame({"a": [1, 2], "symbol": ["BTC", "BTC"]})
+    df_cached.to_parquet(cache_file)
+
+    def fail_get_client():
+        raise AssertionError("client should not be called")
+
+    monkeypatch.setattr(data_loader, "_get_client", fail_get_client)
+
+    start = datetime(2021, 1, 1)
+    end = datetime(2021, 1, 2)
+
+    df = data_loader.fetch_trade_logs(start, end, cache_file=str(cache_file))
+
+    pd.testing.assert_frame_equal(df, df_cached)
