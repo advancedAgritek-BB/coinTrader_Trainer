@@ -47,3 +47,11 @@ run:
 ```bash
 pytest
 ```
+
+## Scheduled Training
+
+Model training also runs automatically each night via GitHub Actions.
+The job defined in
+[`\.github/workflows/train.yml`](\.github/workflows/train.yml) executes at
+3\:00 UTC on a macOS runner.  To use it, set the repository secrets
+`SUPABASE_URL`, `SUPABASE_SERVICE_KEY` and `TELEGRAM_TOKEN`.
