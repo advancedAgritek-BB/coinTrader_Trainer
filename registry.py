@@ -32,6 +32,33 @@ class ModelRegistry:
     def _hash_bytes(self, data: bytes) -> str:
         return hashlib.sha256(data).hexdigest()
 
+    def upload_bytes(
+        self, payload: bytes, name: str, metrics: Dict[str, Any]
+    ) -> ModelEntry:
+        """Upload raw ``payload`` bytes as a model artifact.
+
+        Parameters
+        ----------
+        payload:
+            Serialized model bytes.
+        name:
+            Logical model family name.
+        metrics:
+            Dictionary of evaluation metrics.
+        """
+        digest = self._hash_bytes(payload)
+        path = f"{name}/{digest}.bin"
+        self.supabase.storage.from_(self.bucket).upload(path, io.BytesIO(payload))
+        row = {
+            "name": name,
+            "file_path": path,
+            "sha256": digest,
+            "metrics": metrics,
+            "approved": False,
+        }
+        data = self.supabase.table("models").insert(row).execute().data[0]
+        return ModelEntry(**data)
+
     def upload(self, model_obj: Any, name: str, metrics: Dict[str, Any]) -> ModelEntry:
         """Serialize and upload ``model_obj``.
 
