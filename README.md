@@ -40,7 +40,8 @@ from coinTrader_Trainer import data_loader
 ### Async Data Fetching
 
 `data_loader` now provides asynchronous helpers for retrieving trade logs
-without blocking the event loop. `fetch_data_async` pages through a table while
+without blocking the event loop. `fetch_all_rows_async` pages through a table while
+without blocking the event loop. `fetch_table_async` pages through a table while
 `fetch_data_range_async` fetches rows between two timestamps. Both functions
 return a ``pandas.DataFrame`` and must be awaited:
 
@@ -57,12 +58,22 @@ df = asyncio.run(
 ```
 
 Because the functions are asynchronous, callers must run them in an `asyncio`
-event loop.  Inside existing async code simply use ``await fetch_data_async(...)``.
+event loop.  Inside existing async code simply use ``await fetch_data_range_async(...)``.
 
 ## GPU Setup
 
-LightGBM wheels from PyPI do not include GPU support. Build from source and
-enable the GPU backend:
+LightGBM wheels from PyPI do not include GPU support. Use the provided
+PowerShell script ``build_lightgbm_gpu.ps1`` to compile LightGBM with OpenCL
+and upload the resulting wheel automatically. Run the script from a Windows
+environment with Visual Studio Build Tools installed:
+
+```powershell
+pwsh ./build_lightgbm_gpu.ps1
+```
+
+The script places the wheel under ``python-package/dist`` and pushes it to your
+package index. When ``ml_trainer.py --use-gpu`` is invoked and no GPU-enabled
+wheel is installed, the script will run automatically to build and install it.
 
 ```bash
 git clone --recursive https://github.com/microsoft/LightGBM
@@ -75,8 +86,8 @@ python setup.py install --precompile
 ```
 
 See the [GPU tutorial](https://lightgbm.readthedocs.io/en/latest/GPU-Tutorial.html)
-for full instructions.  For an AMD Radeon RX 7900 TX install ROCm or the
-appropriate OpenCL drivers so the GPU is recognized by `rocminfo` or `clinfo`.
+for full instructions. Install the AMD driver (or ROCm) so your GPU appears when
+running `clinfo`.
 
 Once LightGBM is built with GPU support you can train using the CLI:
 

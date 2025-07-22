@@ -1,3 +1,5 @@
+"""Verify that GPU-related parameters are passed to LightGBM."""
+
 import os
 import sys
 import numpy as np
