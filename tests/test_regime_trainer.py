@@ -21,7 +21,7 @@ def test_train_regime_lgbm_returns_model_and_metrics():
         "early_stopping_rounds": 5,
     }
 
-    model, metrics = train_regime_lgbm(X, y, params)
+    model, metrics = train_regime_lgbm(X, y, params, use_gpu=False)
 
     assert isinstance(model, Booster)
     assert isinstance(metrics, dict)

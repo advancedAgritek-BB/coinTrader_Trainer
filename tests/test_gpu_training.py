@@ -31,11 +31,8 @@ def test_gpu_params_passed_to_lightgbm(monkeypatch):
         "objective": "binary",
         "num_boost_round": 5,
         "early_stopping_rounds": 2,
-        "device_type": "gpu",
-        "gpu_platform_id": 0,
-        "gpu_device_id": 0,
     }
 
-    train_regime_lgbm(X, y, params)
+    train_regime_lgbm(X, y, params, use_gpu=True)
 
     assert captured.get("device_type") == "gpu"

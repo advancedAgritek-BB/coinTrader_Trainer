@@ -9,8 +9,8 @@ from data_loader import fetch_data_async
 
 
 @pytest.mark.asyncio
-async def test_fetch_data_async_pagination():
-    page_size = 2
+async def test_fetch_data_async_pagination(monkeypatch):
+    chunk_size = 2
     pages = [
         [{"id": 1, "val": 10}, {"id": 2, "val": 20}],
         [{"id": 3, "val": 30}, {"id": 4, "val": 40}],
@@ -18,16 +18,23 @@ async def test_fetch_data_async_pagination():
     ]
 
     def handler(request: httpx.Request) -> httpx.Response:
-        range_header = request.headers.get("Range")
-        start, end = map(int, range_header.split("-"))
-        idx = start // page_size
+        offset = int(request.url.params.get("offset", "0"))
+        idx = offset // chunk_size
         data = pages[idx] if idx < len(pages) else []
         return httpx.Response(200, json=data)
 
     transport = httpx.MockTransport(handler)
 
-    async with httpx.AsyncClient(transport=transport, base_url="https://sb.example.com") as client:
-        df = await fetch_data_async("trade_logs", page_size=page_size, client=client)
+    real_client = httpx.AsyncClient
+
+    def fake_client(**kwargs):
+        return real_client(transport=transport, base_url="https://sb.example.com")
+
+    monkeypatch.setattr(httpx, "AsyncClient", fake_client)
+    monkeypatch.setenv("SUPABASE_URL", "https://sb.example.com")
+    monkeypatch.setenv("SUPABASE_KEY", "test")
+
+    df = await fetch_data_async("trade_logs", "start", "end", chunk_size=chunk_size)
 
     expected = pd.concat([pd.DataFrame(p) for p in pages], ignore_index=True)
     pd.testing.assert_frame_equal(df, expected)
