@@ -46,7 +46,7 @@ def fetch_trade_logs(start_ts: datetime, end_ts: datetime) -> pd.DataFrame:
     return df
 
 
-async def fetch_data_async(
+async def fetch_table_async(
     table: str,
     *,
     page_size: int = 1000,
@@ -113,6 +113,17 @@ async def fetch_data_async(
             await client.aclose()
 
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+
+
+async def fetch_data_async(
+    table: str,
+    start_ts: str,
+    end_ts: str,
+    chunk_size: int = 1000,
+) -> pd.DataFrame:
+    """Backward compatible wrapper for fetching rows in a date range."""
+
+    return await fetch_data_range_async(table, start_ts, end_ts, chunk_size)
 async def _fetch_chunks(
     client: httpx.AsyncClient,
     endpoint: str,
