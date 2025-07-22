@@ -11,5 +11,7 @@ jsonschema
 httpx
 joblib
 jsonschema
+
+pyyaml
 pyarrow
 pytz

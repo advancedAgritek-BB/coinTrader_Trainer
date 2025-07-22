@@ -18,6 +18,8 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
+If you update the repository at a later date, run the installation
+command again so new dependencies such as ``pyyaml`` are installed.
 For GPU-accelerated feature engineering install
 [`cudf`](https://rapids.ai/). The package requires CUDA
 and is not included in ``requirements.txt`` by default:
