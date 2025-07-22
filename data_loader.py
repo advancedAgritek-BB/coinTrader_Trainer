@@ -54,7 +54,8 @@ async def fetch_table_async(
     start_ts: Optional[str] = None,
     end_ts: Optional[str] = None,
     *,
-    page_size: int = 1000,
+    chunk_size: int = 1000,
+    page_size: Optional[int] = None,
     params: Optional[Dict[str, str]] = None,
     client: Optional[httpx.AsyncClient] = None,
     chunk_size: int = 1000,
@@ -69,8 +70,12 @@ async def fetch_table_async(
     ----------
     table : str
         Table name to query from Supabase REST API.
+    start_ts, end_ts : str, optional
+        When provided, fetch rows between these timestamps in ``chunk_size`` batches.
+    chunk_size : int, optional
+        Batch size used when ``start_ts`` and ``end_ts`` are specified. Defaults to ``1000``.
     page_size : int, optional
-        Number of rows per request. Defaults to ``1000``.
+        Number of rows per request when ``start_ts``/``end_ts`` are omitted. Defaults to ``1000``.
     params : dict, optional
         Additional query parameters added to the request. ``select`` defaults
         to ``"*"``.
@@ -86,6 +91,9 @@ async def fetch_table_async(
 
     if start_ts is not None and end_ts is not None:
         return await fetch_data_range_async(table, start_ts, end_ts, chunk_size)
+
+    if page_size is None:
+        page_size = 1000
 
     own_client = False
     if client is None:

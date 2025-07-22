@@ -9,3 +9,5 @@ supabase
 tenacity
 jsonschema
 httpx
+joblib
+jsonschema
