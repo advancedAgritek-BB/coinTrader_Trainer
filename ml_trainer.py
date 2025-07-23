@@ -6,6 +6,10 @@ import numpy as np
 import pandas as pd
 
 from trainers.regime_lgbm import train_regime_lgbm
+try:  # pragma: no cover - federated trainer may be optional
+    from trainers.federated import train_federated_regime
+except Exception:  # pragma: no cover - during testing trainer might be missing
+    train_federated_regime = None
 
 TRAINERS = {
     "regime": (train_regime_lgbm, "regime_lgbm"),
@@ -58,6 +62,7 @@ def main() -> None:
     train_p.add_argument("--use-gpu", action="store_true", help="Enable GPU training")
     train_p.add_argument("--gpu-platform-id", type=int, default=None, help="OpenCL platform id")
     train_p.add_argument("--gpu-device-id", type=int, default=None, help="OpenCL device id")
+    train_p.add_argument("--federated", action="store_true", help="Use federated trainer")
 
     args = parser.parse_args()
 
@@ -67,6 +72,9 @@ def main() -> None:
         if args.task not in TRAINERS:
             raise SystemExit(f"Unknown task: {args.task}")
         trainer_fn, cfg_key = TRAINERS[args.task]
+        if args.federated and args.task == "regime" and train_federated_regime is not None:
+            trainer_fn = train_federated_regime
+            cfg_key = "regime_lgbm"
         params = cfg.get(cfg_key, {})
         if args.gpu_platform_id is not None:
             params["gpu_platform_id"] = args.gpu_platform_id
