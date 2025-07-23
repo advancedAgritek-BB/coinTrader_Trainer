@@ -1,10 +1,38 @@
 # coinTrader Trainer
 
-coinTrader Trainer is a small set of utilities for building machine
-learning models for crypto trading strategies.  The project includes
-helpers to fetch trading data from Supabase, generate technical
-indicators, train models (e.g. a LightGBM regime classifier) and
-store results back into Supabase storage.
+coinTrader Trainer forms the model training component of the broader
+`coinTrader2.0` trading application.  The live system records executed
+orders and market snapshots in a Supabase project.  This repository
+contains utilities that pull those historical trade logs, generate
+technical indicators and fit machine learning models such as the
+LightGBM ``regime_lgbm`` classifier.  Trained models are uploaded back
+to Supabase so that the ``coinTrader2.0`` process can load them for
+real-time decisions.
+
+The project includes helpers for fetching data from Supabase,
+engineering features and running training pipelines.  Results are
+optionally persisted to Supabase Storage and the ``models`` table.
+
+## Requirements
+
+* Python 3.9 or newer
+* ``SUPABASE_URL`` and ``SUPABASE_KEY`` (or ``SUPABASE_SERVICE_KEY``) set in the
+  environment. These credentials point to the Supabase project used by both
+  ``coinTrader2.0`` and the trainer.
+* Optional: ``cudf`` and a CUDA capable GPU for accelerated feature
+  generation.
+* Optional: a GPU-enabled LightGBM build for faster training. A helper script
+  is provided to compile and upload wheels.
+
+## Integration with coinTrader2.0
+
+``coinTrader2.0`` streams live trading data into the ``trade_logs`` table in
+Supabase.  The trainer consumes those logs to build supervised training sets.
+When ``train_pipeline.py`` or ``ml_trainer.py`` runs, it queries the desired
+time range from Supabase, engineers features with ``feature_engineering.make_features``
+and trains the ``regime_lgbm`` model.  After training the resulting model is
+uploaded back to Supabase where the trading application can fetch it for live
+predictions.
 
 ## Installation
 
@@ -49,13 +77,14 @@ from coinTrader_Trainer import data_loader
 
 ### Trade Log Fetching and Caching
 
-``fetch_trade_logs`` provides a simple synchronous interface for
-downloading trade logs for a specific trading pair.  Pass UTC ``datetime``
-objects for ``start_ts`` and ``end_ts``—naive timestamps are interpreted as
-UTC.  The optional ``symbol`` argument filters rows to that pair.  When a
-``cache_path`` is supplied the function will read from the Parquet file if
-it exists and write new results back to this location, avoiding repeated
-network requests.
+``fetch_trade_logs`` provides a simple synchronous interface for retrieving
+the historical trade logs recorded by ``coinTrader2.0``.  The trading
+application writes every executed order to the ``trade_logs`` table in
+Supabase.  Pass UTC ``datetime`` objects for ``start_ts`` and ``end_ts``—
+naive timestamps are interpreted as UTC.  The optional ``symbol`` argument
+filters rows to a specific pair.  When a ``cache_path`` is supplied the
+function will read from the Parquet file if it exists and write new
+results back to this location, avoiding repeated network requests.
 
 ### Async Data Fetching
 
@@ -64,6 +93,11 @@ without blocking the event loop. `fetch_all_rows_async` retrieves every row in a
 table, `fetch_table_async` pages through a table, and `fetch_data_range_async`
 fetches rows between two timestamps. Each function returns a
 ``pandas.DataFrame`` and must be awaited:
+
+These helpers provide the historical market data used for training.  By
+querying the same Supabase tables populated by ``coinTrader2.0`` you can
+reconstruct any period of market activity and produce datasets for model
+tuning.
 
 ```python
 import asyncio

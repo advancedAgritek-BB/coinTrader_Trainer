@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import argparse
 import os
 from datetime import datetime, timedelta
@@ -75,7 +77,6 @@ def main() -> None:
 if __name__ == "__main__":
     main()
 """Utilities for environment setup tasks like building LightGBM."""
-from __future__ import annotations
 
 import glob
 import os
