@@ -30,8 +30,6 @@ def _atr(df: pd.DataFrame, period: int = 3) -> pd.Series:
     tr1 = high - low
     tr2 = (high - close).abs()
     tr3 = (low - close).abs()
-    tr = np.maximum.reduce([tr1, tr2, tr3])
-    tr = pd.Series(tr, index=df.index)
     tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
     atr = tr.rolling(window=period, min_periods=period).mean()
     return atr
