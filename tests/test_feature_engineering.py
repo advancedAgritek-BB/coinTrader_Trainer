@@ -3,6 +3,7 @@ import sys
 import types
 import pandas as pd
 import numpy as np
+import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
@@ -21,11 +22,11 @@ def test_make_features_interpolation_and_columns():
 
     result = make_features(
         df,
-        ema_short=2,
-        ema_long=3,
+        ema_short_period=2,
+        ema_long_period=3,
         rsi_period=5,
-        vol_window=2,
-        atr_period=2,
+        volatility_window=2,
+        atr_window=2,
     )
 
     expected_cols = {
@@ -67,7 +68,7 @@ def test_make_features_gpu_uses_cudf(monkeypatch):
         }
     )
 
-    make_features(df, use_gpu=True, ema_short=2, ema_long=3)
+    make_features(df, use_gpu=True, ema_short_period=2, ema_long_period=3)
 
     assert calls["from"] and calls["to"]
 
