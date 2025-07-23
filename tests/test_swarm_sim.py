@@ -9,10 +9,7 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-import lightgbm as lgb
-import data_loader
 import ml_trainer
-from swarm_sim import run_swarm_simulation, Agent
 
 
 class DummyBooster:
@@ -23,23 +20,47 @@ class DummyBooster:
 
 
 async def _fake_fetch(*args, **kwargs):
-    return pd.DataFrame({"price": [1, 2], "target": [0, 1]})
+    return pd.DataFrame(
+        {
+            "ts": pd.date_range("2021-01-01", periods=2, freq="1D"),
+            "price": [1, 2],
+            "high": [1, 2],
+            "low": [0, 1],
+            "target": [0, 1],
+        }
+    )
 
 
-def _fake_train(params, dataset, num_boost_round=1):
+train_calls = []
+
+
+def _fake_train(*args, **kwargs):
+    train_calls.append(1)
     return DummyBooster()
 
 
 @pytest.mark.asyncio
 async def test_run_swarm_simulation_updates_agents(monkeypatch):
-    monkeypatch.setattr(data_loader, "fetch_data_range_async", _fake_fetch)
-    monkeypatch.setattr(lgb, "train", _fake_train)
+    from datetime import datetime
 
-    params, agents = await run_swarm_simulation(num_agents=2)
+    import importlib, sys
+    module = importlib.import_module("swarm_sim")
+    if not hasattr(module, "yaml"):
+        sys.modules.pop("swarm_sim", None)
+        module = importlib.import_module("swarm_sim")
+    import lightgbm as lgb
+    from swarm_sim import run_swarm_simulation
+    monkeypatch.setattr(module, "fetch_data_range_async", _fake_fetch)
+    monkeypatch.setattr(lgb, "train", _fake_train)
+    monkeypatch.setattr(module, "make_features", lambda df: df)
+    monkeypatch.setattr(module.yaml, "safe_load", lambda f: {})
+
+    params = await run_swarm_simulation(
+        datetime(2021, 1, 1), datetime(2021, 1, 2), num_agents=2
+    )
 
     assert isinstance(params, dict)
-    assert len(agents) == 2
-    assert all(isinstance(a, Agent) and a.fitness == 1.0 for a in agents)
+    assert train_calls
 
 
 def test_ml_trainer_swarm_merges(monkeypatch):
@@ -53,8 +74,8 @@ def test_ml_trainer_swarm_merges(monkeypatch):
     monkeypatch.setattr(ml_trainer, "_make_dummy_data", lambda: (pd.DataFrame([[1]]), pd.Series([0])))
     monkeypatch.setattr(ml_trainer, "load_cfg", lambda p: {"regime_lgbm": {"a": 1}})
 
-    async def fake_swarm():
-        return {"b": 2}, [Agent({})]
+    async def fake_swarm(*args, **kwargs):
+        return {"b": 2}
 
     import swarm_sim
 
