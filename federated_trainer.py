@@ -91,10 +91,13 @@ def train_federated_regime(
     end_ts: str | pd.Timestamp,
     num_clients: int = 3,
     config_path: str = "cfg.yaml",
+    params_override: Optional[dict] = None,
 ) -> Tuple[Callable[[pd.DataFrame], np.ndarray], dict]:
     """Train models on federated splits and return aggregated predictor."""
 
     params = _load_params(config_path)
+    if params_override:
+        params.update(params_override)
 
     X, y = fetch_and_prepare_data(start_ts, end_ts)
 

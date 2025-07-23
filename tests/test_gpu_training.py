@@ -122,14 +122,13 @@ def test_cli_gpu_overrides(monkeypatch):
     assert captured.get("gpu_device_id") == 2
 
 
-def test_cli_federated_trainer_invoked(monkeypatch):
 def test_cli_federated_flag(monkeypatch):
     import ml_trainer
 
     called = {}
 
-    def fake_federated(*args, **kwargs):
-        called["federated"] = True
+    def fake_federated(start, end, **kwargs):
+        called["federated"] = (start, end)
         return (lambda df: np.zeros(len(df))), {}
 
     monkeypatch.setattr(ml_trainer, "train_federated_regime", fake_federated)
@@ -140,8 +139,6 @@ def test_cli_federated_flag(monkeypatch):
             def predict(self, data, num_iteration=None):
                 return np.zeros(len(data))
         return FakeBooster(), {"accuracy": 0.0}
-
-    monkeypatch.setattr(ml_trainer, "train_federated_regime", fake_train)
     monkeypatch.setattr(
         ml_trainer,
         "_make_dummy_data",
@@ -159,10 +156,14 @@ def test_cli_federated_flag(monkeypatch):
         "--cfg",
         "cfg.yaml",
         "--federated",
+        "--start-ts",
+        "2021-01-01T00:00:00",
+        "--end-ts",
+        "2021-01-02T00:00:00",
     ]
     monkeypatch.setattr(sys, "argv", argv)
 
     ml_trainer.main()
 
     assert called.get("federated")
-    assert called.get("used", False)
+
