@@ -12,10 +12,10 @@ from trainers.regime_lgbm import train_regime_lgbm
 try:  # pragma: no cover - optional dependency
     from federated_trainer import train_federated_regime
 except Exception:  # pragma: no cover - missing during testing
-try:  # pragma: no cover - federated trainer may be optional
-    from trainers.federated import train_federated_regime
-except Exception:  # pragma: no cover - during testing trainer might be missing
-    train_federated_regime = None
+    try:  # pragma: no cover - federated trainer may be optional
+        from trainers.federated import train_federated_regime
+    except Exception:  # pragma: no cover - during testing trainer might be missing
+        train_federated_regime = None
 
 TRAINERS = {
     "regime": (train_regime_lgbm, "regime_lgbm"),
