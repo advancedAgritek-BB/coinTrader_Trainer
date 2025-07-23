@@ -226,3 +226,18 @@ def train_regime_lgbm(
             pass
 
     return final_model, metrics
+
+
+def train_federated_regime(
+    X: pd.DataFrame,
+    y: pd.Series,
+    params: dict,
+    use_gpu: bool = True,
+) -> tuple[Booster, dict]:
+    """Train regime model using a simple federated learning workflow.
+
+    This experimental helper currently delegates to ``train_regime_lgbm``
+    and can be extended to aggregate models from multiple peers.
+    """
+
+    return train_regime_lgbm(X, y, params, use_gpu=use_gpu)

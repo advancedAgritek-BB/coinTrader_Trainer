@@ -47,7 +47,7 @@ pip install -r requirements.txt
 ```
 
 If you update the repository at a later date, run the installation
-command again so new dependencies such as ``pyyaml`` are installed.
+command again so new dependencies such as ``pyyaml`` or ``networkx`` are installed.
 For GPU-accelerated feature engineering install
 [`cudf`](https://rapids.ai/). The package requires CUDA
 and is not included in ``requirements.txt`` by default:
@@ -59,7 +59,7 @@ pip install cudf-cu12 --extra-index-url=https://pypi.nvidia.com
 If you prefer to install packages individually:
 
 ```bash
-pip install pandas numpy lightgbm scikit-learn supabase tenacity pyarrow pytz
+pip install pandas numpy lightgbm scikit-learn supabase tenacity pyarrow pytz networkx
 ```
 
 All modules reside directly in the project root rather than under a
@@ -188,6 +188,19 @@ A typical training run might look like:
 ```bash
 python ml_trainer.py --input data.csv --output model.pkl
 ```
+
+### Federated Training
+
+Passing the ``--federated`` flag enables federated learning. Each
+participant trains on its own dataset locally and only model parameters
+are shared for aggregation. Data never leaves the client machine.
+
+```bash
+python ml_trainer.py train regime --federated
+```
+
+The aggregated model is written to ``federated_model.pkl`` and uploaded
+to the ``models`` bucket in Supabase just like other trained models.
 
 ## GPU Training
 
