@@ -98,10 +98,7 @@ def main() -> None:
         if args.task not in TRAINERS:
             raise SystemExit(f"Unknown task: {args.task}")
         trainer_fn, cfg_key = TRAINERS[args.task]
-        if args.federated and args.task == "regime" and train_federated_regime is not None:
-            trainer_fn = train_federated_regime
-            cfg_key = "regime_lgbm"
-        if args.federated:
+        if args.federated and args.task == "regime":
             if train_federated_regime is None:
                 raise SystemExit("Federated training not supported")
             trainer_fn = train_federated_regime
@@ -129,6 +126,8 @@ def main() -> None:
                 ) from exc
             end_ts = datetime.utcnow()
             start_ts = end_ts - timedelta(days=7)
+            swarm_params = asyncio.run(
+                swarm_sim.run_swarm_search(start_ts, end_ts)
             best_params = asyncio.run(
                 swarm_sim.run_swarm_simulation(start_ts, end_ts)
             )

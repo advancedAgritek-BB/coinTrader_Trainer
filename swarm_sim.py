@@ -10,10 +10,13 @@ import numpy as np
 import pandas as pd
 import networkx as nx
 import lightgbm as lgb
+import os
+import logging
 
 
 import data_loader
 from feature_engineering import make_features
+from registry import ModelRegistry
 
 
 async def fetch_and_prepare_data(
@@ -109,7 +112,7 @@ def evolve_swarm(agents: List[SwarmAgent], graph: nx.Graph) -> None:
         agent.params = new_params
 
 
-async def run_swarm_simulation(
+async def run_swarm_search(
     start_ts: datetime, end_ts: datetime, num_agents: int = 50
 ) -> Dict[str, Any]:
     """Run an asynchronous swarm optimisation simulation.
@@ -152,5 +155,19 @@ async def run_swarm_simulation(
         evolve_swarm(agents, graph)
 
     best = min(agents, key=lambda a: a.fitness)
+
+    url = os.environ.get("SUPABASE_URL")
+    key = os.environ.get("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABASE_KEY")
+    bucket = os.environ.get("PARAMS_BUCKET", "agent_params")
+    table = os.environ.get("PARAMS_TABLE", "agent_params")
+    if url and key:
+        try:
+            reg = ModelRegistry(url, key, bucket=bucket, table=table)
+            reg.upload_dict(best.params, "swarm_params", {"fitness": best.fitness})
+        except Exception as exc:
+            logging.exception("Failed to upload parameters: %s", exc)
+    else:
+        logging.info("SUPABASE credentials not set; skipping parameter upload")
+
     return best.params
 

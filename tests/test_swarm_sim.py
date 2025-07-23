@@ -108,6 +108,8 @@ def test_ml_trainer_swarm_merges(monkeypatch):
     monkeypatch.setattr(ml_trainer, "_make_dummy_data", lambda: (pd.DataFrame([[1]]), pd.Series([0])))
     monkeypatch.setattr(ml_trainer, "load_cfg", lambda p: {"regime_lgbm": {"a": 1}})
 
+    async def fake_swarm(start, end):
+        return {"b": 2}
     async def fake_swarm(*args, **kwargs):
         return {"b": 2}
     async def fake_swarm(start, end):
@@ -115,7 +117,7 @@ def test_ml_trainer_swarm_merges(monkeypatch):
 
     import swarm_sim
 
-    monkeypatch.setattr(swarm_sim, "run_swarm_simulation", fake_swarm)
+    monkeypatch.setattr(swarm_sim, "run_swarm_search", fake_swarm)
 
     monkeypatch.setattr(sys, "argv", ["prog", "train", "regime", "--swarm"])
     ml_trainer.main()

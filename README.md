@@ -20,6 +20,8 @@ optionally persisted to Supabase Storage and the ``models`` table.
 * ``SUPABASE_URL`` and ``SUPABASE_KEY`` (or ``SUPABASE_SERVICE_KEY``) set in the
   environment. These credentials point to the Supabase project used by both
   ``coinTrader2.0`` and the trainer.
+* ``PARAMS_BUCKET`` and ``PARAMS_TABLE`` control where swarm optimisation
+  parameters are uploaded. Defaults are ``agent_params`` for both.
 * Optional: ``cudf`` and a CUDA capable GPU for accelerated feature
   generation.
 * Optional: a GPU-enabled LightGBM build for faster training. A helper script
@@ -289,6 +291,8 @@ The `train_regime_lgbm` function uploads the trained model to Supabase
 Storage when `SUPABASE_URL` and either `SUPABASE_SERVICE_KEY` or
 `SUPABASE_KEY` are present in the environment. Uploaded artifacts are
 stored in the `models` bucket and recorded in the `models` table.
+Similarly, the swarm simulation uploads the best parameter set to the bucket
+specified by `PARAMS_BUCKET` and logs a row in `PARAMS_TABLE`.
 
 ## Swarm Scenario Simulation
 
