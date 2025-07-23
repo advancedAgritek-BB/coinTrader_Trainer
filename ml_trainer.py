@@ -73,13 +73,11 @@ def main() -> None:
     train_p.add_argument("--use-gpu", action="store_true", help="Enable GPU training")
     train_p.add_argument("--gpu-platform-id", type=int, default=None, help="OpenCL platform id")
     train_p.add_argument("--gpu-device-id", type=int, default=None, help="OpenCL device id")
-    train_p.add_argument("--swarm", action="store_true", help="Optimise params via swarm simulation")
     train_p.add_argument(
         "--swarm",
         action="store_true",
         help="Run hyperparameter swarm search before training",
-    train_p.add_argument("--federated", action="store_true", help="Use federated trainer")
-    train_p.add_argument("--federated", action="store_true", help="Use federated training")
+    )
     train_p.add_argument(
         "--federated",
         action="store_true",
@@ -107,12 +105,6 @@ def main() -> None:
         if args.federated and args.task == "regime":
             trainer_fn = train_federated_regime
         params = cfg.get(cfg_key, {})
-        if args.swarm:
-            import asyncio
-            from swarm_sim import run_swarm_simulation
-
-            best_params, _agents = asyncio.run(run_swarm_simulation())
-            params.update(best_params)
         if args.gpu_platform_id is not None:
             params["gpu_platform_id"] = args.gpu_platform_id
         if args.gpu_device_id is not None:
@@ -126,11 +118,11 @@ def main() -> None:
                 ) from exc
             end_ts = datetime.utcnow()
             start_ts = end_ts - timedelta(days=7)
-            swarm_params = asyncio.run(
+            best_params = asyncio.run(
                 swarm_sim.run_swarm_simulation(start_ts, end_ts)
             )
-            if isinstance(swarm_params, dict):
-                params.update(swarm_params)
+            if isinstance(best_params, dict):
+                params.update(best_params)
         X, y = _make_dummy_data()
         model, metrics = trainer_fn(X, y, params, use_gpu=args.use_gpu)
         print("Training completed. Metrics:")

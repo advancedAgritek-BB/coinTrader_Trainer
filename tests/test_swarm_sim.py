@@ -3,6 +3,7 @@
 import os
 import sys
 import asyncio
+from datetime import datetime
 import pandas as pd
 import numpy as np
 import pytest
@@ -12,7 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 import lightgbm as lgb
 import data_loader
 import ml_trainer
-from swarm_sim import run_swarm_simulation, Agent
+import swarm_sim
 
 
 class DummyBooster:
@@ -23,23 +24,30 @@ class DummyBooster:
 
 
 async def _fake_fetch(*args, **kwargs):
-    return pd.DataFrame({"price": [1, 2], "target": [0, 1]})
+    n = 30
+    return pd.DataFrame({
+        "ts": pd.date_range("2021-01-01", periods=n, freq="1T"),
+        "price": np.arange(n, dtype=float),
+        "high": np.arange(n, dtype=float) + 0.5,
+        "low": np.arange(n, dtype=float) - 0.5,
+        "target": np.random.randint(0, 2, size=n),
+    })
 
 
-def _fake_train(params, dataset, num_boost_round=1):
+def _fake_train(params, dataset, num_boost_round=1, **kwargs):
     return DummyBooster()
 
 
 @pytest.mark.asyncio
 async def test_run_swarm_simulation_updates_agents(monkeypatch):
     monkeypatch.setattr(data_loader, "fetch_data_range_async", _fake_fetch)
+    monkeypatch.setattr(swarm_sim, "fetch_data_range_async", _fake_fetch)
     monkeypatch.setattr(lgb, "train", _fake_train)
+    monkeypatch.setattr(swarm_sim, "evolve_swarm", lambda *a, **k: None)
 
-    params, agents = await run_swarm_simulation(num_agents=2)
+    params = await swarm_sim.run_swarm_simulation(datetime.utcnow(), datetime.utcnow(), num_agents=2)
 
     assert isinstance(params, dict)
-    assert len(agents) == 2
-    assert all(isinstance(a, Agent) and a.fitness == 1.0 for a in agents)
 
 
 def test_ml_trainer_swarm_merges(monkeypatch):
@@ -53,8 +61,8 @@ def test_ml_trainer_swarm_merges(monkeypatch):
     monkeypatch.setattr(ml_trainer, "_make_dummy_data", lambda: (pd.DataFrame([[1]]), pd.Series([0])))
     monkeypatch.setattr(ml_trainer, "load_cfg", lambda p: {"regime_lgbm": {"a": 1}})
 
-    async def fake_swarm():
-        return {"b": 2}, [Agent({})]
+    async def fake_swarm(*args, **kwargs):
+        return {"b": 2}
 
     import swarm_sim
 
