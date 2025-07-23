@@ -139,6 +139,8 @@ def test_cli_federated_flag(monkeypatch):
             def predict(self, data, num_iteration=None):
                 return np.zeros(len(data))
         return FakeBooster(), {"accuracy": 0.0}
+
+    monkeypatch.setattr(ml_trainer, "train_regime_lgbm", fake_train)
     monkeypatch.setattr(
         ml_trainer,
         "_make_dummy_data",
@@ -166,4 +168,5 @@ def test_cli_federated_flag(monkeypatch):
     ml_trainer.main()
 
     assert called.get("federated")
+    assert not called.get("used", False)
 

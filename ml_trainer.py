@@ -72,6 +72,8 @@ def main() -> None:
     train_p.add_argument("--use-gpu", action="store_true", help="Enable GPU training")
     train_p.add_argument("--gpu-platform-id", type=int, default=None, help="OpenCL platform id")
     train_p.add_argument("--gpu-device-id", type=int, default=None, help="OpenCL device id")
+    train_p.add_argument("--swarm", action="store_true", help="Optimise params via swarm simulation")
+    train_p.add_argument("--federated", action="store_true", help="Use federated trainer")
     train_p.add_argument("--swarm", action="store_true", help="Run hyperparameter swarm search before training")
     train_p.add_argument("--federated", action="store_true", help="Use federated learning when training the 'regime' task")
     train_p.add_argument("--start-ts", help="Data start timestamp (ISO format)")
@@ -95,6 +97,19 @@ def main() -> None:
         if args.task not in TRAINERS:
             raise SystemExit(f"Unknown task: {args.task}")
         trainer_fn, cfg_key = TRAINERS[args.task]
+        if args.federated and args.task == "regime" and train_federated_regime is not None:
+            trainer_fn = train_federated_regime
+            cfg_key = "regime_lgbm"
+        if args.federated:
+            if train_federated_regime is None:
+                raise SystemExit("Federated training not supported")
+            trainer_fn = train_federated_regime
+            params = cfg.get("federated_regime", {})
+        else:
+            params = cfg.get(cfg_key, {})
+        if args.federated and args.task == "regime":
+            trainer_fn = train_federated_regime
+        params = cfg.get(cfg_key, {})
         params = cfg.get(cfg_key, {}).copy()
 
         if args.use_gpu:
@@ -116,6 +131,14 @@ def main() -> None:
             swarm_result = asyncio.run(
                 swarm_sim.run_swarm_simulation(start_ts, end_ts)
             )
+            if isinstance(swarm_params, dict):
+                params.update(swarm_params)
+        if args.gpu_platform_id is not None:
+            params["gpu_platform_id"] = args.gpu_platform_id
+        if args.gpu_device_id is not None:
+            params["gpu_device_id"] = args.gpu_device_id
+        X, y = _make_dummy_data()
+        model, metrics = trainer_fn(X, y, params, use_gpu=args.use_gpu)
             if isinstance(swarm_result, tuple):
                 best_params, _ = swarm_result
                 if isinstance(best_params, dict):

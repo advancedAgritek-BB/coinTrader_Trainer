@@ -3,6 +3,7 @@
 import os
 import sys
 import asyncio
+from datetime import datetime
 import pandas as pd
 import numpy as np
 import pytest
@@ -12,6 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 import lightgbm as lgb
 import data_loader
 import ml_trainer
+from swarm_sim import run_swarm_simulation
 from swarm_sim import run_swarm_simulation, Agent
 import swarm_sim
 from datetime import datetime
@@ -47,6 +49,9 @@ async def test_run_swarm_simulation_updates_agents(monkeypatch):
     monkeypatch.setattr(swarm_sim, "evolve_swarm", lambda a, g: None)
 
     params = await run_swarm_simulation(
+        datetime(2020, 1, 1), datetime(2020, 1, 2), num_agents=2
+    )
+
         datetime(2021, 1, 1), datetime(2021, 1, 2), num_agents=2
     )
     assert isinstance(params, dict)
@@ -63,6 +68,8 @@ def test_ml_trainer_swarm_merges(monkeypatch):
     monkeypatch.setattr(ml_trainer, "_make_dummy_data", lambda: (pd.DataFrame([[1]]), pd.Series([0])))
     monkeypatch.setattr(ml_trainer, "load_cfg", lambda p: {"regime_lgbm": {"a": 1}})
 
+    async def fake_swarm(*args, **kwargs):
+        return {"b": 2}
     async def fake_swarm(start, end):
         return {"b": 2}, [Agent({})]
 
