@@ -14,20 +14,6 @@ from data_loader import (
     fetch_data_between_async,
 )
 
-
-@pytest.mark.asyncio
-async def test_fetch_data_range_async_pagination(monkeypatch):
-    """Ensure async helpers handle paginated results."""
-
-    chunk_size = 2
-    pages = [
-        [{"id": 1, "val": 10}, {"id": 2, "val": 20}],
-        [{"id": 3, "val": 30}, {"id": 4, "val": 40}],
-        [{"id": 5, "val": 50}],
-    ]
-
-
-
 # Common mock transport used across tests
 PAGES = [
     [{"id": 1, "val": 10}, {"id": 2, "val": 20}],
