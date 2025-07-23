@@ -122,11 +122,17 @@ def test_cli_gpu_overrides(monkeypatch):
     assert captured.get("gpu_device_id") == 2
 
 
+def test_cli_federated_trainer_invoked(monkeypatch):
 def test_cli_federated_flag(monkeypatch):
     import ml_trainer
 
     called = {}
 
+    def fake_federated(*args, **kwargs):
+        called["federated"] = True
+        return (lambda df: np.zeros(len(df))), {}
+
+    monkeypatch.setattr(ml_trainer, "train_federated_regime", fake_federated)
     def fake_train(*args, **kwargs):
         called["used"] = True
         class FakeBooster:
@@ -145,15 +151,18 @@ def test_cli_federated_flag(monkeypatch):
         ),
     )
     monkeypatch.setattr(ml_trainer, "load_cfg", lambda p: {"regime_lgbm": {}})
-
+ 
     argv = [
         "ml_trainer",
         "train",
         "regime",
+        "--cfg",
+        "cfg.yaml",
         "--federated",
     ]
     monkeypatch.setattr(sys, "argv", argv)
 
     ml_trainer.main()
 
+    assert called.get("federated")
     assert called.get("used", False)
