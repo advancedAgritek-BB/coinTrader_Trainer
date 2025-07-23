@@ -96,7 +96,7 @@ def test_optuna_tuning_sets_learning_rate(monkeypatch):
         return FakeStudy()
 
     fake_optuna = types.SimpleNamespace(create_study=fake_create_study)
-    monkeypatch.setitem(sys.modules, "optuna", fake_optuna)
+    monkeypatch.setattr(train_regime_lgbm.__globals__, "optuna", fake_optuna)
     monkeypatch.setattr(lgb, "train", lambda *a, **k: _fake_booster())
 
     params = {"objective": "binary", "num_boost_round": 5, "tune_learning_rate": True}
@@ -104,6 +104,25 @@ def test_optuna_tuning_sets_learning_rate(monkeypatch):
 
     assert calls.get("create")
     assert params["learning_rate"] == best_lr
+
+
+def test_train_regime_lgbm_tune_and_lr(monkeypatch):
+    rng = np.random.default_rng(2)
+    X = pd.DataFrame(rng.normal(size=(10, 3)))
+    y = pd.Series([0, 1] * 5)
+
+    class FakeStudy:
+        best_params = {"learning_rate": 0.1}
+        def optimize(self, obj, n_trials=2):
+            pass
+
+    fake_optuna = types.SimpleNamespace(create_study=lambda direction="minimize": FakeStudy())
+    monkeypatch.setattr(train_regime_lgbm.__globals__, "optuna", fake_optuna)
+    monkeypatch.setattr(lgb, "train", lambda *a, **k: _fake_booster())
+
+    params = {"objective": "binary", "num_boost_round": 5, "tune_learning_rate": True}
+    model, metrics = train_regime_lgbm(X, y, params, use_gpu=False, tune=True, n_trials=2)
+    assert isinstance(model, Booster)
 
 
 def test_model_registry_upload_called(monkeypatch, registry_with_dummy):
