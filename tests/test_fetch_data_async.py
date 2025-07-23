@@ -21,7 +21,6 @@ async def test_fetch_data_range_async_pagination(monkeypatch):
         [{"id": 5, "val": 50}],
     ]
 
-from data_loader import fetch_data_range_async, fetch_data_async
 
 
 # Common mock transport used across tests
