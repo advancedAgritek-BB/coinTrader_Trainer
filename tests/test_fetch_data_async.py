@@ -70,6 +70,9 @@ async def test_fetch_data_range_async(monkeypatch):
 
     async with fake_client() as client:
         df1 = await fetch_table_async("trade_logs", page_size=CHUNK_SIZE, client=client)
+        df1 = await fetch_table_async(
+            "trade_logs", page_size=CHUNK_SIZE, client=client
+        )
 
     df2 = await fetch_data_range_async(
         "trade_logs", "start", "end", chunk_size=CHUNK_SIZE
