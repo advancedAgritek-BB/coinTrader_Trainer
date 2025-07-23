@@ -7,7 +7,12 @@ import httpx
 import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-from data_loader import fetch_table_async, fetch_data_range_async, fetch_data_async
+from data_loader import (
+    fetch_table_async,
+    fetch_data_range_async,
+    fetch_data_async,
+    fetch_data_between_async,
+)
 
 
 @pytest.mark.asyncio
@@ -64,14 +69,16 @@ async def test_fetch_data_range_async(monkeypatch):
     monkeypatch.setenv("SUPABASE_KEY", "test")
 
     async with fake_client() as client:
-        df1 = await fetch_table_async("trade_logs", page_size=chunk_size, client=client)
+        df1 = await fetch_table_async("trade_logs", page_size=CHUNK_SIZE, client=client)
 
     df2 = await fetch_data_range_async(
-        "trade_logs", "start", "end", chunk_size=chunk_size
+        "trade_logs", "start", "end", chunk_size=CHUNK_SIZE
     )
-    df3 = await fetch_data_async("trade_logs", "start", "end", chunk_size=chunk_size)
+    df3 = await fetch_data_between_async(
+        "trade_logs", "start", "end", chunk_size=CHUNK_SIZE
+    )
 
-    expected = pd.concat([pd.DataFrame(p) for p in pages], ignore_index=True)
+    expected = pd.concat([pd.DataFrame(p) for p in PAGES], ignore_index=True)
     pd.testing.assert_frame_equal(df1, expected)
     pd.testing.assert_frame_equal(df2, expected)
     pd.testing.assert_frame_equal(df3, expected)

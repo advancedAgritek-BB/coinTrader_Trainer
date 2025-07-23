@@ -33,7 +33,8 @@ def train_regime_lgbm(
     y : pd.Series
         Target labels. Positive class represents 'long' regime.
     params : dict
-        Parameters passed to ``lightgbm.train``.
+        Parameters passed to ``lightgbm.train``. This dictionary is
+        updated in-place with computed defaults and tuned hyperparameters.
     use_gpu : bool, optional
         Enable GPU training if ``True`` (default). When enabled the model is
         initialised with ``device_type='gpu'``, ``tree_learner='data'``,
@@ -62,7 +63,6 @@ def train_regime_lgbm(
     neg_count = int((y == 0).sum())
     scale_pos_weight = neg_count / pos_count if pos_count > 0 else 1.0
 
-    params = dict(params)
     params.setdefault("scale_pos_weight", scale_pos_weight)
 
     skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
@@ -132,8 +132,6 @@ def train_regime_lgbm(
 
     # Optional hyperparameter tuning of learning_rate via Optuna
     if params.pop("tune_learning_rate", False):
-        import optuna
-
         def objective(trial):
             lr = trial.suggest_float("learning_rate", 1e-3, 0.3)
             return lr
