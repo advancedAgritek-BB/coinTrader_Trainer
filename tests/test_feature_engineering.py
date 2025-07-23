@@ -93,7 +93,7 @@ def test_make_features_adds_columns_and_handles_params(capsys):
         assert col in result.columns
     assert pd.api.types.is_datetime64_any_dtype(result['ts'])
 
-    result = make_features(df, rsi_period=10, vol_window=5, atr_period=4)
+    result = make_features(df, rsi_period=10, volatility_window=5, atr_window=4)
     for col in ['rsi10', 'volatility5', 'atr4']:
         assert col in result.columns
 
