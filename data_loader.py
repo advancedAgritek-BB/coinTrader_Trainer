@@ -70,7 +70,11 @@ def fetch_trade_logs(
     rows = _fetch_logs(client, start_ts, end_ts, symbol=symbol)
     df = pd.DataFrame(rows)
     for col in df.columns:
-        df[col] = pd.to_numeric(df[col], errors="ignore")
+        try:
+            df[col] = pd.to_numeric(df[col])
+        except (TypeError, ValueError):
+            # leave column unchanged if conversion fails
+            pass
 
     if cache_path:
         df.to_parquet(cache_path)
