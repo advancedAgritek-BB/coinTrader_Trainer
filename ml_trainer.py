@@ -12,11 +12,6 @@ try:  # pragma: no cover - federated trainer may be optional
     from trainers.federated import train_federated_regime
 except Exception:  # pragma: no cover - during testing trainer might be missing
     train_federated_regime = None
-try:  # Federated training may be optional
-    from trainers.federated_regime import train_federated_regime
-except Exception:  # pragma: no cover - trainer not available
-    train_federated_regime = None
-from trainers.regime_lgbm import train_regime_lgbm, train_federated_regime
 
 TRAINERS = {
     "regime": (train_regime_lgbm, "regime_lgbm"),
@@ -73,13 +68,11 @@ def main() -> None:
     train_p.add_argument("--use-gpu", action="store_true", help="Enable GPU training")
     train_p.add_argument("--gpu-platform-id", type=int, default=None, help="OpenCL platform id")
     train_p.add_argument("--gpu-device-id", type=int, default=None, help="OpenCL device id")
-    train_p.add_argument("--swarm", action="store_true", help="Optimise params via swarm simulation")
     train_p.add_argument(
         "--swarm",
         action="store_true",
         help="Run hyperparameter swarm search before training",
-    train_p.add_argument("--federated", action="store_true", help="Use federated trainer")
-    train_p.add_argument("--federated", action="store_true", help="Use federated training")
+    )
     train_p.add_argument(
         "--federated",
         action="store_true",
