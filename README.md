@@ -60,10 +60,10 @@ network requests.
 ### Async Data Fetching
 
 `data_loader` now provides asynchronous helpers for retrieving trade logs
-without blocking the event loop. `fetch_all_rows_async` pages through a table while
-without blocking the event loop. `fetch_table_async` pages through a table while
-`fetch_data_range_async` fetches rows between two timestamps. Both functions
-return a ``pandas.DataFrame`` and must be awaited:
+without blocking the event loop. `fetch_all_rows_async` retrieves every row in a
+table, `fetch_table_async` pages through a table, and `fetch_data_range_async`
+fetches rows between two timestamps. Each function returns a
+``pandas.DataFrame`` and must be awaited:
 
 ```python
 import asyncio
@@ -84,7 +84,6 @@ event loop.  Inside existing async code simply use ``await fetch_data_range_asyn
 
 The ``make_features`` function now accepts several parameters to customise the
 technical indicators that are produced:
-
 * ``rsi_period`` – lookback window for the relative strength index (default ``14``)
 * ``atr_period`` – average true range window (default ``3``)
 * ``volatility_period`` – period used to compute log return volatility (default ``20``)
