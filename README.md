@@ -62,12 +62,9 @@ If you prefer to install packages individually:
 pip install pandas numpy lightgbm scikit-learn supabase tenacity pyarrow pytz
 ```
 
-With the new ``src/`` layout install the package in editable mode so
-Python can resolve imports:
-
-```bash
-pip install -e .
-```
+All modules reside directly in the project root rather than under a
+``src/`` directory.  When running scripts from another location, add the
+repository path to ``PYTHONPATH`` so Python can resolve imports.
 
 Modules can then be imported as normal.  For example:
 
