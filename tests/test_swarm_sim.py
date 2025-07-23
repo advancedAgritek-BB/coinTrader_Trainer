@@ -3,6 +3,7 @@
 import os
 import sys
 import asyncio
+from datetime import datetime
 import pandas as pd
 import numpy as np
 import pytest
@@ -10,6 +11,11 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 import ml_trainer
+import swarm_sim
+from swarm_sim import run_swarm_simulation
+from swarm_sim import run_swarm_simulation, Agent
+import swarm_sim
+from datetime import datetime
 
 
 class DummyBooster:
@@ -36,6 +42,22 @@ train_calls = []
 
 def _fake_train(*args, **kwargs):
     train_calls.append(1)
+    n = 30
+    return pd.DataFrame({
+        "ts": pd.date_range("2021-01-01", periods=n, freq="1T"),
+        "price": np.arange(n, dtype=float),
+        "high": np.arange(n, dtype=float) + 0.5,
+        "low": np.arange(n, dtype=float) - 0.5,
+        "target": np.random.randint(0, 2, size=n),
+        "ts": pd.date_range("2021-01-01", periods=n, freq="h"),
+        "price": np.linspace(1, n, n),
+        "high": np.linspace(1, n, n),
+        "low": np.linspace(0, n - 1, n),
+        "target": [0, 1] * (n // 2) + [0] * (n % 2),
+    })
+
+
+def _fake_train(params, dataset, num_boost_round=1, **kwargs):
     return DummyBooster()
 
 
@@ -57,8 +79,20 @@ async def test_run_swarm_simulation_updates_agents(monkeypatch):
 
     params = await run_swarm_simulation(
         datetime(2021, 1, 1), datetime(2021, 1, 2), num_agents=2
+    monkeypatch.setattr(data_loader, "fetch_data_range_async", _fake_fetch)
+    monkeypatch.setattr(swarm_sim, "fetch_data_range_async", _fake_fetch)
+    monkeypatch.setattr(lgb, "train", _fake_train)
+    monkeypatch.setattr(swarm_sim, "evolve_swarm", lambda *a, **k: None)
+
+    params = await swarm_sim.run_swarm_simulation(datetime.utcnow(), datetime.utcnow(), num_agents=2)
+    monkeypatch.setattr(swarm_sim, "evolve_swarm", lambda a, g: None)
+
+    params = await run_swarm_simulation(
+        datetime(2020, 1, 1), datetime(2020, 1, 2), num_agents=2
     )
 
+        datetime(2021, 1, 1), datetime(2021, 1, 2), num_agents=2
+    )
     assert isinstance(params, dict)
     assert train_calls
 
@@ -76,6 +110,8 @@ def test_ml_trainer_swarm_merges(monkeypatch):
 
     async def fake_swarm(*args, **kwargs):
         return {"b": 2}
+    async def fake_swarm(start, end):
+        return {"b": 2}, [Agent({})]
 
     import swarm_sim
 
@@ -85,4 +121,10 @@ def test_ml_trainer_swarm_merges(monkeypatch):
     ml_trainer.main()
 
     assert captured["params"] == {"a": 1, "b": 2}
+
+
+
+
+
+
 
