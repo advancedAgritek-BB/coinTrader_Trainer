@@ -3,6 +3,7 @@
 import os
 import sys
 import asyncio
+from datetime import datetime
 import pandas as pd
 import numpy as np
 import pytest
@@ -12,7 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 import lightgbm as lgb
 import data_loader
 import ml_trainer
-from swarm_sim import run_swarm_simulation, Agent
+from swarm_sim import run_swarm_simulation
 
 
 class DummyBooster:
@@ -35,11 +36,11 @@ async def test_run_swarm_simulation_updates_agents(monkeypatch):
     monkeypatch.setattr(data_loader, "fetch_data_range_async", _fake_fetch)
     monkeypatch.setattr(lgb, "train", _fake_train)
 
-    params, agents = await run_swarm_simulation(num_agents=2)
+    params = await run_swarm_simulation(
+        datetime(2020, 1, 1), datetime(2020, 1, 2), num_agents=2
+    )
 
     assert isinstance(params, dict)
-    assert len(agents) == 2
-    assert all(isinstance(a, Agent) and a.fitness == 1.0 for a in agents)
 
 
 def test_ml_trainer_swarm_merges(monkeypatch):
@@ -53,8 +54,8 @@ def test_ml_trainer_swarm_merges(monkeypatch):
     monkeypatch.setattr(ml_trainer, "_make_dummy_data", lambda: (pd.DataFrame([[1]]), pd.Series([0])))
     monkeypatch.setattr(ml_trainer, "load_cfg", lambda p: {"regime_lgbm": {"a": 1}})
 
-    async def fake_swarm():
-        return {"b": 2}, [Agent({})]
+    async def fake_swarm(*args, **kwargs):
+        return {"b": 2}
 
     import swarm_sim
 

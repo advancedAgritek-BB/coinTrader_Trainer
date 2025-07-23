@@ -121,8 +121,6 @@ def test_cli_gpu_overrides(monkeypatch):
     assert captured.get("gpu_platform_id") == 1
     assert captured.get("gpu_device_id") == 2
 
-
-def test_cli_federated_trainer_invoked(monkeypatch):
 def test_cli_federated_flag(monkeypatch):
     import ml_trainer
 
@@ -141,7 +139,7 @@ def test_cli_federated_flag(monkeypatch):
                 return np.zeros(len(data))
         return FakeBooster(), {"accuracy": 0.0}
 
-    monkeypatch.setattr(ml_trainer, "train_federated_regime", fake_train)
+    monkeypatch.setattr(ml_trainer, "train_regime_lgbm", fake_train)
     monkeypatch.setattr(
         ml_trainer,
         "_make_dummy_data",
@@ -165,4 +163,4 @@ def test_cli_federated_flag(monkeypatch):
     ml_trainer.main()
 
     assert called.get("federated")
-    assert called.get("used", False)
+    assert not called.get("used", False)

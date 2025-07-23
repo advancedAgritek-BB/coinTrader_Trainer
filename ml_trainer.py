@@ -74,17 +74,7 @@ def main() -> None:
     train_p.add_argument("--gpu-platform-id", type=int, default=None, help="OpenCL platform id")
     train_p.add_argument("--gpu-device-id", type=int, default=None, help="OpenCL device id")
     train_p.add_argument("--swarm", action="store_true", help="Optimise params via swarm simulation")
-    train_p.add_argument(
-        "--swarm",
-        action="store_true",
-        help="Run hyperparameter swarm search before training",
     train_p.add_argument("--federated", action="store_true", help="Use federated trainer")
-    train_p.add_argument("--federated", action="store_true", help="Use federated training")
-    train_p.add_argument(
-        "--federated",
-        action="store_true",
-        help="Use federated learning when training the 'regime' task",
-    )
 
     args = parser.parse_args()
 
@@ -108,16 +98,6 @@ def main() -> None:
             trainer_fn = train_federated_regime
         params = cfg.get(cfg_key, {})
         if args.swarm:
-            import asyncio
-            from swarm_sim import run_swarm_simulation
-
-            best_params, _agents = asyncio.run(run_swarm_simulation())
-            params.update(best_params)
-        if args.gpu_platform_id is not None:
-            params["gpu_platform_id"] = args.gpu_platform_id
-        if args.gpu_device_id is not None:
-            params["gpu_device_id"] = args.gpu_device_id
-        if args.swarm:
             try:
                 import swarm_sim
             except Exception as exc:  # pragma: no cover - optional dependency
@@ -131,6 +111,10 @@ def main() -> None:
             )
             if isinstance(swarm_params, dict):
                 params.update(swarm_params)
+        if args.gpu_platform_id is not None:
+            params["gpu_platform_id"] = args.gpu_platform_id
+        if args.gpu_device_id is not None:
+            params["gpu_device_id"] = args.gpu_device_id
         X, y = _make_dummy_data()
         model, metrics = trainer_fn(X, y, params, use_gpu=args.use_gpu)
         print("Training completed. Metrics:")
