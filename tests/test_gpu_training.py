@@ -122,7 +122,6 @@ def test_cli_gpu_overrides(monkeypatch):
     assert captured.get("gpu_device_id") == 2
 
 
-def test_cli_federated_trainer_invoked(monkeypatch):
 def test_cli_federated_flag(monkeypatch):
     import ml_trainer
 
