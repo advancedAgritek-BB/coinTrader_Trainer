@@ -7,6 +7,19 @@ import httpx
 import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+from data_loader import fetch_table_async, fetch_data_range_async, fetch_data_async
+
+
+@pytest.mark.asyncio
+async def test_fetch_data_range_async_pagination(monkeypatch):
+    """Ensure async helpers handle paginated results."""
+
+    chunk_size = 2
+    pages = [
+        [{"id": 1, "val": 10}, {"id": 2, "val": 20}],
+        [{"id": 3, "val": 30}, {"id": 4, "val": 40}],
+        [{"id": 5, "val": 50}],
+    ]
 
 from data_loader import fetch_data_range_async, fetch_data_async
 
@@ -51,6 +64,18 @@ async def test_fetch_data_range_async(monkeypatch):
     monkeypatch.setenv("SUPABASE_URL", "https://sb.example.com")
     monkeypatch.setenv("SUPABASE_KEY", "test")
 
+    async with fake_client() as client:
+        df1 = await fetch_table_async("trade_logs", page_size=chunk_size, client=client)
+
+    df2 = await fetch_data_range_async(
+        "trade_logs", "start", "end", chunk_size=chunk_size
+    )
+    df3 = await fetch_data_async("trade_logs", "start", "end", chunk_size=chunk_size)
+
+    expected = pd.concat([pd.DataFrame(p) for p in pages], ignore_index=True)
+    pd.testing.assert_frame_equal(df1, expected)
+    pd.testing.assert_frame_equal(df2, expected)
+    pd.testing.assert_frame_equal(df3, expected)
     df = await fetch_data_range_async(
         "trade_logs",
         "2021-01-01",

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import os
+from datetime import datetime, timezone
+from typing import Optional, Dict, AsyncGenerator
 from datetime import datetime
 from typing import Optional, Dict
 from typing import AsyncGenerator
@@ -26,6 +28,15 @@ def _get_client() -> Client:
 
 
 @retry(wait=wait_exponential(multiplier=1, min=1, max=10), stop=stop_after_attempt(5))
+def _fetch_logs(
+    client: Client,
+    start_ts: datetime,
+    end_ts: datetime,
+    *,
+    symbol: Optional[str] = None,
+) -> list[dict]:
+    """Fetch rows from the ``trade_logs`` table with retry."""
+    query = (
 def _fetch_logs(client: Client, start_ts: datetime, end_ts: datetime) -> list[dict]:
     """Fetch rows from the trade_logs table with retry."""
     response = (
@@ -35,6 +46,44 @@ def _fetch_logs(client: Client, start_ts: datetime, end_ts: datetime) -> list[di
         .lt("timestamp", end_ts.isoformat())
         .execute()
     )
+    if symbol is not None:
+        query = query.eq("symbol", symbol)
+    response = query.execute()
+    return response.data
+
+
+def fetch_trade_logs(
+    start_ts: datetime,
+    end_ts: datetime,
+    *,
+    symbol: Optional[str] = None,
+    cache_path: Optional[str] = None,
+) -> pd.DataFrame:
+    """Return trade logs between ``start_ts`` and ``end_ts`` as a DataFrame."""
+
+    if cache_path and os.path.exists(cache_path):
+        return pd.read_parquet(cache_path)
+
+    client = _get_client()
+
+    if start_ts.tzinfo is None:
+        start_ts = start_ts.replace(tzinfo=timezone.utc)
+    else:
+        start_ts = start_ts.astimezone(timezone.utc)
+
+    if end_ts.tzinfo is None:
+        end_ts = end_ts.replace(tzinfo=timezone.utc)
+    else:
+        end_ts = end_ts.astimezone(timezone.utc)
+
+    rows = _fetch_logs(client, start_ts, end_ts, symbol=symbol)
+    df = pd.DataFrame(rows)
+    for col in df.columns:
+        df[col] = pd.to_numeric(df[col], errors="ignore")
+
+    if cache_path:
+        df.to_parquet(cache_path)
+
     return response.data
 
 
@@ -58,6 +107,13 @@ async def fetch_table_async(
     params: Optional[Dict[str, str]] = None,
     client: Optional[httpx.AsyncClient] = None,
 ) -> pd.DataFrame:
+    """Fetch all rows from ``table`` asynchronously in pages."""
+    url = os.environ.get("SUPABASE_URL")
+    key = os.environ.get("SUPABASE_KEY")
+    if not url or not key:
+        raise ValueError(
+            "SUPABASE_URL and SUPABASE_KEY environment variables must be set"
+        )
     """Fetch rows from ``table`` asynchronously.
 
     When ``start_ts`` and ``end_ts`` are provided rows are fetched in
@@ -110,7 +166,6 @@ async def fetch_table_async(
 
     frames: list[pd.DataFrame] = []
     start = 0
-
     try:
         while True:
             end = start + page_size - 1
@@ -141,6 +196,9 @@ async def fetch_data_async(
     params: Optional[Dict[str, str]] = None,
     client: Optional[httpx.AsyncClient] = None,
 ) -> pd.DataFrame:
+    """Backward compatible wrapper for ``fetch_table_async``."""
+    return await fetch_table_async(
+        table,
     """Backward compatible wrapper for ``fetch_table_async`` without date range."""
 
     return await fetch_table_async(
@@ -162,7 +220,6 @@ async def fetch_data_between_async(
     chunk_size: int = 1000,
 ) -> pd.DataFrame:
     """Backward compatible wrapper for fetching rows in a date range."""
-
     return await fetch_data_range_async(table, start_ts, end_ts, chunk_size)
 
 
@@ -201,6 +258,7 @@ async def fetch_data_range_async(
     end_ts: str,
     chunk_size: int = 1000,
 ) -> pd.DataFrame:
+    """Fetch rows between two timestamps in ``chunk_size`` batches."""
     """Fetch ``table`` rows between ``start_ts`` and ``end_ts`` asynchronously.
 
     Data are retrieved in ``chunk_size`` batches and concatenated into a single
