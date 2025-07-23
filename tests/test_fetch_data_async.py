@@ -9,14 +9,13 @@ import pytest
 pytest.skip("Skipping async fetch test due to environment", allow_module_level=True)
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-from data_loader import fetch_data_range_async, fetch_data_async
-from data_loader import fetch_data_async, fetch_data_range_async
-from data_loader import fetch_data_async
+from data_loader import fetch_table_async, fetch_data_range_async, fetch_data_async
 
 
 @pytest.mark.asyncio
 async def test_fetch_data_range_async_pagination(monkeypatch):
-    """Ensure ``fetch_data_range_async`` handles chunked pagination."""
+    """Ensure async helpers handle paginated results."""
+
     chunk_size = 2
     pages = [
         [{"id": 1, "val": 10}, {"id": 2, "val": 20}],
@@ -40,22 +39,15 @@ async def test_fetch_data_range_async_pagination(monkeypatch):
     monkeypatch.setenv("SUPABASE_URL", "https://sb.example.com")
     monkeypatch.setenv("SUPABASE_KEY", "test")
 
-    df = await fetch_data_range_async(
-    df = await fetch_data_range_async("trade_logs", "start", "end", chunk_size=chunk_size)
     async with fake_client() as client:
-        df = await fetch_data_async("trade_logs", page_size=chunk_size, client=client)
-    df2 = await fetch_data_range_async("trade_logs", "start", "end", chunk_size=chunk_size)
-    df = await fetch_data_range_async(
-        "trade_logs", "2021-01-01", "2021-01-02", chunk_size=chunk_size
-        "trade_logs",
-        "start",
-        "end",
-        chunk_size=chunk_size,
+        df1 = await fetch_table_async("trade_logs", page_size=chunk_size, client=client)
+
+    df2 = await fetch_data_range_async(
         "trade_logs", "start", "end", chunk_size=chunk_size
     )
-    df = await fetch_data_range_async("trade_logs", "start", "end", chunk_size=chunk_size)
-    df = await fetch_data_async("trade_logs", page_size=chunk_size)
+    df3 = await fetch_data_async("trade_logs", "start", "end", chunk_size=chunk_size)
 
     expected = pd.concat([pd.DataFrame(p) for p in pages], ignore_index=True)
-    pd.testing.assert_frame_equal(df, expected)
+    pd.testing.assert_frame_equal(df1, expected)
     pd.testing.assert_frame_equal(df2, expected)
+    pd.testing.assert_frame_equal(df3, expected)

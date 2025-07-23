@@ -1,7 +1,16 @@
 import os
+import sys
+import types
 import pandas as pd
 from datetime import datetime
 import pytest
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+
+sys.modules.setdefault(
+    "supabase",
+    types.SimpleNamespace(Client=object, create_client=lambda *a, **k: object()),
+)
 
 import data_loader
 
@@ -29,9 +38,9 @@ def test_fetch_trade_logs_symbol_filter(monkeypatch):
 
 
 def test_fetch_trade_logs_uses_cache(tmp_path, monkeypatch):
-    cache_file = tmp_path / "cache.parquet"
+    cache_path = tmp_path / "cache.parquet"
     df_cached = pd.DataFrame({"a": [1, 2], "symbol": ["BTC", "BTC"]})
-    df_cached.to_parquet(cache_file)
+    df_cached.to_parquet(cache_path)
 
     def fail_get_client():
         raise AssertionError("client should not be called")
@@ -41,6 +50,6 @@ def test_fetch_trade_logs_uses_cache(tmp_path, monkeypatch):
     start = datetime(2021, 1, 1)
     end = datetime(2021, 1, 2)
 
-    df = data_loader.fetch_trade_logs(start, end, cache_file=str(cache_file))
+    df = data_loader.fetch_trade_logs(start, end, cache_path=str(cache_path))
 
     pd.testing.assert_frame_equal(df, df_cached)
