@@ -20,6 +20,8 @@ optionally persisted to Supabase Storage and the ``models`` table.
 * ``SUPABASE_URL`` and ``SUPABASE_KEY`` (or ``SUPABASE_SERVICE_KEY``) set in the
   environment. These credentials point to the Supabase project used by both
   ``coinTrader2.0`` and the trainer.
+* ``PARAMS_BUCKET`` and ``PARAMS_TABLE`` control where swarm optimisation
+  parameters are uploaded. Defaults are ``agent_params`` for both.
 * Optional: ``cudf`` and a CUDA capable GPU for accelerated feature
   generation.
 * Optional: a GPU-enabled LightGBM build for faster training. A helper script
@@ -153,6 +155,12 @@ cd ../python-package
 python setup.py install --precompile
 ```
 
+Alternatively LightGBM can be compiled during installation using ``pip``.
+
+```bash
+pip install lightgbm --config-settings=cmake_args="-DUSE_GPU=1"
+```
+
 See the [GPU tutorial](https://lightgbm.readthedocs.io/en/latest/GPU-Tutorial.html)
 for full instructions. Install the AMD driver (or ROCm) so your GPU appears when
 running `clinfo`.
@@ -174,6 +182,27 @@ with open("cfg.yaml") as f:
     params = yaml.safe_load(f)["regime_lgbm"]
 params.setdefault("device_type", "gpu")
 ```
+
+### ROCm on Windows for RX 7900 XTX
+
+AMD provides a preview ROCm driver for Windows that runs under WSL 2. Use an
+administrator PowerShell prompt to enable WSL and install Ubuntu:
+
+```powershell
+wsl --install
+```
+
+After rebooting, download the Radeon driver for WSL from AMD and install it on
+Windows. Inside the Linux environment add the ROCm apt repository and install
+the packages:
+
+```bash
+sudo apt update
+sudo apt install rocm-dev rocm-utils
+```
+
+Restart WSL and verify the RX 7900 XTX appears when running `rocminfo` or
+`clinfo`.
 
 ## Running the CLI
 
@@ -202,6 +231,20 @@ python ml_trainer.py train regime --federated
 
 The aggregated model is written to ``federated_model.pkl`` and uploaded
 to the ``models`` bucket in Supabase just like other trained models.
+
+Programmatic access is also available via
+``federated_trainer.train_federated_regime``:
+
+```python
+from coinTrader_Trainer import federated_trainer
+
+ensemble, metrics = federated_trainer.train_federated_regime(
+    "2023-01-01T00:00:00Z", "2023-01-02T00:00:00Z"
+)
+```
+
+When ``SUPABASE_URL`` and credentials are present, the resulting ensemble is
+uploaded to the ``models`` bucket automatically.
 
 ## GPU Training
 
@@ -248,6 +291,8 @@ The `train_regime_lgbm` function uploads the trained model to Supabase
 Storage when `SUPABASE_URL` and either `SUPABASE_SERVICE_KEY` or
 `SUPABASE_KEY` are present in the environment. Uploaded artifacts are
 stored in the `models` bucket and recorded in the `models` table.
+Similarly, the swarm simulation uploads the best parameter set to the bucket
+specified by `PARAMS_BUCKET` and logs a row in `PARAMS_TABLE`.
 
 ## Swarm Scenario Simulation
 

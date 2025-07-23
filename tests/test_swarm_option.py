@@ -32,7 +32,7 @@ def test_cli_swarm_merges_params(monkeypatch):
         captured['swarm_called'] = True
         return {'learning_rate': 0.1}
 
-    module = types.SimpleNamespace(run_swarm_simulation=fake_run)
+    module = types.SimpleNamespace(run_swarm_search=fake_run)
     monkeypatch.setitem(sys.modules, 'swarm_sim', module)
 
     argv = ['ml_trainer', 'train', 'regime', '--swarm']
