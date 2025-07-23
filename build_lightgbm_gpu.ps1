@@ -26,15 +26,15 @@ param(
     [string]$OpenCLLibrary = ''
 )
 
-# Verify required AMD OpenCL drivers are available
+# Verify OpenCL is available and a GPU device is detected
 if (-not (Get-Command clinfo -ErrorAction SilentlyContinue)) {
-    Write-Error "AMD Radeon drivers with OpenCL not detected…"
+    Write-Error "clinfo not found. OpenCL runtime does not appear to be installed."
     Exit 1
 }
 
-$clinfoOutput = clinfo
-if ($clinfoOutput -notmatch 'Radeon RX 7900 XT') {
-    Write-Error "AMD Radeon drivers with OpenCL not detected…"
+$clinfoOutput = clinfo 2>&1
+if (-not ($clinfoOutput | Select-String -Pattern 'Device\s+Type.*GPU' -Quiet)) {
+    Write-Error "No OpenCL GPU device detected. Ensure compatible GPU drivers are installed."
     Exit 1
 }
 
