@@ -88,6 +88,7 @@ def main() -> None:
         action="store_true",
         help="Use federated learning when training the 'regime' task",
     )
+    train_p.add_argument("--federated", action="store_true", help="Use federated trainer")
 
     args = parser.parse_args()
 

@@ -10,8 +10,6 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-import lightgbm as lgb
-import data_loader
 import ml_trainer
 import swarm_sim
 from swarm_sim import run_swarm_simulation
@@ -28,6 +26,22 @@ class DummyBooster:
 
 
 async def _fake_fetch(*args, **kwargs):
+    return pd.DataFrame(
+        {
+            "ts": pd.date_range("2021-01-01", periods=2, freq="1D"),
+            "price": [1, 2],
+            "high": [1, 2],
+            "low": [0, 1],
+            "target": [0, 1],
+        }
+    )
+
+
+train_calls = []
+
+
+def _fake_train(*args, **kwargs):
+    train_calls.append(1)
     n = 30
     return pd.DataFrame({
         "ts": pd.date_range("2021-01-01", periods=n, freq="1T"),
@@ -49,6 +63,22 @@ def _fake_train(params, dataset, num_boost_round=1, **kwargs):
 
 @pytest.mark.asyncio
 async def test_run_swarm_simulation_updates_agents(monkeypatch):
+    from datetime import datetime
+
+    import importlib, sys
+    module = importlib.import_module("swarm_sim")
+    if not hasattr(module, "yaml"):
+        sys.modules.pop("swarm_sim", None)
+        module = importlib.import_module("swarm_sim")
+    import lightgbm as lgb
+    from swarm_sim import run_swarm_simulation
+    monkeypatch.setattr(module, "fetch_data_range_async", _fake_fetch)
+    monkeypatch.setattr(lgb, "train", _fake_train)
+    monkeypatch.setattr(module, "make_features", lambda df: df)
+    monkeypatch.setattr(module.yaml, "safe_load", lambda f: {})
+
+    params = await run_swarm_simulation(
+        datetime(2021, 1, 1), datetime(2021, 1, 2), num_agents=2
     monkeypatch.setattr(data_loader, "fetch_data_range_async", _fake_fetch)
     monkeypatch.setattr(swarm_sim, "fetch_data_range_async", _fake_fetch)
     monkeypatch.setattr(lgb, "train", _fake_train)
@@ -64,6 +94,7 @@ async def test_run_swarm_simulation_updates_agents(monkeypatch):
         datetime(2021, 1, 1), datetime(2021, 1, 2), num_agents=2
     )
     assert isinstance(params, dict)
+    assert train_calls
 
 
 def test_ml_trainer_swarm_merges(monkeypatch):
