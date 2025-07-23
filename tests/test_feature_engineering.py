@@ -1,11 +1,11 @@
-import os
 import sys
 import types
+from pathlib import Path
 import pandas as pd
 import numpy as np
 import pytest
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from feature_engineering import make_features
 

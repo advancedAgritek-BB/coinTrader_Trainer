@@ -1,3 +1,5 @@
+"""Utilities for environment setup tasks like building LightGBM."""
+
 from __future__ import annotations
 
 import argparse
@@ -76,7 +78,6 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-"""Utilities for environment setup tasks like building LightGBM."""
 
 import glob
 import os

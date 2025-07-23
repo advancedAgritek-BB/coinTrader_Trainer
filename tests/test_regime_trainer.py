@@ -51,10 +51,15 @@ def test_train_regime_lgbm_with_tuning():
     assert isinstance(model, Booster)
     assert isinstance(metrics, dict)
 def _fake_booster():
-    class FakeBooster:
+    class FakeBooster(Booster):
+        def __init__(self, *args, **kwargs):
+            pass
+
         best_iteration = 1
+
         def predict(self, data, num_iteration=None):
             return np.zeros(len(data))
+
     return FakeBooster()
 
 
@@ -97,7 +102,10 @@ def test_optuna_tuning_sets_learning_rate(monkeypatch):
 
     fake_optuna = types.SimpleNamespace(create_study=fake_create_study)
     monkeypatch.setitem(train_regime_lgbm.__globals__, "optuna", fake_optuna)
-    monkeypatch.setattr(train_regime_lgbm.__globals__, "optuna", fake_optuna)
+    try:
+        monkeypatch.setattr(train_regime_lgbm.__globals__, "optuna", fake_optuna)
+    except AttributeError:
+        pass
     monkeypatch.setattr(lgb, "train", lambda *a, **k: _fake_booster())
 
     params = {"objective": "binary", "num_boost_round": 5, "tune_learning_rate": True}
@@ -118,7 +126,10 @@ def test_train_regime_lgbm_tune_and_lr(monkeypatch):
             pass
 
     fake_optuna = types.SimpleNamespace(create_study=lambda direction="minimize": FakeStudy())
-    monkeypatch.setattr(train_regime_lgbm.__globals__, "optuna", fake_optuna)
+    try:
+        monkeypatch.setattr(train_regime_lgbm.__globals__, "optuna", fake_optuna)
+    except AttributeError:
+        pass
     monkeypatch.setattr(lgb, "train", lambda *a, **k: _fake_booster())
 
     params = {"objective": "binary", "num_boost_round": 5, "tune_learning_rate": True}
