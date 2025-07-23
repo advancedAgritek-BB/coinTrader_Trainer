@@ -6,11 +6,10 @@ import lightgbm as lgb
 from lightgbm import Booster
 from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
-from typing import Tuple, Dict
+from typing import Dict, Tuple, Optional
 import os
 import logging
 import optuna
-from typing import Tuple, Dict, Optional
 
 from registry import ModelRegistry
 
@@ -131,19 +130,6 @@ def train_regime_lgbm(
         study.optimize(objective, n_trials=n_trials)
         params["learning_rate"] = study.best_params["learning_rate"]
 
-    train_params = dict(params)
-    if use_gpu:
-        for k, v in gpu_defaults.items():
-            train_params.setdefault(k, v)
-
-    metrics, final_num_boost_round = _cross_validate(train_params)
-    # Automatically determine scale_pos_weight if not provided
-    if "scale_pos_weight" not in params:
-        pos = int(y.sum())
-        neg = int(len(y) - pos)
-        if pos > 0:
-            params["scale_pos_weight"] = neg / pos
-
     # Optional hyperparameter tuning of learning_rate via Optuna
     if params.pop("tune_learning_rate", False):
         import optuna
@@ -156,51 +142,12 @@ def train_regime_lgbm(
         study.optimize(objective, n_trials=10)
         params["learning_rate"] = study.best_params["learning_rate"]
 
-    for train_idx, valid_idx in skf.split(X, y):
-        X_train, X_valid = X.iloc[train_idx], X.iloc[valid_idx]
-        y_train, y_valid = y.iloc[train_idx], y.iloc[valid_idx]
+    train_params = dict(params)
+    if use_gpu:
+        for k, v in gpu_defaults.items():
+            train_params.setdefault(k, v)
 
-        train_set = lgb.Dataset(X_train, label=y_train)
-        valid_set = lgb.Dataset(X_valid, label=y_valid)
-
-        train_params = dict(params)
-        if use_gpu:
-            for k, v in gpu_defaults.items():
-                train_params.setdefault(k, v)
-
-        booster = lgb.train(
-            train_params,
-            train_set,
-            valid_sets=[valid_set],
-            callbacks=[
-                lgb.early_stopping(
-                    params.get("early_stopping_rounds", 50), verbose=False
-                )
-            ],
-        )
-
-        best_iterations.append(booster.best_iteration)
-        preds = booster.predict(X_valid, num_iteration=booster.best_iteration)
-        y_pred = (preds >= 0.5).astype(int)
-
-        acc_scores.append(accuracy_score(y_valid, y_pred))
-        f1_scores.append(f1_score(y_valid, y_pred))
-        precision_scores.append(precision_score(y_valid, y_pred))
-        recall_scores.append(recall_score(y_valid, y_pred))
-
-    metrics = {
-        "accuracy": float(np.mean(acc_scores)),
-        "f1": float(np.mean(f1_scores)),
-        "precision_long": float(np.mean(precision_scores)),
-        "recall_long": float(np.mean(recall_scores)),
-    }
-
-    final_num_boost_round = (
-        int(np.mean(best_iterations))
-        if best_iterations
-        else params.get("num_boost_round", 100)
-    )
-    final_set = lgb.Dataset(X, label=y)
+    metrics, final_num_boost_round = _cross_validate(train_params)
 
     final_set = lgb.Dataset(X, label=y)
     final_params = dict(train_params)
