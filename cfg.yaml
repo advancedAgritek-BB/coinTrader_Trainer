@@ -13,3 +13,23 @@ regime_lgbm:
   device_type: cpu
   gpu_platform_id: null
   gpu_device_id: null
+
+federated_regime:
+  objective: binary
+  metric: binary_logloss
+  learning_rate: 0.1
+  num_boost_round: 50
+  early_stopping_rounds: 10
+  num_leaves: 31
+  feature_fraction: 0.9
+  bagging_fraction: 0.8
+  bagging_freq: 5
+  # GPU options
+  # Set device_type to 'gpu' to enable GPU training
+  device_type: cpu
+  gpu_platform_id: null
+  gpu_device_id: null
+  # Federated training options
+  num_clients: 5
+  num_rounds: 10
+  local_epochs: 1
