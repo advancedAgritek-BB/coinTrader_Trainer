@@ -16,6 +16,7 @@ optionally persisted to Supabase Storage and the ``models`` table.
 ## Requirements
 
 * Python 3.9 or newer
+* networkx for the swarm simulation
 * ``SUPABASE_URL`` and ``SUPABASE_KEY`` (or ``SUPABASE_SERVICE_KEY``) set in the
   environment. These credentials point to the Supabase project used by both
   ``coinTrader2.0`` and the trainer.
@@ -247,3 +248,13 @@ The `train_regime_lgbm` function uploads the trained model to Supabase
 Storage when `SUPABASE_URL` and either `SUPABASE_SERVICE_KEY` or
 `SUPABASE_KEY` are present in the environment. Uploaded artifacts are
 stored in the `models` bucket and recorded in the `models` table.
+
+## Swarm Scenario Simulation
+
+`swarm_sim.py` explores how multiple trading strategies perform when run in parallel. The simulator uses `networkx` to build a graph of market scenarios and evaluate parameter combinations across the nodes. Invoke it via the command line:
+
+```bash
+python ml_trainer.py --swarm
+```
+
+The script searches for optimal LightGBM parameters during the simulation. Once complete, those values are passed into `train_regime_lgbm` so subsequent training runs start from the tuned configuration.
