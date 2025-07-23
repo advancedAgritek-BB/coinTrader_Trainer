@@ -132,6 +132,7 @@ def train_regime_lgbm(
 
     # Optional hyperparameter tuning of learning_rate via Optuna
     if params.pop("tune_learning_rate", False):
+        def objective(trial) -> float:
         def objective(trial: optuna.Trial) -> float:
             lr = trial.suggest_float("learning_rate", 1e-3, 0.3)
             return lr

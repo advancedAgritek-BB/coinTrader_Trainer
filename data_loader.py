@@ -82,15 +82,6 @@ def fetch_trade_logs(
     return df
 
 
-def fetch_trade_logs_simple(start_ts: datetime, end_ts: datetime) -> pd.DataFrame:
-    """Return trade logs between two timestamps as a DataFrame."""
-    client = _get_client()
-    rows = _fetch_logs(client, start_ts, end_ts)
-    df = pd.DataFrame(rows)
-    for col in df.columns:
-        df[col] = pd.to_numeric(df[col], errors="ignore")
-    return df
-
 
 async def fetch_table_async(
     table: str,
