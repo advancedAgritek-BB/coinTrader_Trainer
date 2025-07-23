@@ -49,11 +49,17 @@ def simulate_signal_pnl(
     signal_diff = np.diff(signals, prepend=0)
     strategy_returns -= costs * np.abs(signal_diff)
 
-    sharpe = np.sqrt(365) * (strategy_returns.mean() / strategy_returns.std(ddof=0))
-    sortino = np.sqrt(365) * (
-        strategy_returns.mean()
-        / strategy_returns[strategy_returns < 0].std(ddof=0)
-    )
+    strategy_std = strategy_returns.std(ddof=0)
+    if strategy_std == 0 or np.isnan(strategy_std):
+        sharpe = 0.0
+    else:
+        sharpe = np.sqrt(365) * (strategy_returns.mean() / strategy_std)
+
+    downside_std = strategy_returns[strategy_returns < 0].std(ddof=0)
+    if downside_std == 0 or np.isnan(downside_std):
+        sortino = 0.0
+    else:
+        sortino = np.sqrt(365) * (strategy_returns.mean() / downside_std)
 
     return {
         "sharpe_squared": float(sharpe**2),
