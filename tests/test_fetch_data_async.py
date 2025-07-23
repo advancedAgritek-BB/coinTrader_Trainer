@@ -69,6 +69,7 @@ async def test_fetch_data_range_async(monkeypatch):
     monkeypatch.setenv("SUPABASE_KEY", "test")
 
     async with fake_client() as client:
+        df1 = await fetch_table_async("trade_logs", page_size=CHUNK_SIZE, client=client)
         df1 = await fetch_table_async(
             "trade_logs", page_size=CHUNK_SIZE, client=client
         )

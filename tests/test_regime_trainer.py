@@ -96,6 +96,7 @@ def test_optuna_tuning_sets_learning_rate(monkeypatch):
         return FakeStudy()
 
     fake_optuna = types.SimpleNamespace(create_study=fake_create_study)
+    monkeypatch.setitem(train_regime_lgbm.__globals__, "optuna", fake_optuna)
     monkeypatch.setattr(train_regime_lgbm.__globals__, "optuna", fake_optuna)
     monkeypatch.setattr(lgb, "train", lambda *a, **k: _fake_booster())
 
