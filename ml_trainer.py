@@ -1,6 +1,8 @@
 """Command line interface for running coinTrader training tasks."""
 
 import argparse
+import asyncio
+from datetime import datetime, timedelta
 import yaml
 import numpy as np
 import pandas as pd
@@ -58,6 +60,11 @@ def main() -> None:
     train_p.add_argument("--use-gpu", action="store_true", help="Enable GPU training")
     train_p.add_argument("--gpu-platform-id", type=int, default=None, help="OpenCL platform id")
     train_p.add_argument("--gpu-device-id", type=int, default=None, help="OpenCL device id")
+    train_p.add_argument(
+        "--swarm",
+        action="store_true",
+        help="Run hyperparameter swarm search before training",
+    )
 
     args = parser.parse_args()
 
@@ -72,6 +79,20 @@ def main() -> None:
             params["gpu_platform_id"] = args.gpu_platform_id
         if args.gpu_device_id is not None:
             params["gpu_device_id"] = args.gpu_device_id
+        if args.swarm:
+            try:
+                import swarm_sim
+            except Exception as exc:  # pragma: no cover - optional dependency
+                raise SystemExit(
+                    "--swarm requires the 'swarm_sim' module to be installed"
+                ) from exc
+            end_ts = datetime.utcnow()
+            start_ts = end_ts - timedelta(days=7)
+            swarm_params = asyncio.run(
+                swarm_sim.run_swarm_simulation(start_ts, end_ts)
+            )
+            if isinstance(swarm_params, dict):
+                params.update(swarm_params)
         X, y = _make_dummy_data()
         model, metrics = trainer_fn(X, y, params, use_gpu=args.use_gpu)
         print("Training completed. Metrics:")
