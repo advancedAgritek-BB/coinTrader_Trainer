@@ -123,6 +123,7 @@ def test_cli_gpu_overrides(monkeypatch):
 
 
 def test_cli_federated_trainer_invoked(monkeypatch):
+def test_cli_federated_flag(monkeypatch):
     import ml_trainer
 
     called = {}
@@ -132,6 +133,15 @@ def test_cli_federated_trainer_invoked(monkeypatch):
         return (lambda df: np.zeros(len(df))), {}
 
     monkeypatch.setattr(ml_trainer, "train_federated_regime", fake_federated)
+    def fake_train(*args, **kwargs):
+        called["used"] = True
+        class FakeBooster:
+            best_iteration = 1
+            def predict(self, data, num_iteration=None):
+                return np.zeros(len(data))
+        return FakeBooster(), {"accuracy": 0.0}
+
+    monkeypatch.setattr(ml_trainer, "train_federated_regime", fake_train)
     monkeypatch.setattr(
         ml_trainer,
         "_make_dummy_data",
@@ -140,7 +150,8 @@ def test_cli_federated_trainer_invoked(monkeypatch):
             pd.Series([0, 1] * 5),
         ),
     )
-
+    monkeypatch.setattr(ml_trainer, "load_cfg", lambda p: {"regime_lgbm": {}})
+ 
     argv = [
         "ml_trainer",
         "train",
@@ -154,3 +165,4 @@ def test_cli_federated_trainer_invoked(monkeypatch):
     ml_trainer.main()
 
     assert called.get("federated")
+    assert called.get("used", False)

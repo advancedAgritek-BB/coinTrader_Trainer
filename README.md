@@ -189,6 +189,19 @@ A typical training run might look like:
 python ml_trainer.py --input data.csv --output model.pkl
 ```
 
+### Federated Training
+
+Passing the ``--federated`` flag enables federated learning. Each
+participant trains on its own dataset locally and only model parameters
+are shared for aggregation. Data never leaves the client machine.
+
+```bash
+python ml_trainer.py train regime --federated
+```
+
+The aggregated model is written to ``federated_model.pkl`` and uploaded
+to the ``models`` bucket in Supabase just like other trained models.
+
 ## GPU Training
 
 LightGBM must be built with OpenCL/ROCm support to train on AMD GPUs such
