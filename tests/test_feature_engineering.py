@@ -21,11 +21,11 @@ def test_make_features_interpolation_and_columns():
 
     result = make_features(
         df,
-        ema_short_period=2,
-        ema_long_period=3,
+        ema_short=2,
+        ema_long=3,
         rsi_period=5,
-        volatility_window=2,
-        atr_window=2,
+        vol_window=2,
+        atr_period=2,
     )
 
     expected_cols = {
@@ -67,15 +67,9 @@ def test_make_features_gpu_uses_cudf(monkeypatch):
         }
     )
 
-    make_features(df, use_gpu=True, ema_short_period=2, ema_long_period=3)
+    make_features(df, use_gpu=True, ema_short=2, ema_long=3)
 
     assert calls["from"] and calls["to"]
-import pandas as pd
-import numpy as np
-import pytest
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-from feature_engineering import make_features
 
 
 def test_make_features_adds_columns_and_handles_params(capsys):
@@ -93,7 +87,7 @@ def test_make_features_adds_columns_and_handles_params(capsys):
         assert col in result.columns
     assert pd.api.types.is_datetime64_any_dtype(result['ts'])
 
-    result = make_features(df, rsi_period=10, vol_window=5, atr_period=4)
+    result = make_features(df, rsi_period=10, volatility_window=5, atr_window=4)
     for col in ['rsi10', 'volatility5', 'atr4']:
         assert col in result.columns
 

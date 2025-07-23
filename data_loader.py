@@ -1,17 +1,23 @@
+"""Async data loading utilities for Supabase-backed datasets."""
+
 from __future__ import annotations
 
 import os
 from datetime import datetime, timezone
 from typing import Optional, Dict, AsyncGenerator
+from datetime import datetime
+from typing import Optional, Dict
+from typing import AsyncGenerator
 
 import httpx
+
 import pandas as pd
-from supabase import Client, create_client
+from supabase import create_client, Client
 from tenacity import retry, wait_exponential, stop_after_attempt
 
 
 def _get_client() -> Client:
-    """Create a Supabase client from ``SUPABASE_URL`` and ``SUPABASE_KEY``."""
+    """Create a Supabase client from environment variables."""
     url = os.environ.get("SUPABASE_URL")
     key = os.environ.get("SUPABASE_KEY")
     if not url or not key:
@@ -31,10 +37,14 @@ def _fetch_logs(
 ) -> list[dict]:
     """Fetch rows from the ``trade_logs`` table with retry."""
     query = (
+def _fetch_logs(client: Client, start_ts: datetime, end_ts: datetime) -> list[dict]:
+    """Fetch rows from the trade_logs table with retry."""
+    response = (
         client.table("trade_logs")
         .select("*")
         .gte("timestamp", start_ts.isoformat())
         .lt("timestamp", end_ts.isoformat())
+        .execute()
     )
     if symbol is not None:
         query = query.eq("symbol", symbol)
@@ -74,13 +84,26 @@ def fetch_trade_logs(
     if cache_path:
         df.to_parquet(cache_path)
 
+    return response.data
+
+
+def fetch_trade_logs(start_ts: datetime, end_ts: datetime) -> pd.DataFrame:
+    """Return trade logs between two timestamps as a DataFrame."""
+    client = _get_client()
+    rows = _fetch_logs(client, start_ts, end_ts)
+    df = pd.DataFrame(rows)
+    for col in df.columns:
+        df[col] = pd.to_numeric(df[col], errors="ignore")
     return df
 
 
 async def fetch_table_async(
     table: str,
+    start_ts: Optional[str] = None,
+    end_ts: Optional[str] = None,
     *,
-    page_size: int = 1000,
+    chunk_size: int = 1000,
+    page_size: Optional[int] = None,
     params: Optional[Dict[str, str]] = None,
     client: Optional[httpx.AsyncClient] = None,
 ) -> pd.DataFrame:
@@ -91,9 +114,49 @@ async def fetch_table_async(
         raise ValueError(
             "SUPABASE_URL and SUPABASE_KEY environment variables must be set"
         )
+    """Fetch rows from ``table`` asynchronously.
+
+    When ``start_ts`` and ``end_ts`` are provided rows are fetched in
+    ``chunk_size`` batches between the timestamps. Otherwise the entire table
+    is retrieved in pages of ``page_size``.
+
+    Parameters
+    ----------
+    table : str
+        Table name to query from Supabase REST API.
+    start_ts, end_ts : str, optional
+        When provided, fetch rows between these timestamps in ``chunk_size`` batches.
+    chunk_size : int, optional
+        Batch size used when ``start_ts`` and ``end_ts`` are specified. Defaults to ``1000``.
+    page_size : int, optional
+        Number of rows per request when ``start_ts``/``end_ts`` are omitted. Defaults to ``1000``.
+    params : dict, optional
+        Additional query parameters added to the request. ``select`` defaults
+        to ``"*"``.
+    client : httpx.AsyncClient, optional
+        Client instance preconfigured with base URL and auth headers. When not
+        provided one is created from ``SUPABASE_URL`` and ``SUPABASE_KEY``.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame containing all retrieved rows.
+    """
+
+    if start_ts is not None and end_ts is not None:
+        return await fetch_data_range_async(table, start_ts, end_ts, chunk_size)
+
+    if page_size is None:
+        page_size = 1000
 
     own_client = False
     if client is None:
+        url = os.environ.get("SUPABASE_URL")
+        key = os.environ.get("SUPABASE_KEY")
+        if not url or not key:
+            raise ValueError(
+                "SUPABASE_URL and SUPABASE_KEY environment variables must be set"
+            )
         headers = {"apikey": key, "Authorization": f"Bearer {key}"}
         client = httpx.AsyncClient(base_url=url, headers=headers)
         own_client = True
@@ -126,7 +189,7 @@ async def fetch_table_async(
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
 
-async def fetch_all_rows_async(
+async def fetch_data_async(
     table: str,
     *,
     page_size: int = 1000,
@@ -136,13 +199,20 @@ async def fetch_all_rows_async(
     """Backward compatible wrapper for ``fetch_table_async``."""
     return await fetch_table_async(
         table,
+    """Backward compatible wrapper for ``fetch_table_async`` without date range."""
+
+    return await fetch_table_async(
+        table,
+        start_ts=None,
+        end_ts=None,
+        chunk_size=1000,
         page_size=page_size,
         params=params,
         client=client,
     )
 
 
-async def fetch_data_async(
+async def fetch_data_between_async(
     table: str,
     start_ts: str,
     end_ts: str,
@@ -160,6 +230,7 @@ async def _fetch_chunks(
     end_ts: str,
     chunk_size: int,
 ) -> AsyncGenerator[pd.DataFrame, None]:
+    """Yield DataFrames of rows fetched in chunks from Supabase."""
     offset = 0
     while True:
         params = [
@@ -170,9 +241,9 @@ async def _fetch_chunks(
             ("limit", str(chunk_size)),
             ("offset", str(offset)),
         ]
-        resp = await client.get(endpoint, params=params)
-        resp.raise_for_status()
-        data = resp.json()
+        response = await client.get(endpoint, params=params)
+        response.raise_for_status()
+        data = response.json()
         if not data:
             break
         yield pd.DataFrame(data)
@@ -188,6 +259,12 @@ async def fetch_data_range_async(
     chunk_size: int = 1000,
 ) -> pd.DataFrame:
     """Fetch rows between two timestamps in ``chunk_size`` batches."""
+    """Fetch ``table`` rows between ``start_ts`` and ``end_ts`` asynchronously.
+
+    Data are retrieved in ``chunk_size`` batches and concatenated into a single
+    ``DataFrame``. Numeric columns are coerced to numbers when possible.
+    """
+
     url = os.environ.get("SUPABASE_URL")
     key = os.environ.get("SUPABASE_KEY")
     if not url or not key:
