@@ -12,11 +12,6 @@ try:  # pragma: no cover - federated trainer may be optional
     from trainers.federated import train_federated_regime
 except Exception:  # pragma: no cover - during testing trainer might be missing
     train_federated_regime = None
-try:  # Federated training may be optional
-    from trainers.federated_regime import train_federated_regime
-except Exception:  # pragma: no cover - trainer not available
-    train_federated_regime = None
-from trainers.regime_lgbm import train_regime_lgbm, train_federated_regime
 
 TRAINERS = {
     "regime": (train_regime_lgbm, "regime_lgbm"),
@@ -73,13 +68,11 @@ def main() -> None:
     train_p.add_argument("--use-gpu", action="store_true", help="Enable GPU training")
     train_p.add_argument("--gpu-platform-id", type=int, default=None, help="OpenCL platform id")
     train_p.add_argument("--gpu-device-id", type=int, default=None, help="OpenCL device id")
-    train_p.add_argument("--swarm", action="store_true", help="Optimise params via swarm simulation")
     train_p.add_argument(
         "--swarm",
         action="store_true",
         help="Run hyperparameter swarm search before training",
-    train_p.add_argument("--federated", action="store_true", help="Use federated trainer")
-    train_p.add_argument("--federated", action="store_true", help="Use federated training")
+    )
     train_p.add_argument(
         "--federated",
         action="store_true",
@@ -94,25 +87,13 @@ def main() -> None:
         if args.task not in TRAINERS:
             raise SystemExit(f"Unknown task: {args.task}")
         trainer_fn, cfg_key = TRAINERS[args.task]
-        if args.federated and args.task == "regime" and train_federated_regime is not None:
-            trainer_fn = train_federated_regime
-            cfg_key = "regime_lgbm"
-        if args.federated:
+        if args.federated and args.task == "regime":
             if train_federated_regime is None:
                 raise SystemExit("Federated training not supported")
             trainer_fn = train_federated_regime
             params = cfg.get("federated_regime", {})
         else:
             params = cfg.get(cfg_key, {})
-        if args.federated and args.task == "regime":
-            trainer_fn = train_federated_regime
-        params = cfg.get(cfg_key, {})
-        if args.swarm:
-            import asyncio
-            from swarm_sim import run_swarm_simulation
-
-            best_params, _agents = asyncio.run(run_swarm_simulation())
-            params.update(best_params)
         if args.gpu_platform_id is not None:
             params["gpu_platform_id"] = args.gpu_platform_id
         if args.gpu_device_id is not None:
@@ -127,7 +108,7 @@ def main() -> None:
             end_ts = datetime.utcnow()
             start_ts = end_ts - timedelta(days=7)
             swarm_params = asyncio.run(
-                swarm_sim.run_swarm_simulation(start_ts, end_ts)
+                swarm_sim.run_swarm_search(start_ts, end_ts)
             )
             if isinstance(swarm_params, dict):
                 params.update(swarm_params)

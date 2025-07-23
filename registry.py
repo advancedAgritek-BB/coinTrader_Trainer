@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import io
+import json
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple
 
@@ -36,9 +37,10 @@ METRICS_SCHEMA = {
 class ModelRegistry:
     """Registry for ML models stored in Supabase."""
 
-    def __init__(self, url: str, key: str, bucket: str = "models") -> None:
+    def __init__(self, url: str, key: str, bucket: str = "models", table: str = "models") -> None:
         self.supabase: Client = create_client(url, key)
         self.bucket = bucket
+        self.table = table
 
     def _hash_bytes(self, data: bytes) -> str:
         """Return the SHA256 hex digest for ``data``."""
@@ -58,7 +60,7 @@ class ModelRegistry:
             "metrics": metrics,
             "approved": False,
         }
-        data = self.supabase.table("models").insert(row).execute().data[0]
+        data = self.supabase.table(self.table).insert(row).execute().data[0]
         return ModelEntry(**data)
 
     def upload(self, model_obj: Any, name: str, metrics: Dict[str, Any]) -> ModelEntry:
@@ -80,12 +82,18 @@ class ModelRegistry:
             "metrics": metrics,
             "approved": False,
         }
-        data = self.supabase.table("models").insert(row).execute().data[0]
+        data = self.supabase.table(self.table).insert(row).execute().data[0]
         return ModelEntry(**data)
+
+    def upload_dict(self, payload_dict: Dict[str, Any], name: str, metrics: Dict[str, Any]) -> ModelEntry:
+        """Serialize and upload a dictionary as JSON."""
+        validate(instance=metrics, schema=METRICS_SCHEMA)
+        raw = json.dumps(payload_dict).encode()
+        return self.upload_bytes(raw, name, metrics)
 
     def get_latest(self, name: str, approved: bool = True) -> Optional[Tuple[Any, ModelEntry]]:
         """Return the most recent model matching ``name``."""
-        query = self.supabase.table("models").select("*").eq("name", name)
+        query = self.supabase.table(self.table).select("*").eq("name", name)
         if approved is not None:
             query = query.eq("approved", approved)
         res = query.order("created_at", desc=True).limit(1).execute()
@@ -98,11 +106,11 @@ class ModelRegistry:
 
     def approve(self, model_id: int) -> None:
         """Mark a model row as approved."""
-        self.supabase.table("models").update({"approved": True}).eq("id", model_id).execute()
+        self.supabase.table(self.table).update({"approved": True}).eq("id", model_id).execute()
 
     def list_models(self, *, tag: Optional[str] = None, approved: Optional[bool] = None) -> list[ModelEntry]:
         """Return models filtered by tag and approval state."""
-        query = self.supabase.table("models").select("*")
+        query = self.supabase.table(self.table).select("*")
         if approved is not None:
             query = query.eq("approved", approved)
         if tag is not None:
