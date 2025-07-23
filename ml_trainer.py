@@ -10,6 +10,7 @@ try:  # Federated training may be optional
     from trainers.federated_regime import train_federated_regime
 except Exception:  # pragma: no cover - trainer not available
     train_federated_regime = None
+from trainers.regime_lgbm import train_regime_lgbm, train_federated_regime
 
 TRAINERS = {
     "regime": (train_regime_lgbm, "regime_lgbm"),
@@ -67,6 +68,11 @@ def main() -> None:
     train_p.add_argument("--gpu-platform-id", type=int, default=None, help="OpenCL platform id")
     train_p.add_argument("--gpu-device-id", type=int, default=None, help="OpenCL device id")
     train_p.add_argument("--federated", action="store_true", help="Use federated training")
+    train_p.add_argument(
+        "--federated",
+        action="store_true",
+        help="Use federated learning when training the 'regime' task",
+    )
 
     args = parser.parse_args()
 
@@ -83,6 +89,9 @@ def main() -> None:
             params = cfg.get("federated_regime", {})
         else:
             params = cfg.get(cfg_key, {})
+        if args.federated and args.task == "regime":
+            trainer_fn = train_federated_regime
+        params = cfg.get(cfg_key, {})
         if args.gpu_platform_id is not None:
             params["gpu_platform_id"] = args.gpu_platform_id
         if args.gpu_device_id is not None:
