@@ -167,6 +167,7 @@ def test_cli_federated_flag(monkeypatch):
 
     ml_trainer.main()
 
+    assert called.get("used", False)
     assert called.get("federated")
     assert not called.get("used", False)
 

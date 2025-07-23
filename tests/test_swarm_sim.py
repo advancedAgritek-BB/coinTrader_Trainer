@@ -13,6 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 import lightgbm as lgb
 import data_loader
 import ml_trainer
+import swarm_sim
 from swarm_sim import run_swarm_simulation
 from swarm_sim import run_swarm_simulation, Agent
 import swarm_sim
@@ -29,6 +30,11 @@ class DummyBooster:
 async def _fake_fetch(*args, **kwargs):
     n = 30
     return pd.DataFrame({
+        "ts": pd.date_range("2021-01-01", periods=n, freq="1T"),
+        "price": np.arange(n, dtype=float),
+        "high": np.arange(n, dtype=float) + 0.5,
+        "low": np.arange(n, dtype=float) - 0.5,
+        "target": np.random.randint(0, 2, size=n),
         "ts": pd.date_range("2021-01-01", periods=n, freq="h"),
         "price": np.linspace(1, n, n),
         "high": np.linspace(1, n, n),
@@ -46,6 +52,9 @@ async def test_run_swarm_simulation_updates_agents(monkeypatch):
     monkeypatch.setattr(data_loader, "fetch_data_range_async", _fake_fetch)
     monkeypatch.setattr(swarm_sim, "fetch_data_range_async", _fake_fetch)
     monkeypatch.setattr(lgb, "train", _fake_train)
+    monkeypatch.setattr(swarm_sim, "evolve_swarm", lambda *a, **k: None)
+
+    params = await swarm_sim.run_swarm_simulation(datetime.utcnow(), datetime.utcnow(), num_agents=2)
     monkeypatch.setattr(swarm_sim, "evolve_swarm", lambda a, g: None)
 
     params = await run_swarm_simulation(

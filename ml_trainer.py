@@ -128,6 +128,11 @@ def main() -> None:
                 ) from exc
             end_ts = datetime.utcnow()
             start_ts = end_ts - timedelta(days=7)
+            best_params = asyncio.run(
+                swarm_sim.run_swarm_simulation(start_ts, end_ts)
+            )
+            if isinstance(best_params, dict):
+                params.update(best_params)
             swarm_result = asyncio.run(
                 swarm_sim.run_swarm_simulation(start_ts, end_ts)
             )
