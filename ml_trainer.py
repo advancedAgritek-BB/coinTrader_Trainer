@@ -8,6 +8,10 @@ import numpy as np
 import pandas as pd
 
 from trainers.regime_lgbm import train_regime_lgbm
+
+try:  # pragma: no cover - optional dependency
+    from federated_trainer import train_federated_regime
+except Exception:  # pragma: no cover - missing during testing
 try:  # pragma: no cover - federated trainer may be optional
     from trainers.federated import train_federated_regime
 except Exception:  # pragma: no cover - during testing trainer might be missing
@@ -68,6 +72,12 @@ def main() -> None:
     train_p.add_argument("--use-gpu", action="store_true", help="Enable GPU training")
     train_p.add_argument("--gpu-platform-id", type=int, default=None, help="OpenCL platform id")
     train_p.add_argument("--gpu-device-id", type=int, default=None, help="OpenCL device id")
+    train_p.add_argument("--swarm", action="store_true", help="Optimise params via swarm simulation")
+    train_p.add_argument("--federated", action="store_true", help="Use federated trainer")
+    train_p.add_argument("--swarm", action="store_true", help="Run hyperparameter swarm search before training")
+    train_p.add_argument("--federated", action="store_true", help="Use federated learning when training the 'regime' task")
+    train_p.add_argument("--start-ts", help="Data start timestamp (ISO format)")
+    train_p.add_argument("--end-ts", help="Data end timestamp (ISO format)")
     train_p.add_argument(
         "--swarm",
         action="store_true",
@@ -78,6 +88,7 @@ def main() -> None:
         action="store_true",
         help="Use federated learning when training the 'regime' task",
     )
+    train_p.add_argument("--federated", action="store_true", help="Use federated trainer")
 
     args = parser.parse_args()
 
@@ -94,10 +105,18 @@ def main() -> None:
             params = cfg.get("federated_regime", {})
         else:
             params = cfg.get(cfg_key, {})
+        if args.federated and args.task == "regime":
+            trainer_fn = train_federated_regime
+        params = cfg.get(cfg_key, {})
+        params = cfg.get(cfg_key, {}).copy()
+
+        if args.use_gpu:
+            params["device_type"] = "gpu"
         if args.gpu_platform_id is not None:
             params["gpu_platform_id"] = args.gpu_platform_id
         if args.gpu_device_id is not None:
             params["gpu_device_id"] = args.gpu_device_id
+
         if args.swarm:
             try:
                 import swarm_sim
@@ -109,11 +128,45 @@ def main() -> None:
             start_ts = end_ts - timedelta(days=7)
             swarm_params = asyncio.run(
                 swarm_sim.run_swarm_search(start_ts, end_ts)
+            best_params = asyncio.run(
+                swarm_sim.run_swarm_simulation(start_ts, end_ts)
+            )
+            if isinstance(best_params, dict):
+                params.update(best_params)
+            swarm_result = asyncio.run(
+                swarm_sim.run_swarm_simulation(start_ts, end_ts)
             )
             if isinstance(swarm_params, dict):
                 params.update(swarm_params)
+        if args.gpu_platform_id is not None:
+            params["gpu_platform_id"] = args.gpu_platform_id
+        if args.gpu_device_id is not None:
+            params["gpu_device_id"] = args.gpu_device_id
         X, y = _make_dummy_data()
         model, metrics = trainer_fn(X, y, params, use_gpu=args.use_gpu)
+            if isinstance(swarm_result, tuple):
+                best_params, _ = swarm_result
+                if isinstance(best_params, dict):
+                    params.update(best_params)
+            elif isinstance(swarm_result, dict):
+                params.update(swarm_result)
+
+        if args.federated and args.task == "regime":
+            if train_federated_regime is None:
+                raise SystemExit("Federated training not supported")
+            if args.start_ts is None or args.end_ts is None:
+                X, y = _make_dummy_data()
+                model, metrics = train_regime_lgbm(X, y, params, use_gpu=args.use_gpu)
+            else:
+                model, metrics = train_federated_regime(
+                    args.start_ts,
+                    args.end_ts,
+                    config_path=args.cfg,
+                    params_override=params,
+                )
+        else:
+            X, y = _make_dummy_data()
+            model, metrics = trainer_fn(X, y, params, use_gpu=args.use_gpu)
         print("Training completed. Metrics:")
         for k, v in metrics.items():
             print(f"{k}: {v}")

@@ -1,63 +1,56 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Dict, List, Tuple
-
-import numpy as np
-import pandas as pd
-import lightgbm as lgb
-
-import data_loader
-
-@dataclass
-class Agent:
-    params: Dict[str, Any]
-    fitness: float = float("nan")
-
-async def run_swarm_simulation(
-    num_agents: int = 3,
-    start_ts: str | None = None,
-    end_ts: str | None = None,
-) -> Tuple[Dict[str, Any], List[Agent]]:
-    """Run a minimal swarm simulation returning best parameters.
-
-    Parameters are purely illustrative and this function serves as a
-    placeholder for real optimisation logic. It trains a LightGBM model
-    for each agent using data fetched via ``fetch_data_range_async``.
-    """
-
-    df = await data_loader.fetch_data_range_async(
-        "trade_logs", start_ts or "start", end_ts or "end"
-    )
-    if "target" in df.columns:
-        X = df.drop(columns=["target"])
-        y = df["target"]
-    else:
-        X = df
-        y = pd.Series(np.zeros(len(df)))
-
-    agents: List[Agent] = [Agent({"agent_id": i}) for i in range(num_agents)]
-    for agent in agents:
-        lgb.train(agent.params, lgb.Dataset(X, label=y), num_boost_round=1)
-        agent.fitness = 1.0
-
-    best_agent = agents[0]
-    return best_agent.params, agents
 from dataclasses import dataclass, field
-from typing import Dict, List, Any
 from datetime import datetime
+from typing import Any, Dict, List
 
+import asyncio
+import yaml
 import numpy as np
 import pandas as pd
-import yaml
 import networkx as nx
 import lightgbm as lgb
 import os
 import logging
 
-from data_loader import fetch_data_range_async
+
+import data_loader
 from feature_engineering import make_features
 from registry import ModelRegistry
+
+
+async def fetch_and_prepare_data(
+    start_ts: datetime | str, end_ts: datetime | str
+) -> tuple[pd.DataFrame, pd.Series]:
+    """Fetch trade data and return feature matrix ``X`` and targets ``y``."""
+
+    if isinstance(start_ts, datetime):
+        start_ts = start_ts.isoformat()
+    if isinstance(end_ts, datetime):
+        end_ts = end_ts.isoformat()
+
+    df = await data_loader.fetch_data_range_async("trade_logs", str(start_ts), str(end_ts))
+
+    if "timestamp" in df.columns and "ts" not in df.columns:
+        df = df.rename(columns={"timestamp": "ts"})
+    if "ts" not in df.columns:
+        try:
+            start_dt = pd.to_datetime(start_ts)
+        except Exception:
+            start_dt = pd.Timestamp.utcnow()
+        df["ts"] = pd.date_range(start_dt, periods=len(df), freq="min")
+
+    try:
+        df = make_features(df)
+    except Exception:
+        pass
+
+    if "target" not in df.columns:
+        df["target"] = (df["price"].shift(-1) > df["price"]).astype(int).fillna(0)
+
+    X = df.drop(columns=["target"])
+    y = df["target"]
+    return X, y
 
 
 @dataclass
@@ -81,12 +74,12 @@ class SwarmAgent:
             Baseline LightGBM parameters to start from.
         """
         train_params = {**base_params, **self.params}
+        train_params.setdefault("device_type", "gpu")
         dataset = lgb.Dataset(X, label=y)
         booster = lgb.train(
             train_params,
             dataset,
             num_boost_round=train_params.get("num_boost_round", 10),
-            verbose_eval=False,
         )
         preds = booster.predict(X)
         error = np.mean((preds - y) ** 2)
@@ -112,7 +105,10 @@ def evolve_swarm(agents: List[SwarmAgent], graph: nx.Graph) -> None:
         new_params: Dict[str, Any] = {}
         for key in agent.params.keys():
             vals = [p.get(key, agent.params[key]) for p in all_params]
-            new_params[key] = float(np.mean(vals))
+            if all(isinstance(v, (int, float, np.number)) for v in vals):
+                new_params[key] = float(np.mean(vals))
+            else:
+                new_params[key] = vals[0]
         agent.params = new_params
 
 
@@ -135,20 +131,14 @@ async def run_swarm_search(
     Dict[str, Any]
         Parameter dictionary from the best-performing agent.
     """
-    df = await fetch_data_range_async(
-        "trade_logs", start_ts.isoformat(), end_ts.isoformat()
-    )
-    df = make_features(df)
-    if "target" not in df.columns:
-        df["target"] = (df["price"].shift(-1) > df["price"]).astype(int).fillna(0)
-    X = df.drop(columns=["target"])
-    y = df["target"]
+    X, y = await fetch_and_prepare_data(start_ts, end_ts)
 
     with open("cfg.yaml", "r") as fh:
         cfg = yaml.safe_load(fh) or {}
     base_params: Dict[str, Any] = cfg.get("regime_lgbm", {})
+    base_params.setdefault("device_type", "gpu")
 
-    graph = nx.Graph()
+    graph = nx.complete_graph(num_agents)
     agents: List[SwarmAgent] = []
     rng = np.random.default_rng(0)
     for i in range(num_agents):
@@ -156,9 +146,7 @@ async def run_swarm_search(
         lr = params.get("learning_rate", 0.1) * float(rng.uniform(0.5, 1.5))
         params["learning_rate"] = lr
         agents.append(SwarmAgent(i, params))
-        graph.add_node(i, agent=agents[-1])
-        if i > 0:
-            graph.add_edge(i - 1, i)
+        graph.nodes[i]["agent"] = agents[-1]
 
     rounds = 3
     for _ in range(rounds):
