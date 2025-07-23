@@ -73,6 +73,7 @@ def main() -> None:
     train_p.add_argument("--use-gpu", action="store_true", help="Enable GPU training")
     train_p.add_argument("--gpu-platform-id", type=int, default=None, help="OpenCL platform id")
     train_p.add_argument("--gpu-device-id", type=int, default=None, help="OpenCL device id")
+    train_p.add_argument("--swarm", action="store_true", help="Optimise params via swarm simulation")
     train_p.add_argument(
         "--swarm",
         action="store_true",
@@ -106,6 +107,12 @@ def main() -> None:
         if args.federated and args.task == "regime":
             trainer_fn = train_federated_regime
         params = cfg.get(cfg_key, {})
+        if args.swarm:
+            import asyncio
+            from swarm_sim import run_swarm_simulation
+
+            best_params, _agents = asyncio.run(run_swarm_simulation())
+            params.update(best_params)
         if args.gpu_platform_id is not None:
             params["gpu_platform_id"] = args.gpu_platform_id
         if args.gpu_device_id is not None:
