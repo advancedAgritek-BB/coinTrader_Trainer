@@ -1,16 +1,11 @@
 """Async data loading utilities for Supabase-backed datasets."""
-
 from __future__ import annotations
 
 import os
 from datetime import datetime, timezone
 from typing import Optional, Dict, AsyncGenerator
-from datetime import datetime
-from typing import Optional, Dict
-from typing import AsyncGenerator
 
 import httpx
-
 import pandas as pd
 from supabase import create_client, Client
 from tenacity import retry, wait_exponential, stop_after_attempt
@@ -37,19 +32,15 @@ def _fetch_logs(
 ) -> list[dict]:
     """Fetch rows from the ``trade_logs`` table with retry."""
     query = (
-def _fetch_logs(client: Client, start_ts: datetime, end_ts: datetime) -> list[dict]:
-    """Fetch rows from the trade_logs table with retry."""
-    response = (
         client.table("trade_logs")
         .select("*")
         .gte("timestamp", start_ts.isoformat())
         .lt("timestamp", end_ts.isoformat())
-        .execute()
     )
     if symbol is not None:
         query = query.eq("symbol", symbol)
-    response = query.execute()
-    return response.data
+    resp = query.execute()
+    return resp.data
 
 
 def fetch_trade_logs(
@@ -84,10 +75,10 @@ def fetch_trade_logs(
     if cache_path:
         df.to_parquet(cache_path)
 
-    return response.data
+    return df
 
 
-def fetch_trade_logs(start_ts: datetime, end_ts: datetime) -> pd.DataFrame:
+def fetch_trade_logs_simple(start_ts: datetime, end_ts: datetime) -> pd.DataFrame:
     """Return trade logs between two timestamps as a DataFrame."""
     client = _get_client()
     rows = _fetch_logs(client, start_ts, end_ts)
@@ -108,40 +99,6 @@ async def fetch_table_async(
     client: Optional[httpx.AsyncClient] = None,
 ) -> pd.DataFrame:
     """Fetch all rows from ``table`` asynchronously in pages."""
-    url = os.environ.get("SUPABASE_URL")
-    key = os.environ.get("SUPABASE_KEY")
-    if not url or not key:
-        raise ValueError(
-            "SUPABASE_URL and SUPABASE_KEY environment variables must be set"
-        )
-    """Fetch rows from ``table`` asynchronously.
-
-    When ``start_ts`` and ``end_ts`` are provided rows are fetched in
-    ``chunk_size`` batches between the timestamps. Otherwise the entire table
-    is retrieved in pages of ``page_size``.
-
-    Parameters
-    ----------
-    table : str
-        Table name to query from Supabase REST API.
-    start_ts, end_ts : str, optional
-        When provided, fetch rows between these timestamps in ``chunk_size`` batches.
-    chunk_size : int, optional
-        Batch size used when ``start_ts`` and ``end_ts`` are specified. Defaults to ``1000``.
-    page_size : int, optional
-        Number of rows per request when ``start_ts``/``end_ts`` are omitted. Defaults to ``1000``.
-    params : dict, optional
-        Additional query parameters added to the request. ``select`` defaults
-        to ``"*"``.
-    client : httpx.AsyncClient, optional
-        Client instance preconfigured with base URL and auth headers. When not
-        provided one is created from ``SUPABASE_URL`` and ``SUPABASE_KEY``.
-
-    Returns
-    -------
-    pd.DataFrame
-        DataFrame containing all retrieved rows.
-    """
 
     if start_ts is not None and end_ts is not None:
         return await fetch_data_range_async(table, start_ts, end_ts, chunk_size)
@@ -199,10 +156,6 @@ async def fetch_data_async(
     """Backward compatible wrapper for ``fetch_table_async``."""
     return await fetch_table_async(
         table,
-    """Backward compatible wrapper for ``fetch_table_async`` without date range."""
-
-    return await fetch_table_async(
-        table,
         start_ts=None,
         end_ts=None,
         chunk_size=1000,
@@ -258,12 +211,7 @@ async def fetch_data_range_async(
     end_ts: str,
     chunk_size: int = 1000,
 ) -> pd.DataFrame:
-    """Fetch rows between two timestamps in ``chunk_size`` batches."""
-    """Fetch ``table`` rows between ``start_ts`` and ``end_ts`` asynchronously.
-
-    Data are retrieved in ``chunk_size`` batches and concatenated into a single
-    ``DataFrame``. Numeric columns are coerced to numbers when possible.
-    """
+    """Fetch ``table`` rows between ``start_ts`` and ``end_ts`` asynchronously."""
 
     url = os.environ.get("SUPABASE_URL")
     key = os.environ.get("SUPABASE_KEY")
