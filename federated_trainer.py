@@ -77,8 +77,6 @@ def train_federated_regime(
     num_clients: int = 3,
     config_path: str = "cfg.yaml",
     params_override: Optional[dict] = None,
-) -> Tuple[Callable[[pd.DataFrame], np.ndarray], dict]:
-    """Train models on federated splits and return aggregated predictor."""
 ) -> Tuple[FederatedEnsemble, dict]:
     """Train LightGBM models across ``num_clients`` and aggregate their predictions."""
 
