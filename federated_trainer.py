@@ -29,8 +29,9 @@ async def _fetch_async(start: str, end: str) -> pd.DataFrame:
 def _load_params(cfg_path: str) -> dict:
     with open(cfg_path, "r") as fh:
         cfg = yaml.safe_load(fh) or {}
-    params = cfg.get("regime_lgbm", {})
-    params.setdefault("device", "gpu")
+    params = cfg.get("regime_lgbm", {}).copy()
+    # Force GPU usage for consistency
+    params["device_type"] = "gpu"
     return params
 
 
