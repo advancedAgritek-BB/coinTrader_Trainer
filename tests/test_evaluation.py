@@ -20,3 +20,13 @@ def test_simulate_signal_pnl_metrics():
         assert key in metrics
         assert isinstance(metrics[key], float)
         assert np.isfinite(metrics[key])
+
+
+def test_simulate_signal_pnl_zero_variance():
+    df = pd.DataFrame({"returns": [0.0, 0.0, 0.0, 0.0]})
+    preds = np.array([1, -1, 1, -1])
+
+    metrics = simulate_signal_pnl(df, preds, costs=0.0)
+
+    assert metrics["sharpe"] == 0.0
+    assert metrics["sortino"] == 0.0
