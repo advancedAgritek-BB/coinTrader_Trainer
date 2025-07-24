@@ -8,7 +8,6 @@ from typing import Optional
 import pandas as pd
 from supabase import Client, create_client
 
-
 from tenacity import retry, wait_exponential, stop_after_attempt
 
 
@@ -64,9 +63,13 @@ def download_historical_data(
         df = df[df["symbol"] == symbol]
     if start_ts is not None:
         start_ts = pd.to_datetime(start_ts)
+        if start_ts.tzinfo is None:
+            start_ts = start_ts.tz_localize("UTC")
         df = df[df["ts"] >= start_ts]
     if end_ts is not None:
         end_ts = pd.to_datetime(end_ts)
+        if end_ts.tzinfo is None:
+            end_ts = end_ts.tz_localize("UTC")
         df = df[df["ts"] < end_ts]
 
     df = df.sort_values("ts").drop_duplicates("ts").reset_index(drop=True)
@@ -79,6 +82,14 @@ def download_historical_data(
             df.to_csv(output_path, index=False)
 
     return df
+
+
+def _get_write_client() -> Client:
+    url = os.environ.get("SUPABASE_URL")
+    key = os.environ.get("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABASE_KEY")
+    if not url or not key:
+        raise ValueError("SUPABASE_URL and SUPABASE_SERVICE_KEY must be set")
+    return create_client(url, key)
 
 
 @retry(wait=wait_exponential(multiplier=1, min=1, max=10), stop=stop_after_attempt(5))
@@ -96,21 +107,7 @@ def insert_to_supabase(
     table: str = "historical_prices",
     batch_size: int = 500,
 ) -> None:
-    """Upload ``df`` rows to ``table`` in Supabase.
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        Data to insert. Columns must match the target table.
-    url : str
-        Supabase project URL.
-    key : str
-        API key used to create the client.
-    table : str, optional
-        Name of the table to insert into. Defaults to ``historical_prices``.
-    batch_size : int, optional
-        Number of rows per batch insert. Defaults to ``500``.
-    """
+    """Upload ``df`` rows to ``table`` in Supabase."""
 
     client = create_client(url, key)
     records = df.to_dict("records")
