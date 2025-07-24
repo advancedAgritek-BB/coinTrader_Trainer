@@ -17,9 +17,12 @@ from registry import ModelRegistry
 
 
 def load_cfg(path: str) -> dict:
-    """Load YAML configuration file and return a dictionary."""
+    """Load YAML configuration file and return a dictionary with defaults."""
     with open(path, "r") as f:
-        return yaml.safe_load(f) or {}
+        cfg = yaml.safe_load(f) or {}
+
+    cfg.setdefault("default_window_days", 7)
+    return cfg
 
 
 def parse_args() -> argparse.Namespace:
@@ -49,10 +52,11 @@ def main() -> None:
         build_and_upload_lightgbm_wheel(url, key)
 
     end_ts = pd.to_datetime(args.end_ts) if args.end_ts else datetime.utcnow()
+    window = cfg.get("default_window_days", 7)
     start_ts = (
         pd.to_datetime(args.start_ts)
         if args.start_ts
-        else end_ts - timedelta(days=7)
+        else end_ts - timedelta(days=window)
     )
 
     df = fetch_trade_logs(start_ts, end_ts)
