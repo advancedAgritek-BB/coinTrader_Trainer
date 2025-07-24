@@ -3,6 +3,7 @@ import sys
 import numpy as np
 import pandas as pd
 import lightgbm as lgb
+import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
@@ -87,7 +88,6 @@ def test_cli_gpu_overrides(monkeypatch):
             def predict(self, data, num_iteration=None):
                 return np.zeros(len(data))
 
-        return FakeBooster()
         return FakeBooster(), {}
 
     monkeypatch.setitem(ml_trainer.TRAINERS, "regime", (fake_train, "regime_lgbm"))
@@ -187,13 +187,22 @@ def test_cli_federated_flag(monkeypatch, fake_federated):
     )
     monkeypatch.setattr(ml_trainer, "load_cfg", lambda p: {"regime_lgbm": {}})
 
-def test_cli_federated_trainer_invoked(monkeypatch):
+def test_cli_federated_trainer_invoked_no_fixture(monkeypatch):
+    import ml_trainer
+
+    used = {}
+
+    def fake_train(*args, **kwargs):
+        used["called"] = True
+        return FakeBooster(), {}
+
     called = {}
 
     def capture_federated(start, end, **kwargs):
         called["args"] = (start, end)
-        return fake_federated(start, end, **kwargs)
+        return FakeBooster(), {}
 
+    monkeypatch.setattr(ml_trainer, "train_regime_lgbm", fake_train)
     monkeypatch.setattr(ml_trainer, "train_federated_regime", capture_federated)
     monkeypatch.setattr(ml_trainer, "load_cfg", lambda p: {"federated_regime": {"objective": "binary"}})
     argv = [
@@ -210,7 +219,6 @@ def test_cli_federated_trainer_invoked(monkeypatch):
 
     ml_trainer.main()
 
-    assert used.get("called") is True
-    assert fake_federated["used"] is False
+    assert "called" not in used
     assert called.get("args") == ("2021-01-01", "2021-01-02")
 
