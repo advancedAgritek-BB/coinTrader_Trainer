@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+from dotenv import load_dotenv
 import subprocess
 import shutil
 from datetime import datetime, timedelta
@@ -13,6 +14,8 @@ import pandas as pd
 import yaml
 import lightgbm as lgb
 import pyopencl as cl
+
+load_dotenv()
 
 from data_loader import fetch_trade_logs
 from feature_engineering import make_features

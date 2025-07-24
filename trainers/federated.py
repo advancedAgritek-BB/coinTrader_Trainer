@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import asyncio
 import os
+from dotenv import load_dotenv
 from typing import Callable, Tuple, Optional, List
 
 import pandas as pd
 import numpy as np
 import lightgbm as lgb
+
+load_dotenv()
 
 from data_loader import fetch_data_range_async
 from feature_engineering import make_features

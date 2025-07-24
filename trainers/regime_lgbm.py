@@ -9,9 +9,12 @@ from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
 from typing import Dict, Tuple, Optional
 import os
+from dotenv import load_dotenv
 import logging
 import subprocess
 import optuna
+
+load_dotenv()
 
 # Compatibility shim for pytest monkeypatch on dict globals
 try:  # pragma: no cover - only used during testing

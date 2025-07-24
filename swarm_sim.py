@@ -9,7 +9,10 @@ import pandas as pd
 import networkx as nx
 import lightgbm as lgb
 import os
+from dotenv import load_dotenv
 import logging
+
+load_dotenv()
 
 
 import data_loader

@@ -7,12 +7,15 @@ import asyncio
 from datetime import datetime, timedelta
 from typing import Any, Dict, Tuple
 import os
+from dotenv import load_dotenv
 import subprocess
 
 
 import numpy as np
 import pandas as pd
 import yaml
+
+load_dotenv()
 
 try:
     from trainers.regime_lgbm import train_regime_lgbm
@@ -76,9 +79,6 @@ def main() -> None:  # pragma: no cover - CLI entry
     train_p.add_argument("--end-ts", help="Data end timestamp (ISO format)")
     train_p.add_argument("--profile-gpu", action="store_true", help="Profile GPU usage with AMD RGP")
 
-    import_p = sub.add_parser(
-        "import-data", help="Download historical data and insert to Supabase"
-    )
     csv_p = sub.add_parser("import-csv", help="Import historical CSV data")
     csv_p.add_argument("csv", help="CSV file path")
     csv_p.add_argument("--start-ts", help="Start timestamp (ISO)")

@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import asyncio
 import os
+from dotenv import load_dotenv
 from dataclasses import dataclass
 from typing import Iterable, List, Optional, Tuple
 
 import joblib
 import lightgbm as lgb
 import numpy as np
+
+load_dotenv()
 import pandas as pd
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
 from supabase import create_client
