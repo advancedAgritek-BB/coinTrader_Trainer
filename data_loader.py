@@ -329,7 +329,6 @@ async def fetch_data_range_async(
     jwt = os.environ.get("SUPABASE_JWT")
 
     endpoint = f"{url.rstrip('/')}/rest/v1/{table}"
-    jwt = os.environ.get("SUPABASE_JWT")
     headers = {"apikey": key, "Authorization": f"Bearer {jwt or key}"}
 
     chunks: list[pd.DataFrame] = []
