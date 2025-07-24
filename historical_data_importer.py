@@ -8,9 +8,16 @@ import os
 
 import pandas as pd
 from supabase import Client, create_client
+
 from tenacity import retry, wait_exponential, stop_after_attempt
 
 
+def download_historical_data(
+    url: str,
+    *,
+    symbol: Optional[str] = None,
+    start_ts: Optional[datetime | str] = None,
+    end_ts: Optional[datetime | str] = None,
 def download_historical_data(
     path: str,
     *,
@@ -19,8 +26,30 @@ def download_historical_data(
     end_ts: Optional[str | datetime] = None,
     output_path: Optional[str] = None,
 ) -> pd.DataFrame:
-    """Load historical price data from ``path`` and return a normalized DataFrame."""
-    df = pd.read_csv(path)
+    """Return normalized historical price data from ``url``.
+
+    Parameters
+    ----------
+    url : str
+        HTTP or file path to a CSV file.
+    symbol : str, optional
+        Symbol to filter rows by.
+    start_ts : datetime or str, optional
+        Inclusive start timestamp for filtering.
+    end_ts : datetime or str, optional
+        Exclusive end timestamp for filtering.
+    output_path : str, optional
+        If provided, write the resulting DataFrame to this path. ``.parquet``
+        extensions result in Parquet output; otherwise CSV is written.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame sorted by ``ts`` with ``target`` column representing the next
+        period price increase.
+    """
+
+    df = pd.read_csv(url)
 
     rename_map = {
         "timestamp": "ts",
@@ -35,7 +64,7 @@ def download_historical_data(
     if "ts" not in df.columns or "price" not in df.columns:
         raise ValueError("CSV must contain timestamp and close/price columns")
 
-    df["ts"] = pd.to_datetime(df["ts"])
+    df["ts"] = pd.to_datetime(df["ts"], utc=True)
 
     if symbol is not None and "symbol" in df.columns:
         df = df[df["symbol"] == symbol]
@@ -51,8 +80,7 @@ def download_historical_data(
         df = df[df["ts"] < end_ts]
 
     df = df.sort_values("ts").drop_duplicates("ts").reset_index(drop=True)
-    if "target" not in df.columns:
-        df["target"] = (df["price"].shift(-1) > df["price"]).fillna(0).astype(int)
+    df["target"] = (df["price"].shift(-1) > df["price"]).fillna(0).astype(int)
 
     if output_path:
         if output_path.endswith(".parquet"):
@@ -74,11 +102,19 @@ def _get_write_client() -> Client:
 @retry(wait=wait_exponential(multiplier=1, min=1, max=10), stop=stop_after_attempt(5))
 def _insert_batch(client: Client, table: str, rows: list[dict]) -> None:
     """Insert ``rows`` into ``table`` using ``client`` with retry."""
+
     client.table(table).insert(rows).execute()
 
 
 def insert_to_supabase(
     df: pd.DataFrame,
+    url: str,
+    key: str,
+    *,
+    table: str = "historical_prices",
+    batch_size: int = 500,
+) -> None:
+    """Upload ``df`` rows to ``table`` in Supabase."""
     arg1: str,
     arg2: Optional[str] = None,
     *,
@@ -101,7 +137,9 @@ def insert_to_supabase(
         key = arg2
         client = create_client(url, key)
 
-    records = df.to_dict(orient="records")
+    client = create_client(url, key)
+    records = df.to_dict("records")
+
     for i in range(0, len(records), batch_size):
         batch = records[i : i + batch_size]
         _insert_batch(client, table, batch)

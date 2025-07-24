@@ -14,7 +14,11 @@ import numpy as np
 import pandas as pd
 import yaml
 
-from trainers.regime_lgbm import train_regime_lgbm
+try:
+    from trainers.regime_lgbm import train_regime_lgbm
+except Exception:  # pragma: no cover - optional during tests
+    train_regime_lgbm = None  # type: ignore
+
 from data_import import download_historical_data, insert_to_supabase
 import historical_data_importer
 
@@ -72,6 +76,9 @@ def main() -> None:  # pragma: no cover - CLI entry
     train_p.add_argument("--end-ts", help="Data end timestamp (ISO format)")
     train_p.add_argument("--profile-gpu", action="store_true", help="Profile GPU usage with AMD RGP")
 
+    import_p = sub.add_parser(
+        "import-data", help="Download historical data and insert to Supabase"
+    )
     csv_p = sub.add_parser("import-csv", help="Import historical CSV data")
     csv_p.add_argument("csv", help="CSV file path")
     csv_p.add_argument("--start-ts", help="Start timestamp (ISO)")
