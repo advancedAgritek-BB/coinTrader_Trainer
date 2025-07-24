@@ -50,6 +50,24 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
+Windows users should activate the environment with:
+
+```powershell
+./.venv\Scripts\Activate.ps1
+```
+
+or in Command Prompt:
+
+```cmd
+./.venv\Scripts\activate
+```
+
+After activation run:
+
+```bash
+pip install -r requirements.txt
+```
+
 If you update the repository at a later date, run the installation
 command again so new dependencies such as ``pyyaml``, ``networkx`` or ``requests`` are installed.
 For GPU-accelerated feature engineering install
