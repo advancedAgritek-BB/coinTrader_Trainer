@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Optional
-import os
 
 import pandas as pd
 from supabase import Client, create_client
+
 from tenacity import retry, wait_exponential, stop_after_attempt
 
 
@@ -115,3 +115,4 @@ def insert_to_supabase(
     for i in range(0, len(records), batch_size):
         batch = records[i : i + batch_size]
         _insert_batch(client, table, batch)
+

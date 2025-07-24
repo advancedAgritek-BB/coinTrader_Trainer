@@ -80,6 +80,11 @@ def main() -> None:  # pragma: no cover - CLI entry
     import_p.add_argument("--end-ts", required=True, help="Data end timestamp (ISO)")
     import_p.add_argument("--output-file", required=True, help="File to store downloaded data")
     import_p.add_argument("--batch-size", type=int, default=1000, help="Insert batch size")
+    import_p = sub.add_parser("import-data", help="Import historical CSV data")
+    import_p.add_argument("csv", help="CSV file path")
+    import_p.add_argument("--start-ts", help="Start timestamp (ISO)")
+    import_p.add_argument("--end-ts", help="End timestamp (ISO)")
+    import_p.add_argument("--table", default="ohlcv", help="Supabase table name")
 
     args = parser.parse_args()
 
@@ -91,8 +96,18 @@ def main() -> None:  # pragma: no cover - CLI entry
             args.end_ts,
             batch_size=args.batch_size,
             output_file=args.output_file,
+        df = historical_data_importer.download_historical_data(
+            args.csv,
+            start_ts=args.start_ts,
+            end_ts=args.end_ts,
         )
-        insert_to_supabase(df, batch_size=args.batch_size)
+        url = os.environ.get("SUPABASE_URL")
+        key = os.environ.get("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABASE_KEY")
+        if not url or not key:
+            raise SystemExit("SUPABASE_URL and service key must be set")
+        historical_data_importer.insert_to_supabase(
+            df, url, key, table=args.table
+        )
         return
 
     cfg = load_cfg(args.cfg)
