@@ -311,6 +311,25 @@ stored in the `models` bucket and recorded in the `models` table.
 Similarly, the swarm simulation uploads the best parameter set to the bucket
 specified by `PARAMS_BUCKET` and logs a row in `PARAMS_TABLE`.
 
+## Supabase Security
+
+When row level security policies restrict direct table access, aggregated
+statistics can be retrieved via the `aggregate-trades` Edge Function. The helper
+`fetch_trade_aggregates` wraps this call and returns the JSON result as a
+`pandas.DataFrame`:
+
+```python
+from datetime import datetime, timedelta
+from coinTrader_Trainer.data_loader import fetch_trade_aggregates
+
+end = datetime.utcnow()
+start = end - timedelta(days=1)
+df = fetch_trade_aggregates(start, end, symbol="BTC")
+```
+
+Set `SUPABASE_URL` and a service key in your environment to authenticate before
+invoking the function.
+
 ## Swarm Scenario Simulation
 
 `swarm_sim.py` explores how multiple trading strategies perform when run in parallel. The simulator uses `networkx` to build a graph of market scenarios and evaluate parameter combinations across the nodes. Invoke it via the command line:

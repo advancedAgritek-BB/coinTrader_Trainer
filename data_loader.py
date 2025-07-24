@@ -82,6 +82,43 @@ def fetch_trade_logs(
     return df
 
 
+def fetch_trade_aggregates(
+    start_ts: datetime,
+    end_ts: datetime,
+    *,
+    symbol: Optional[str] = None,
+) -> pd.DataFrame:
+    """Return aggregated trade data between ``start_ts`` and ``end_ts``."""
+
+    client = _get_client()
+
+    if start_ts.tzinfo is None:
+        start_ts = start_ts.replace(tzinfo=timezone.utc)
+    else:
+        start_ts = start_ts.astimezone(timezone.utc)
+
+    if end_ts.tzinfo is None:
+        end_ts = end_ts.replace(tzinfo=timezone.utc)
+    else:
+        end_ts = end_ts.astimezone(timezone.utc)
+
+    body = {
+        "start_ts": start_ts.isoformat(),
+        "end_ts": end_ts.isoformat(),
+    }
+    if symbol is not None:
+        body["symbol"] = symbol
+
+    resp = client.functions.invoke(
+        "aggregate-trades", {"body": body, "responseType": "json"}
+    )
+    data = resp.get("data") if isinstance(resp, dict) and "data" in resp else resp
+    df = pd.DataFrame(data)
+    for col in df.columns:
+        df[col] = pd.to_numeric(df[col], errors="ignore")
+    return df
+
+
 
 async def fetch_table_async(
     table: str,
