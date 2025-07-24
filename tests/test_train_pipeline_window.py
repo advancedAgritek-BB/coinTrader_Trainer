@@ -23,6 +23,7 @@ def test_default_window_used(monkeypatch, tmp_path):
     monkeypatch.setattr(train_pipeline, "parse_args", lambda: Args)
     monkeypatch.setenv("SUPABASE_URL", "http://localhost")
     monkeypatch.setenv("SUPABASE_KEY", "anon")
+    monkeypatch.setattr(train_pipeline, "check_clinfo_gpu", lambda: True)
 
     fixed_now = datetime(2021, 1, 10)
 

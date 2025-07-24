@@ -5,6 +5,8 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+import subprocess
+import shutil
 from datetime import datetime, timedelta
 
 import pandas as pd
@@ -47,6 +49,8 @@ def main() -> None:
     key = os.environ.get("SUPABASE_KEY") or os.environ.get("SUPABASE_SERVICE_KEY")
     if not url or not key:
         raise ValueError("SUPABASE_URL and SUPABASE_KEY environment variables must be set")
+
+    check_clinfo_gpu()
 
     # Import and invoke LightGBM GPU wheel helper
     try:
@@ -97,6 +101,21 @@ import subprocess
 from pathlib import Path
 
 from supabase import create_client
+
+
+def check_clinfo_gpu() -> bool:
+    """Return True if clinfo reports a GPU device."""
+    exe = shutil.which("clinfo") or shutil.which("rocminfo")
+    if not exe:
+        raise RuntimeError("clinfo not found; GPU device check failed")
+    try:
+        result = subprocess.run([exe], capture_output=True, text=True)
+    except Exception as exc:  # pragma: no cover - subprocess errors are unlikely
+        raise RuntimeError(f"failed to run {exe}: {exc}") from exc
+    output = result.stdout + result.stderr
+    if "GPU" in output.upper():
+        return True
+    raise RuntimeError("No GPU device detected via clinfo")
 
 
 def ensure_lightgbm_gpu(supabase_url: str, supabase_key: str, script_path: str | None = None) -> bool:
