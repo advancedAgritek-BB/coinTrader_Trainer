@@ -119,7 +119,7 @@ event loop.  Inside existing async code simply use ``await fetch_data_range_asyn
 The ``make_features`` function now accepts several parameters to customise the
 technical indicators that are produced:
 * ``rsi_period`` – lookback window for the relative strength index (default ``14``)
-* ``atr_period`` – average true range window (default ``3``)
+* ``atr_window`` – average true range window (default ``3``)
 * ``volatility_period`` – period used to compute log return volatility (default ``20``)
 * ``ema_periods`` – list of exponential moving average periods to generate
 
