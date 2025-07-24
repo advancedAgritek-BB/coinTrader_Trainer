@@ -10,6 +10,8 @@ import logging
 
 import pandas as pd
 import yaml
+import lightgbm as lgb
+import pyopencl as cl
 
 from data_loader import fetch_trade_logs
 from feature_engineering import make_features
@@ -58,6 +60,7 @@ def main() -> None:
         build_and_upload_lightgbm_wheel = None
     if build_and_upload_lightgbm_wheel is not None:
         build_and_upload_lightgbm_wheel(url, key)
+        verify_opencl()
 
     end_ts = pd.to_datetime(args.end_ts) if args.end_ts else datetime.utcnow()
     window = cfg.get("default_window_days", 7)
@@ -163,3 +166,14 @@ def ensure_lightgbm_gpu(supabase_url: str, supabase_key: str, script_path: str |
             bucket.upload(os.path.basename(whl), fh)
         logger.info("Uploaded %s to Supabase", os.path.basename(whl))
     return True
+
+
+def verify_opencl():
+    platforms = cl.get_platforms()
+    for platform in platforms:
+        if "AMD" in platform.name:
+            devices = platform.get_devices(cl.device_type.GPU)
+            if devices:
+                print(f"AMD GPU detected: {devices[0].name}")
+                return True
+    raise ValueError("No AMD OpenCL GPU detected")
