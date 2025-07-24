@@ -5,8 +5,6 @@ import pandas as pd
 from datetime import datetime
 import io
 import fakeredis
-import pytest
-import fakeredis
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
