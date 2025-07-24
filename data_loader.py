@@ -12,14 +12,36 @@ from tenacity import retry, wait_exponential, stop_after_attempt
 
 
 def _get_client() -> Client:
-    """Create a Supabase client from environment variables."""
+    """Create a Supabase client from environment variables.
+
+    The function always initialises the client using the public (anon) key.
+    If a JWT or user credentials are provided, it authenticates the client
+    accordingly. ``SUPABASE_SERVICE_KEY`` is intentionally ignored here and
+    should only be used for write operations such as model uploads.
+    """
+
     url = os.environ.get("SUPABASE_URL")
-    key = os.environ.get("SUPABASE_KEY")
-    if not url or not key:
+    anon_key = os.environ.get("SUPABASE_KEY")
+    if not url or not anon_key:
         raise ValueError(
             "SUPABASE_URL and SUPABASE_KEY environment variables must be set"
         )
-    return create_client(url, key)
+
+    client = create_client(url, anon_key)
+
+    jwt = os.environ.get("SUPABASE_JWT")
+    email = os.environ.get("SUPABASE_USER_EMAIL")
+    password = os.environ.get("SUPABASE_PASSWORD")
+
+    try:
+        if jwt:
+            client.auth.set_session(jwt, "")
+        elif email and password:
+            client.auth.sign_in_with_password({"email": email, "password": password})
+    except Exception as exc:  # pragma: no cover - requires real Supabase instance
+        raise RuntimeError("Supabase authentication failed") from exc
+
+    return client
 
 
 @retry(wait=wait_exponential(multiplier=1, min=1, max=10), stop=stop_after_attempt(5))
@@ -109,7 +131,8 @@ async def fetch_table_async(
             raise ValueError(
                 "SUPABASE_URL and SUPABASE_KEY environment variables must be set"
             )
-        headers = {"apikey": key, "Authorization": f"Bearer {key}"}
+        jwt = os.environ.get("SUPABASE_JWT")
+        headers = {"apikey": key, "Authorization": f"Bearer {jwt or key}"}
         client = httpx.AsyncClient(base_url=url, headers=headers)
         own_client = True
 
@@ -215,8 +238,10 @@ async def fetch_data_range_async(
             "SUPABASE_URL and SUPABASE_KEY environment variables must be set"
         )
 
+    jwt = os.environ.get("SUPABASE_JWT")
+
     endpoint = f"{url.rstrip('/')}/rest/v1/{table}"
-    headers = {"apikey": key, "Authorization": f"Bearer {key}"}
+    headers = {"apikey": key, "Authorization": f"Bearer {jwt or key}"}
 
     chunks: list[pd.DataFrame] = []
     async with httpx.AsyncClient(headers=headers, timeout=None) as client:
