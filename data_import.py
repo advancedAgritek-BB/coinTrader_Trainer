@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import os
+from dotenv import load_dotenv
 from typing import Optional
 
 import httpx
 import pandas as pd
 from supabase import create_client
+
+load_dotenv()
 
 
 def download_historical_data(

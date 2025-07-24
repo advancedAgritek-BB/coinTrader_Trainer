@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+from dotenv import load_dotenv
 from datetime import datetime, timezone
 from typing import Optional, Dict, AsyncGenerator, Any
 from io import BytesIO
@@ -15,6 +16,8 @@ import httpx
 import pandas as pd
 from supabase import create_client, Client
 from tenacity import retry, wait_exponential, stop_after_attempt
+
+load_dotenv()
 
 
 _REDIS_CLIENT = None

@@ -66,6 +66,17 @@ If you prefer to install packages individually:
 pip install pandas numpy lightgbm scikit-learn supabase tenacity pyarrow pytz networkx requests
 ```
 
+## Configuration
+
+Copy `.env.example` to `.env` and populate your Supabase credentials. The
+optional `PARAMS_BUCKET` and `PARAMS_TABLE` variables default to
+`agent_params`.
+
+```bash
+cp .env.example .env
+# edit .env with your credentials
+```
+
 All modules reside directly in the project root rather than under a
 ``src/`` directory.  When running scripts from another location, add the
 repository path to ``PYTHONPATH`` so Python can resolve imports.
