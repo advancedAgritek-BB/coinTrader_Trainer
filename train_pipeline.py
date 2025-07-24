@@ -13,7 +13,11 @@ from datetime import datetime, timedelta
 import pandas as pd
 import yaml
 import lightgbm as lgb
-import pyopencl as cl
+try:  # optional dependency
+    import pyopencl as cl
+except Exception as exc:  # pragma: no cover - pyopencl may be absent
+    cl = None  # type: ignore
+    logging.getLogger(__name__).warning("pyopencl not available: %s", exc)
 
 load_dotenv()
 
@@ -187,6 +191,9 @@ def ensure_lightgbm_gpu(supabase_url: str, supabase_key: str, script_path: str |
 
 
 def verify_opencl():
+    if cl is None:
+        raise ValueError("pyopencl not installed")
+
     platforms = cl.get_platforms()
     for platform in platforms:
         if "AMD" in platform.name:

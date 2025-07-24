@@ -68,6 +68,11 @@ After activation run:
 pip install -r requirements.txt
 ```
 
+On **Windows**, `pyopencl` requires a C/C++ compiler.  Install
+[Build Tools for Visual Studio](https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2022)
+or another compiler before running the command above.  If you plan to
+train only on the CPU you can remove `pyopencl` from `requirements.txt`.
+
 If you update the repository at a later date, run the installation
 command again so new dependencies such as ``pyyaml``, ``networkx`` or ``requests`` are installed.
 For GPU-accelerated feature engineering install
