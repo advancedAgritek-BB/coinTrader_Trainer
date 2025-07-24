@@ -255,7 +255,7 @@ uploaded to the ``models`` bucket automatically.
 ## GPU Training
 
 LightGBM must be built with OpenCL/ROCm support to train on AMD GPUs such
-as a Radeon RX 7900 XTX. Before building, open a Windows or WSL shell and
+as a Radeon RX 7900 XTX. Before building, open a Windows or WSL shell and
 run ``clinfo`` to verify that the GPU is detected. The helper script
 ``build_lightgbm_gpu.ps1`` also invokes ``clinfo`` and aborts if no
 OpenCL device is available. Clone the LightGBM repository and build with
