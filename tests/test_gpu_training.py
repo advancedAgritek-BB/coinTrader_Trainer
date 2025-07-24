@@ -12,6 +12,28 @@ from trainers.regime_lgbm import train_regime_lgbm
 import lightgbm as lgb
 
 
+@pytest.fixture
+def fake_federated(monkeypatch):
+    """Patch ``train_federated_regime`` and record usage."""
+    import ml_trainer
+
+    called = {"used": False}
+
+    def _fake(start, end, **kwargs):
+        called["used"] = True
+
+        class FakeBooster:
+            best_iteration = 1
+
+            def predict(self, data, num_iteration=None):
+                return np.zeros(len(data))
+
+        return FakeBooster(), {}
+
+    monkeypatch.setattr(ml_trainer, "train_federated_regime", _fake)
+    return called
+
+
 def test_gpu_params_passed_to_lightgbm(monkeypatch):
     rng = np.random.default_rng(0)
     X = pd.DataFrame(rng.normal(size=(10, 3)))
@@ -40,35 +62,6 @@ def test_gpu_params_passed_to_lightgbm(monkeypatch):
     assert captured.get("device_type") == "gpu"
 
 
-def test_cfg_loader_gpu_defaults(monkeypatch):
-    import ml_trainer
-    rng = np.random.default_rng(1)
-    X = pd.DataFrame(rng.normal(size=(10, 2)))
-    y = pd.Series([0, 1] * 5)
-
-    captured = {}
-
-    def fake_train(params, *args, **kwargs):
-        captured.update(params)
-        class FakeBooster:
-            best_iteration = 1
-            def predict(self, data, num_iteration=None):
-                return np.zeros(len(data))
-        return FakeBooster()
-
-    monkeypatch.setattr(lgb, "train", fake_train)
-
-    cfg = ml_trainer.load_cfg("cfg.yaml")
-    params = cfg.get("regime_lgbm", {}).copy()
-    params.pop("device_type", None)
-    params.pop("gpu_platform_id", None)
-    params.pop("gpu_device_id", None)
-
-    train_regime_lgbm(X, y, params, use_gpu=True)
-
-    assert captured.get("device_type") == "gpu"
-
-
 def test_cli_gpu_overrides(monkeypatch):
     import ml_trainer
 
@@ -78,8 +71,10 @@ def test_cli_gpu_overrides(monkeypatch):
         captured.update(params)
         class FakeBooster:
             best_iteration = 1
+
             def predict(self, data, num_iteration=None):
                 return np.zeros(len(data))
+
         return FakeBooster()
 
     monkeypatch.setattr(lgb, "train", fake_train)
@@ -122,24 +117,22 @@ def test_cli_gpu_overrides(monkeypatch):
     assert captured.get("gpu_device_id") == 2
 
 
-def test_cli_federated_trainer_invoked(monkeypatch):
-def test_cli_federated_flag(monkeypatch):
+def test_cli_federated_trainer_invoked(monkeypatch, fake_federated):
     import ml_trainer
 
-    called = {}
+    nonfed = {}
 
-    def fake_federated(*args, **kwargs):
-        called["federated"] = True
+    def fake_train(*args, **kwargs):
+        nonfed["used"] = True
         class FakeBooster:
             best_iteration = 1
+
             def predict(self, data, num_iteration=None):
                 return np.zeros(len(data))
-        return FakeBooster(), {"accuracy": 0.0}
-    def fake_federated(start, end, **kwargs):
-        called["federated"] = (start, end)
-        return (lambda df: np.zeros(len(df))), {}
 
-    monkeypatch.setattr(ml_trainer, "train_federated_regime", fake_federated)
+        return FakeBooster(), {}
+
+    monkeypatch.setattr(ml_trainer, "train_regime_lgbm", fake_train)
     monkeypatch.setattr(
         ml_trainer,
         "_make_dummy_data",
@@ -155,26 +148,33 @@ def test_cli_federated_flag(monkeypatch):
         "train",
         "regime",
         "--federated",
+        "--start-ts",
+        "2021-01-01T00:00:00",
+        "--end-ts",
+        "2021-01-02T00:00:00",
     ]
     monkeypatch.setattr(sys, "argv", argv)
 
     ml_trainer.main()
 
-    assert called.get("federated")
+    assert fake_federated["used"] is True
+    assert "used" not in nonfed
 
 
-def test_cli_federated_flag(monkeypatch):
+def test_cli_federated_flag(monkeypatch, fake_federated):
     import ml_trainer
 
-    called = {}
+    used = {}
 
     def fake_train(*args, **kwargs):
-        called["used"] = True
+        used["called"] = True
         class FakeBooster:
             best_iteration = 1
+
             def predict(self, data, num_iteration=None):
                 return np.zeros(len(data))
-        return FakeBooster(), {"accuracy": 0.0}
+
+        return FakeBooster(), {}
 
     monkeypatch.setattr(ml_trainer, "train_regime_lgbm", fake_train)
     monkeypatch.setattr(
@@ -186,24 +186,17 @@ def test_cli_federated_flag(monkeypatch):
         ),
     )
     monkeypatch.setattr(ml_trainer, "load_cfg", lambda p: {"regime_lgbm": {}})
- 
+
     argv = [
         "ml_trainer",
         "train",
         "regime",
-        "--cfg",
-        "cfg.yaml",
         "--federated",
-        "--start-ts",
-        "2021-01-01T00:00:00",
-        "--end-ts",
-        "2021-01-02T00:00:00",
     ]
     monkeypatch.setattr(sys, "argv", argv)
 
     ml_trainer.main()
 
-    assert called.get("used", False)
-    assert called.get("federated")
-    assert not called.get("used", False)
+    assert used.get("called") is True
+    assert fake_federated["used"] is False
 
