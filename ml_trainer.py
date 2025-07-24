@@ -9,11 +9,14 @@ from typing import Any, Dict, Tuple
 import os
 import subprocess
 
+import historical_data_importer
+
 import numpy as np
 import pandas as pd
 import yaml
 
 from trainers.regime_lgbm import train_regime_lgbm
+from data_import import download_historical_data, insert_to_supabase
 
 try:  # pragma: no cover - optional dependency
     from federated_trainer import train_federated_regime
@@ -69,7 +72,37 @@ def main() -> None:  # pragma: no cover - CLI entry
     train_p.add_argument("--end-ts", help="Data end timestamp (ISO format)")
     train_p.add_argument("--profile-gpu", action="store_true", help="Profile GPU usage with AMD RGP")
 
+    import_p = sub.add_parser("import-data", help="Import historical CSV data")
+    import_p.add_argument("csv", help="CSV file path")
+    import_p.add_argument("--start-ts", help="Start timestamp (ISO)")
+    import_p.add_argument("--end-ts", help="End timestamp (ISO)")
+    import_p.add_argument("--table", default="ohlcv", help="Supabase table name")
+    import_p = sub.add_parser("import-data", help="Download historical data and insert to Supabase")
+    import_p.add_argument("--source-url", required=True, help="HTTP endpoint for historical data")
+    import_p.add_argument("--symbol", required=True, help="Trading pair symbol")
+    import_p.add_argument("--start-ts", required=True, help="Data start timestamp (ISO)")
+    import_p.add_argument("--end-ts", required=True, help="Data end timestamp (ISO)")
+    import_p.add_argument("--output-file", required=True, help="File to store downloaded data")
+    import_p.add_argument("--batch-size", type=int, default=1000, help="Insert batch size")
+
     args = parser.parse_args()
+
+    if args.command == "import-data":
+        df = historical_data_importer.download_historical_data(
+            args.csv, args.start_ts, args.end_ts
+        )
+        historical_data_importer.insert_to_supabase(df, args.table)
+        df = download_historical_data(
+            args.source_url,
+            args.symbol,
+            args.start_ts,
+            args.end_ts,
+            batch_size=args.batch_size,
+            output_file=args.output_file,
+        )
+        insert_to_supabase(df, batch_size=args.batch_size)
+        return
+
     cfg = load_cfg(args.cfg)
 
     if args.command != "train":

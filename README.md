@@ -51,7 +51,7 @@ pip install -r requirements.txt
 ```
 
 If you update the repository at a later date, run the installation
-command again so new dependencies such as ``pyyaml`` or ``networkx`` are installed.
+command again so new dependencies such as ``pyyaml``, ``networkx`` or ``requests`` are installed.
 For GPU-accelerated feature engineering install
 [`cudf`](https://rapids.ai/). The package requires CUDA
 and is not included in ``requirements.txt`` by default:
@@ -63,7 +63,7 @@ pip install cudf-cu12 --extra-index-url=https://pypi.nvidia.com
 If you prefer to install packages individually:
 
 ```bash
-pip install pandas numpy lightgbm scikit-learn supabase tenacity pyarrow pytz networkx
+pip install pandas numpy lightgbm scikit-learn supabase tenacity pyarrow pytz networkx requests
 ```
 
 All modules reside directly in the project root rather than under a
@@ -220,10 +220,17 @@ interface.  Use ``--help`` to see all available options.
 python ml_trainer.py --help
 ```
 
-A typical training run might look like:
+To download historical trades and upload them to Supabase run:
 
 ```bash
 python ml_trainer.py train regime
+python ml_trainer.py import-data \
+  --source-url https://example.com/api \
+  --symbol BTC \
+  --start-ts 2024-01-01T00:00:00Z \
+  --end-ts 2024-01-02T00:00:00Z \
+  --output-file trades.parquet \
+  --batch-size 1000
 ```
 
 ### Federated Training
