@@ -16,6 +16,28 @@ class FakeBooster:
         return np.zeros(len(data))
 
 
+@pytest.fixture
+def fake_federated(monkeypatch):
+    """Patch ``train_federated_regime`` and record usage."""
+    import ml_trainer
+
+    called = {"used": False}
+
+    def _fake(start, end, **kwargs):
+        called["used"] = True
+
+        class FakeBooster:
+            best_iteration = 1
+
+            def predict(self, data, num_iteration=None):
+                return np.zeros(len(data))
+
+        return FakeBooster(), {}
+
+    monkeypatch.setattr(ml_trainer, "train_federated_regime", _fake)
+    return called
+
+
 def test_gpu_params_passed_to_lightgbm(monkeypatch):
     rng = np.random.default_rng(0)
     X = pd.DataFrame(rng.normal(size=(10, 3)))
@@ -23,6 +45,21 @@ def test_gpu_params_passed_to_lightgbm(monkeypatch):
 
     captured = {}
 
+    def fake_train(params, *args, **kwargs):
+        captured.update(params)
+        class FakeBooster:
+            best_iteration = 1
+            def predict(self, data, num_iteration=None):
+                return np.zeros(len(data))
+        return FakeBooster()
+
+    monkeypatch.setattr(lgb, "train", fake_train)
+
+    params = {
+        "objective": "binary",
+        "num_boost_round": 5,
+        "early_stopping_rounds": 2,
+    }
     def fake_train(params, *args, **kwargs):
         captured.update(params)
         return FakeBooster()
@@ -41,6 +78,13 @@ def test_cli_gpu_overrides(monkeypatch):
 
     def fake_train(X, y, params, use_gpu=False):
         captured.update(params)
+        class FakeBooster:
+            best_iteration = 1
+
+            def predict(self, data, num_iteration=None):
+                return np.zeros(len(data))
+
+        return FakeBooster()
         return FakeBooster(), {}
 
     monkeypatch.setitem(ml_trainer.TRAINERS, "regime", (fake_train, "regime_lgbm"))
@@ -70,6 +114,76 @@ def test_cli_gpu_overrides(monkeypatch):
     assert captured.get("gpu_device_id") == 2
 
 
+def test_cli_federated_trainer_invoked(monkeypatch, fake_federated):
+    import ml_trainer
+
+    nonfed = {}
+
+    def fake_train(*args, **kwargs):
+        nonfed["used"] = True
+        class FakeBooster:
+            best_iteration = 1
+
+            def predict(self, data, num_iteration=None):
+                return np.zeros(len(data))
+
+        return FakeBooster(), {}
+
+    monkeypatch.setattr(ml_trainer, "train_regime_lgbm", fake_train)
+    monkeypatch.setattr(
+        ml_trainer,
+        "_make_dummy_data",
+        lambda n=200: (
+            pd.DataFrame(np.random.normal(size=(10, 2))),
+            pd.Series([0, 1] * 5),
+        ),
+    )
+    monkeypatch.setattr(ml_trainer, "load_cfg", lambda p: {"federated_regime": {}})
+
+    argv = [
+        "ml_trainer",
+        "train",
+        "regime",
+        "--federated",
+        "--start-ts",
+        "2021-01-01T00:00:00",
+        "--end-ts",
+        "2021-01-02T00:00:00",
+    ]
+    monkeypatch.setattr(sys, "argv", argv)
+
+    ml_trainer.main()
+
+    assert fake_federated["used"] is True
+    assert "used" not in nonfed
+
+
+def test_cli_federated_flag(monkeypatch, fake_federated):
+    import ml_trainer
+
+    used = {}
+
+    def fake_train(*args, **kwargs):
+        used["called"] = True
+        class FakeBooster:
+            best_iteration = 1
+
+            def predict(self, data, num_iteration=None):
+                return np.zeros(len(data))
+
+        return FakeBooster(), {}
+
+    monkeypatch.setattr(ml_trainer, "train_regime_lgbm", fake_train)
+    monkeypatch.setattr(
+        ml_trainer,
+        "_make_dummy_data",
+        lambda n=200: (
+            pd.DataFrame(np.random.normal(size=(10, 2))),
+            pd.Series([0, 1] * 5),
+        ),
+    )
+    monkeypatch.setattr(ml_trainer, "load_cfg", lambda p: {"regime_lgbm": {}})
+
 def test_cli_federated_trainer_invoked(monkeypatch):
     called = {}
 
@@ -93,5 +207,7 @@ def test_cli_federated_trainer_invoked(monkeypatch):
 
     ml_trainer.main()
 
+    assert used.get("called") is True
+    assert fake_federated["used"] is False
     assert called.get("args") == ("2021-01-01", "2021-01-02")
 
