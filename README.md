@@ -315,6 +315,22 @@ specified by `PARAMS_BUCKET` and logs a row in `PARAMS_TABLE`.
 
 ## Supabase Security
 
+When row level security policies restrict direct table access, aggregated
+statistics can be retrieved via the `aggregate-trades` Edge Function. The helper
+`fetch_trade_aggregates` wraps this call and returns the JSON result as a
+`pandas.DataFrame`:
+
+```python
+from datetime import datetime, timedelta
+from coinTrader_Trainer.data_loader import fetch_trade_aggregates
+
+end = datetime.utcnow()
+start = end - timedelta(days=1)
+df = fetch_trade_aggregates(start, end, symbol="BTC")
+```
+
+Set `SUPABASE_URL` and a service key in your environment to authenticate before
+invoking the function.
 Enable row level security on the core tables so that users can only access
 their own data:
 
