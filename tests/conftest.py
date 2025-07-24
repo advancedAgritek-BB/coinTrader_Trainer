@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import types
 import pytest
+import os
 
 
 @pytest.fixture
@@ -86,3 +87,22 @@ def registry_with_dummy(monkeypatch):
     dummy = DummySupabase()
     monkeypatch.setattr(registry, "create_client", lambda url, key: dummy)
     return registry.ModelRegistry("http://localhost", "anon"), dummy
+
+
+def pytest_addoption(parser):
+    parser.addoption("--supabase-user-email", action="store", default=None)
+    parser.addoption("--supabase-password", action="store", default=None)
+    parser.addoption("--supabase-jwt", action="store", default=None)
+
+
+@pytest.fixture(autouse=True)
+def supabase_env(monkeypatch, pytestconfig):
+    email = pytestconfig.getoption("--supabase-user-email") or os.environ.get("SUPABASE_USER_EMAIL")
+    password = pytestconfig.getoption("--supabase-password") or os.environ.get("SUPABASE_PASSWORD")
+    jwt = pytestconfig.getoption("--supabase-jwt") or os.environ.get("SUPABASE_JWT")
+    if email:
+        monkeypatch.setenv("SUPABASE_USER_EMAIL", email)
+    if password:
+        monkeypatch.setenv("SUPABASE_PASSWORD", password)
+    if jwt:
+        monkeypatch.setenv("SUPABASE_JWT", jwt)

@@ -102,3 +102,25 @@ async def test_fetch_data_async_table(monkeypatch):
 
     expected = pd.concat([pd.DataFrame(p) for p in PAGES], ignore_index=True)
     pd.testing.assert_frame_equal(df, expected)
+
+
+@pytest.mark.asyncio
+async def test_async_headers_use_jwt(monkeypatch):
+    transport = make_transport()
+    real_client = httpx.AsyncClient
+    captured = {}
+
+    def fake_client(**kwargs):
+        captured['headers'] = kwargs.get('headers')
+        kwargs.setdefault('transport', transport)
+        kwargs.setdefault('base_url', 'https://sb.example.com')
+        return real_client(**kwargs)
+
+    monkeypatch.setattr(httpx, 'AsyncClient', fake_client)
+    monkeypatch.setenv('SUPABASE_URL', 'https://sb.example.com')
+    monkeypatch.setenv('SUPABASE_KEY', 'test')
+    monkeypatch.setenv('SUPABASE_JWT', 'token123')
+
+    await fetch_data_range_async('trade_logs', 's', 'e')
+
+    assert captured['headers']['Authorization'] == 'Bearer token123'

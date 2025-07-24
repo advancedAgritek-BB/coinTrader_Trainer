@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import os
 from datetime import datetime, timezone
+from typing import Optional, Dict, AsyncGenerator, Any
+import json
 from typing import Optional, Dict, AsyncGenerator
 from io import BytesIO
 
@@ -96,8 +98,22 @@ def fetch_trade_logs(
     *,
     symbol: Optional[str] = None,
     cache_path: Optional[str] = None,
+    redis_client: Optional[Any] = None,
+    redis_key: Optional[str] = None,
 ) -> pd.DataFrame:
     """Return trade logs between ``start_ts`` and ``end_ts`` as a DataFrame."""
+
+    if cache_path and os.path.exists(cache_path):
+        return pd.read_parquet(cache_path)
+    if redis_client is not None:
+        key = redis_key or f"trade_logs:{start_ts.isoformat()}:{end_ts.isoformat()}:{symbol or 'all'}"
+        cached = redis_client.get(key)
+        if cached:
+            if isinstance(cached, bytes):
+                cached = cached.decode()
+            return pd.read_json(cached, orient="split")
+
+    client = _get_client()
 
     if start_ts.tzinfo is None:
         start_ts = start_ts.replace(tzinfo=timezone.utc)
@@ -133,6 +149,9 @@ def fetch_trade_logs(
 
     if cache_path:
         df.to_parquet(cache_path)
+    if redis_client is not None:
+        key = redis_key or f"trade_logs:{start_ts.isoformat()}:{end_ts.isoformat()}:{symbol or 'all'}"
+        redis_client.set(key, df.to_json(orient="split"))
 
     if redis_client is not None and cache_key is not None:
         ttl = int(os.environ.get("REDIS_TTL", 3600))
@@ -317,6 +336,7 @@ async def fetch_data_range_async(
     jwt = os.environ.get("SUPABASE_JWT")
 
     endpoint = f"{url.rstrip('/')}/rest/v1/{table}"
+    jwt = os.environ.get("SUPABASE_JWT")
     headers = {"apikey": key, "Authorization": f"Bearer {jwt or key}"}
 
     chunks: list[pd.DataFrame] = []

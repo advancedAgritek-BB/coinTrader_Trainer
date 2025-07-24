@@ -6,6 +6,7 @@ from datetime import datetime
 import io
 import fakeredis
 import pytest
+import fakeredis
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
@@ -57,6 +58,26 @@ def test_fetch_trade_logs_uses_cache(tmp_path, monkeypatch):
     pd.testing.assert_frame_equal(df, df_cached)
 
 
+def test_fetch_trade_logs_redis_cache(monkeypatch):
+    r = fakeredis.FakeRedis()
+    start = datetime(2021, 1, 1)
+    end = datetime(2021, 1, 2)
+    key = f"trade_logs:{start.isoformat()}:{end.isoformat()}:BTC"
+    df_cached = pd.DataFrame({"a": [1, 2]})
+    r.set(key, df_cached.to_json(orient="split"))
+
+    monkeypatch.setattr(data_loader, "_get_client", lambda: None)
+
+    def fail_fetch(*a, **k):
+        raise AssertionError("should not fetch")
+
+    monkeypatch.setattr(data_loader, "_fetch_logs", fail_fetch)
+
+    df = data_loader.fetch_trade_logs(
+        start, end, symbol="BTC", redis_client=r, redis_key=key
+    )
+
+    pd.testing.assert_frame_equal(df, df_cached)
 def test_fetch_trade_logs_uses_redis(monkeypatch):
     start = datetime(2021, 1, 1)
     end = datetime(2021, 1, 2)
