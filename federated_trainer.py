@@ -16,6 +16,7 @@ from supabase import create_client
 import yaml
 
 from coinTrader_Trainer.data_loader import fetch_data_range_async
+from coinTrader_Trainer.data_loader import fetch_trade_aggregates
 from coinTrader_Trainer.feature_engineering import make_features
 
 __all__ = ["train_federated_regime"]
@@ -83,6 +84,14 @@ def train_federated_regime(
     params = _load_params(config_path)
     if params_override:
         params.update(params_override)
+
+    # Optionally fetch aggregated stats before downloading the full dataset
+    try:
+        fetch_trade_aggregates(
+            pd.to_datetime(start_ts), pd.to_datetime(end_ts)
+        )
+    except Exception:
+        pass
 
     X, y = _prepare_data(start_ts, end_ts)
 

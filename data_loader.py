@@ -5,6 +5,13 @@ import os
 from datetime import datetime, timezone
 from typing import Optional, Dict, AsyncGenerator, Any
 import json
+from typing import Optional, Dict, AsyncGenerator
+from io import BytesIO
+
+try:
+    import redis  # type: ignore
+except Exception:  # pragma: no cover - optional dependency
+    redis = None
 
 import httpx
 import pandas as pd
@@ -12,15 +19,56 @@ from supabase import create_client, Client
 from tenacity import retry, wait_exponential, stop_after_attempt
 
 
+_REDIS_CLIENT = None
+
+
+def _get_redis_client():
+    """Return a configured Redis client or ``None`` if unavailable."""
+    global _REDIS_CLIENT
+    if redis is None:
+        return None
+    if _REDIS_CLIENT is not None:
+        return _REDIS_CLIENT
+    host = os.environ.get("REDIS_HOST")
+    if not host:
+        return None
+    port = int(os.environ.get("REDIS_PORT", 6379))
+    db = int(os.environ.get("REDIS_DB", 0))
+    _REDIS_CLIENT = redis.Redis(host=host, port=port, db=db)
+    return _REDIS_CLIENT
+
+
 def _get_client() -> Client:
-    """Create a Supabase client from environment variables."""
+    """Create a Supabase client from environment variables.
+
+    The function always initialises the client using the public (anon) key.
+    If a JWT or user credentials are provided, it authenticates the client
+    accordingly. ``SUPABASE_SERVICE_KEY`` is intentionally ignored here and
+    should only be used for write operations such as model uploads.
+    """
+
     url = os.environ.get("SUPABASE_URL")
-    key = os.environ.get("SUPABASE_KEY")
-    if not url or not key:
+    anon_key = os.environ.get("SUPABASE_KEY")
+    if not url or not anon_key:
         raise ValueError(
             "SUPABASE_URL and SUPABASE_KEY environment variables must be set"
         )
-    return create_client(url, key)
+
+    client = create_client(url, anon_key)
+
+    jwt = os.environ.get("SUPABASE_JWT")
+    email = os.environ.get("SUPABASE_USER_EMAIL")
+    password = os.environ.get("SUPABASE_PASSWORD")
+
+    try:
+        if jwt:
+            client.auth.set_session(jwt, "")
+        elif email and password:
+            client.auth.sign_in_with_password({"email": email, "password": password})
+    except Exception as exc:  # pragma: no cover - requires real Supabase instance
+        raise RuntimeError("Supabase authentication failed") from exc
+
+    return client
 
 
 @retry(wait=wait_exponential(multiplier=1, min=1, max=10), stop=stop_after_attempt(5))
@@ -77,6 +125,19 @@ def fetch_trade_logs(
     else:
         end_ts = end_ts.astimezone(timezone.utc)
 
+    if cache_path and os.path.exists(cache_path):
+        return pd.read_parquet(cache_path)
+
+    redis_client = _get_redis_client()
+    cache_key = None
+    if redis_client is not None:
+        cache_key = f"trades_{int(start_ts.timestamp())}_{int(end_ts.timestamp())}_{symbol or ''}"
+        cached = redis_client.get(cache_key)
+        if cached:
+            return pd.read_parquet(BytesIO(cached))
+
+    client = _get_client()
+
     rows = _fetch_logs(client, start_ts, end_ts, symbol=symbol)
     df = pd.DataFrame(rows)
     for col in df.columns:
@@ -92,6 +153,49 @@ def fetch_trade_logs(
         key = redis_key or f"trade_logs:{start_ts.isoformat()}:{end_ts.isoformat()}:{symbol or 'all'}"
         redis_client.set(key, df.to_json(orient="split"))
 
+    if redis_client is not None and cache_key is not None:
+        ttl = int(os.environ.get("REDIS_TTL", 3600))
+        buf = BytesIO()
+        df.to_parquet(buf)
+        redis_client.setex(cache_key, ttl, buf.getvalue())
+
+    return df
+
+
+def fetch_trade_aggregates(
+    start_ts: datetime,
+    end_ts: datetime,
+    *,
+    symbol: Optional[str] = None,
+) -> pd.DataFrame:
+    """Return aggregated trade data between ``start_ts`` and ``end_ts``."""
+
+    client = _get_client()
+
+    if start_ts.tzinfo is None:
+        start_ts = start_ts.replace(tzinfo=timezone.utc)
+    else:
+        start_ts = start_ts.astimezone(timezone.utc)
+
+    if end_ts.tzinfo is None:
+        end_ts = end_ts.replace(tzinfo=timezone.utc)
+    else:
+        end_ts = end_ts.astimezone(timezone.utc)
+
+    body = {
+        "start_ts": start_ts.isoformat(),
+        "end_ts": end_ts.isoformat(),
+    }
+    if symbol is not None:
+        body["symbol"] = symbol
+
+    resp = client.functions.invoke(
+        "aggregate-trades", {"body": body, "responseType": "json"}
+    )
+    data = resp.get("data") if isinstance(resp, dict) and "data" in resp else resp
+    df = pd.DataFrame(data)
+    for col in df.columns:
+        df[col] = pd.to_numeric(df[col], errors="ignore")
     return df
 
 
@@ -228,6 +332,8 @@ async def fetch_data_range_async(
         raise ValueError(
             "SUPABASE_URL and SUPABASE_KEY environment variables must be set"
         )
+
+    jwt = os.environ.get("SUPABASE_JWT")
 
     endpoint = f"{url.rstrip('/')}/rest/v1/{table}"
     jwt = os.environ.get("SUPABASE_JWT")

@@ -17,9 +17,10 @@ optionally persisted to Supabase Storage and the ``models`` table.
 
 * Python 3.9 or newer
 * networkx for the swarm simulation
-* ``SUPABASE_URL`` and ``SUPABASE_KEY`` (or ``SUPABASE_SERVICE_KEY``) set in the
-  environment. These credentials point to the Supabase project used by both
-  ``coinTrader2.0`` and the trainer.
+* ``SUPABASE_URL`` and credentials for the Supabase project. Data reads
+  use ``SUPABASE_USER_EMAIL`` with ``SUPABASE_PASSWORD`` (or ``SUPABASE_JWT``),
+  while uploads continue to rely on ``SUPABASE_SERVICE_KEY`` (or
+  ``SUPABASE_KEY``).
 * ``PARAMS_BUCKET`` and ``PARAMS_TABLE`` control where swarm optimisation
   parameters are uploaded. Defaults are ``agent_params`` for both.
 * Optional: ``cudf`` and a CUDA capable GPU for accelerated feature
@@ -308,8 +309,51 @@ The `train_regime_lgbm` function uploads the trained model to Supabase
 Storage when `SUPABASE_URL` and either `SUPABASE_SERVICE_KEY` or
 `SUPABASE_KEY` are present in the environment. Uploaded artifacts are
 stored in the `models` bucket and recorded in the `models` table.
+
 Similarly, the swarm simulation uploads the best parameter set to the bucket
 specified by `PARAMS_BUCKET` and logs a row in `PARAMS_TABLE`.
+
+## Supabase Security
+
+When row level security policies restrict direct table access, aggregated
+statistics can be retrieved via the `aggregate-trades` Edge Function. The helper
+`fetch_trade_aggregates` wraps this call and returns the JSON result as a
+`pandas.DataFrame`:
+
+```python
+from datetime import datetime, timedelta
+from coinTrader_Trainer.data_loader import fetch_trade_aggregates
+
+end = datetime.utcnow()
+start = end - timedelta(days=1)
+df = fetch_trade_aggregates(start, end, symbol="BTC")
+```
+
+Set `SUPABASE_URL` and a service key in your environment to authenticate before
+invoking the function.
+Enable row level security on the core tables so that users can only access
+their own data:
+
+```sql
+ALTER TABLE trade_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE models ENABLE ROW LEVEL SECURITY;
+```
+
+Policies then control who can read and write:
+
+```sql
+CREATE POLICY "User can read own trades"
+  ON trade_logs FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Admins can upload models"
+  ON models FOR INSERT TO authenticated
+  WITH CHECK (auth.role() = 'admin');
+```
+
+Create an index on `user_id` in `trade_logs` so permission checks remain fast.
+Model uploads still use `SUPABASE_SERVICE_KEY`, but data reads authenticate with
+`SUPABASE_USER_EMAIL` and `SUPABASE_PASSWORD` (or `SUPABASE_JWT`).
 
 ## Swarm Scenario Simulation
 

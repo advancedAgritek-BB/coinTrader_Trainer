@@ -16,3 +16,4 @@ pyarrow
 pytz
 networkx
 pyopencl
+redis  # optional, used for caching
