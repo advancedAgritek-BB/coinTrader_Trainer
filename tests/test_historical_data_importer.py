@@ -78,7 +78,7 @@ def test_cli_import_data(monkeypatch):
     monkeypatch.setattr(historical_data_importer, 'insert_to_supabase', fake_insert)
 
     monkeypatch.setattr(sys, 'argv', [
-        'prog', 'import-data', 'f.csv', '--start-ts', '2021-01-01', '--end-ts', '2021-01-02', '--table', 'tbl'
+        'prog', 'import-csv', 'f.csv', '--start-ts', '2021-01-01', '--end-ts', '2021-01-02', '--table', 'tbl'
     ])
 
     ml_trainer.main()

@@ -224,7 +224,7 @@ To download historical trades and upload them to Supabase run:
 
 ```bash
 python ml_trainer.py train regime
-python ml_trainer.py import-data \
+python ml_trainer.py download-data \
   --source-url https://example.com/api \
   --symbol BTC \
   --start-ts 2024-01-01T00:00:00Z \
@@ -262,13 +262,18 @@ uploaded to the ``models`` bucket automatically.
 
 ### Importing Historical Data
 
-Use the ``import-data`` command to export trade logs or aggregated market data
+Use the ``download-data`` command to export trade logs or aggregated market data
 to a local Parquet file for offline analysis. Specify the table name and time
 range to fetch:
 
 ```bash
-python ml_trainer.py import-data trade_logs \
-    2023-01-01T00:00:00Z 2023-01-02T00:00:00Z trades.parquet
+python ml_trainer.py download-data \
+  --source-url https://example.com/api \
+  --symbol BTC \
+  --start-ts 2023-01-01T00:00:00Z \
+  --end-ts 2023-01-02T00:00:00Z \
+  --output-file trades.parquet \
+  --batch-size 1000
 ```
 
 The command downloads the rows between the two timestamps and writes them to the
