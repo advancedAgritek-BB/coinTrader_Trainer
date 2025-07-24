@@ -220,10 +220,16 @@ interface.  Use ``--help`` to see all available options.
 python ml_trainer.py --help
 ```
 
-A typical training run might look like:
+To download historical trades and upload them to Supabase run:
 
 ```bash
-python ml_trainer.py --input data.csv --output model.pkl
+python ml_trainer.py import-data \
+  --source-url https://example.com/api \
+  --symbol BTC \
+  --start-ts 2024-01-01T00:00:00Z \
+  --end-ts 2024-01-02T00:00:00Z \
+  --output-file trades.parquet \
+  --batch-size 1000
 ```
 
 ### Federated Training
