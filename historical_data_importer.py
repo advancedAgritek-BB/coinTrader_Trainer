@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Optional
+import os
 
 import pandas as pd
 from supabase import Client, create_client
@@ -17,6 +18,12 @@ def download_historical_data(
     symbol: Optional[str] = None,
     start_ts: Optional[datetime | str] = None,
     end_ts: Optional[datetime | str] = None,
+def download_historical_data(
+    path: str,
+    *,
+    symbol: Optional[str] = None,
+    start_ts: Optional[str | datetime] = None,
+    end_ts: Optional[str | datetime] = None,
     output_path: Optional[str] = None,
 ) -> pd.DataFrame:
     """Return normalized historical price data from ``url``.
@@ -108,6 +115,27 @@ def insert_to_supabase(
     batch_size: int = 500,
 ) -> None:
     """Upload ``df`` rows to ``table`` in Supabase."""
+    arg1: str,
+    arg2: Optional[str] = None,
+    *,
+    table: str = "historical_prices",
+    client: Optional[Client] = None,
+    batch_size: int = 500,
+) -> None:
+    """Insert ``df`` rows into Supabase.
+
+    ``insert_to_supabase(df, table, client=client)`` uses an existing client.
+    ``insert_to_supabase(df, url, key, table="tbl")`` creates the client from
+    ``url`` and ``key``.
+    """
+    if arg2 is None:
+        table = arg1
+        if client is None:
+            client = _get_write_client()
+    else:
+        url = arg1
+        key = arg2
+        client = create_client(url, key)
 
     client = create_client(url, key)
     records = df.to_dict("records")
@@ -115,4 +143,3 @@ def insert_to_supabase(
     for i in range(0, len(records), batch_size):
         batch = records[i : i + batch_size]
         _insert_batch(client, table, batch)
-

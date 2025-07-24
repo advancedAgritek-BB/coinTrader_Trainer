@@ -20,6 +20,7 @@ except Exception:  # pragma: no cover - optional during tests
     train_regime_lgbm = None  # type: ignore
 
 from data_import import download_historical_data, insert_to_supabase
+import historical_data_importer
 
 try:  # pragma: no cover - optional dependency
     from federated_trainer import train_federated_regime
@@ -78,6 +79,13 @@ def main() -> None:  # pragma: no cover - CLI entry
     import_p = sub.add_parser(
         "import-data", help="Download historical data and insert to Supabase"
     )
+    csv_p = sub.add_parser("import-csv", help="Import historical CSV data")
+    csv_p.add_argument("csv", help="CSV file path")
+    csv_p.add_argument("--start-ts", help="Start timestamp (ISO)")
+    csv_p.add_argument("--end-ts", help="End timestamp (ISO)")
+    csv_p.add_argument("--table", default="ohlcv", help="Supabase table name")
+
+    import_p = sub.add_parser("import-data", help="Download historical data and insert to Supabase")
     import_p.add_argument("--source-url", required=True, help="HTTP endpoint for historical data")
     import_p.add_argument("--symbol", required=True, help="Trading pair symbol")
     import_p.add_argument("--start-ts", required=True, help="Data start timestamp (ISO)")
@@ -97,6 +105,19 @@ def main() -> None:  # pragma: no cover - CLI entry
             output_file=args.output_file,
         )
         insert_to_supabase(df, batch_size=args.batch_size)
+        return
+
+    if args.command == "import-csv":
+        df = historical_data_importer.download_historical_data(
+            args.csv,
+            start_ts=args.start_ts,
+            end_ts=args.end_ts,
+        )
+        url = os.environ.get("SUPABASE_URL")
+        key = os.environ.get("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABASE_KEY")
+        if not url or not key:
+            raise SystemExit("SUPABASE_URL and service key must be set")
+        historical_data_importer.insert_to_supabase(df, url, key, table=args.table)
         return
 
     cfg = load_cfg(args.cfg)
