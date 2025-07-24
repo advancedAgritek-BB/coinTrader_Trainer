@@ -255,8 +255,11 @@ uploaded to the ``models`` bucket automatically.
 ## GPU Training
 
 LightGBM must be built with OpenCL/ROCm support to train on AMD GPUs such
-as a Radeon RX 7900 TX.  Clone the LightGBM repository and build with the
-``USE_GPU`` flag enabled:
+as a Radeon RX 7900 XTX. Before building, open a Windows or WSL shell and
+run ``clinfo`` to verify that the GPU is detected. The helper script
+``build_lightgbm_gpu.ps1`` also invokes ``clinfo`` and aborts if no
+OpenCL device is available. Clone the LightGBM repository and build with
+the ``USE_GPU`` flag enabled:
 
 ```bash
 git clone --recursive https://github.com/microsoft/LightGBM
@@ -273,6 +276,9 @@ can be provided to select a specific OpenCL device.
 ```bash
 python ml_trainer.py train regime --use-gpu --gpu-device-id 0
 ```
+
+After installation, test training with a large dataset to verify the
+OpenCL driver remains stable under load.
 
 ## Running Tests
 
