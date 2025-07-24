@@ -13,6 +13,7 @@ import ml_trainer
 
 class FakeBooster:
     best_iteration = 1
+
     def predict(self, data, num_iteration=None):
         return np.zeros(len(data))
 
@@ -85,7 +86,7 @@ def test_gpu_params_passed_to_lightgbm(monkeypatch):
 def test_cli_gpu_overrides(monkeypatch):
     captured = {}
 
-    def fake_train(X, y, params, use_gpu=False):
+    def fake_train(X, y, params, use_gpu=False, profile_gpu=False):
         captured.update(params)
         class FakeBooster:
             best_iteration = 1
@@ -138,6 +139,7 @@ def test_cli_federated_trainer_invoked(monkeypatch, fake_federated):
         return FakeBooster(), {}
 
     monkeypatch.setattr(ml_trainer, "train_regime_lgbm", fake_train)
+    monkeypatch.setitem(ml_trainer.TRAINERS, "regime", (fake_train, "regime_lgbm"))
     monkeypatch.setattr(
         ml_trainer,
         "_make_dummy_data",
@@ -187,6 +189,15 @@ def test_cli_federated_flag(monkeypatch, fake_federated):
     )
     monkeypatch.setattr(ml_trainer, "load_cfg", lambda p: {"regime_lgbm": {}})
 
+def test_cli_federated_trainer_invoked(monkeypatch, fake_federated):
+    called = {}
+    used = {}
+def test_cli_federated_trainer_invoked(monkeypatch):
+    used = {}
+def test_cli_federated_trainer_invoked_no_fixture(monkeypatch):
+    import ml_trainer
+    used = {}
+    called = {}
     argv = [
         "ml_trainer",
         "train",
@@ -213,6 +224,15 @@ def test_cli_federated_trainer_invoked_no_fixture(monkeypatch):
 
     def capture_federated(start, end, **kwargs):
         called["args"] = (start, end)
+        return simple_fake_federated(start, end, **kwargs)
+
+    monkeypatch.setattr(ml_trainer, "train_regime_lgbm", fake_train)
+    monkeypatch.setitem(ml_trainer.TRAINERS, "regime", (fake_train, "regime_lgbm"))
+    monkeypatch.setattr(ml_trainer, "_make_dummy_data", lambda n=200: (
+        pd.DataFrame(np.random.normal(size=(10, 2))),
+        pd.Series([0, 1] * 5),
+    ))
+
         return FakeBooster(), {}
 
     monkeypatch.setattr(ml_trainer, "train_regime_lgbm", lambda *a, **k: (FakeBooster(), {}))
@@ -241,6 +261,7 @@ def test_cli_federated_trainer_invoked_no_fixture(monkeypatch):
 
     ml_trainer.main()
 
+    assert "called" not in used
     assert called.get("args") == ("2021-01-01", "2021-01-02")
 
 '''

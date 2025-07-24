@@ -16,7 +16,7 @@ def _basic_dataset():
 def test_gpu_flag_merges_params(monkeypatch):
     captured = {}
 
-    def fake_train(X, y, params, use_gpu=False):
+    def fake_train(X, y, params, use_gpu=False, profile_gpu=False):
         captured['params'] = params.copy()
         captured['gpu'] = use_gpu
         class FakeBooster:
@@ -43,7 +43,7 @@ def test_gpu_flag_merges_params(monkeypatch):
 def test_swarm_merges_once(monkeypatch):
     captured = {'count': 0}
 
-    def fake_train(X, y, params, use_gpu=False):
+    def fake_train(X, y, params, use_gpu=False, profile_gpu=False):
         captured['params'] = params.copy()
         class FakeBooster:
             best_iteration = 1

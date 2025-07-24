@@ -12,7 +12,7 @@ import ml_trainer
 def test_cli_swarm_merges_params(monkeypatch):
     captured = {}
 
-    def fake_train(X, y, params, use_gpu=False):
+    def fake_train(X, y, params, use_gpu=False, profile_gpu=False):
         captured['params'] = params.copy()
         class FakeBooster:
             best_iteration = 1

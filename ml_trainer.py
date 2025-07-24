@@ -6,6 +6,8 @@ import argparse
 import asyncio
 from datetime import datetime, timedelta
 from typing import Any, Dict, Tuple
+import os
+import subprocess
 
 import numpy as np
 import pandas as pd
@@ -65,6 +67,7 @@ def main() -> None:  # pragma: no cover - CLI entry
     train_p.add_argument("--federated", action="store_true", help="Use federated learning (regime task only)")
     train_p.add_argument("--start-ts", help="Data start timestamp (ISO format)")
     train_p.add_argument("--end-ts", help="Data end timestamp (ISO format)")
+    train_p.add_argument("--profile-gpu", action="store_true", help="Profile GPU usage with AMD RGP")
 
     args = parser.parse_args()
     cfg = load_cfg(args.cfg)
@@ -107,6 +110,14 @@ def main() -> None:  # pragma: no cover - CLI entry
             params.update(swarm_params)
 
     # Training dispatch
+    if args.profile_gpu:
+        cmd = ["rgp.exe", "--process", str(os.getpid())]
+        try:
+            subprocess.Popen(cmd)
+            print("Started AMD RGP profiler:", " ".join(cmd))
+        except Exception:
+            print("GPU profiling enabled. Run: {}".format(" ".join(cmd)))
+
     if args.federated:
         if not args.start_ts or not args.end_ts:
             raise SystemExit("--federated requires --start-ts and --end-ts")
@@ -118,7 +129,13 @@ def main() -> None:  # pragma: no cover - CLI entry
         )
     else:
         X, y = _make_dummy_data()
-        model, metrics = trainer_fn(X, y, params, use_gpu=args.use_gpu)  # type: ignore[arg-type]
+        model, metrics = trainer_fn(
+            X,
+            y,
+            params,
+            use_gpu=args.use_gpu,
+            profile_gpu=args.profile_gpu,
+        )  # type: ignore[arg-type]
 
     print("Training completed. Metrics:")
     for k, v in metrics.items():
