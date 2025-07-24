@@ -223,6 +223,7 @@ python ml_trainer.py --help
 To download historical trades and upload them to Supabase run:
 
 ```bash
+python ml_trainer.py train regime
 python ml_trainer.py import-data \
   --source-url https://example.com/api \
   --symbol BTC \
@@ -258,6 +259,20 @@ ensemble, metrics = federated_trainer.train_federated_regime(
 
 When ``SUPABASE_URL`` and credentials are present, the resulting ensemble is
 uploaded to the ``models`` bucket automatically.
+
+### Importing Historical Data
+
+Use the ``import-data`` command to export trade logs or aggregated market data
+to a local Parquet file for offline analysis. Specify the table name and time
+range to fetch:
+
+```bash
+python ml_trainer.py import-data trade_logs \
+    2023-01-01T00:00:00Z 2023-01-02T00:00:00Z trades.parquet
+```
+
+The command downloads the rows between the two timestamps and writes them to the
+given file path using your configured Supabase credentials.
 
 ## GPU Training
 
