@@ -277,6 +277,11 @@ can be provided to select a specific OpenCL device.
 python ml_trainer.py train regime --use-gpu --gpu-device-id 0
 ```
 
+Pass ``--profile-gpu`` to capture utilisation metrics with
+[AMD RGP](https://gpuopen.com/rgp/). The CLI attempts to launch
+``rgp.exe --process <PID>`` automatically. If the executable is not found,
+the command to run is printed so you can start the profiler manually.
+
 After installation, test training with a large dataset to verify the
 OpenCL driver remains stable under load.
 

@@ -10,6 +10,7 @@ from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_sc
 from typing import Dict, Tuple, Optional
 import os
 import logging
+import subprocess
 import optuna
 
 # Compatibility shim for pytest monkeypatch on dict globals
@@ -62,6 +63,7 @@ def train_regime_lgbm(
     n_trials: int = 50,
     registry: Optional[ModelRegistry] = None,
     model_name: str = "regime_lgbm",
+    profile_gpu: bool = False,
 ) -> Tuple[Booster, Dict[str, float]]:
     """Train LightGBM model using 5-fold stratified CV with early stopping.
 
@@ -87,6 +89,8 @@ def train_regime_lgbm(
         If provided, the trained model will be uploaded using this registry.
     model_name : str, optional
         Logical name used when uploading the model.
+    profile_gpu : bool, optional
+        If ``True`` log GPU utilisation each iteration.
 
     Returns
     -------
@@ -113,6 +117,23 @@ def train_regime_lgbm(
         "gpu_device_id": 0,
     }
 
+    def _gpu_logging_callback():
+        def _cb(env: lgb.callback.CallbackEnv) -> None:
+            util = "N/A"
+            for cmd in (
+                ["nvidia-smi", "--query-gpu=utilization.gpu", "--format=csv,noheader,nounits"],
+                ["rocm-smi", "--showuse"],
+            ):
+                try:
+                    out = subprocess.check_output(cmd, stderr=subprocess.DEVNULL)
+                    util = out.decode().strip().splitlines()[0]
+                    break
+                except Exception:
+                    continue
+            logging.info("GPU utilisation %s at iter %d", util, env.iteration)
+
+        return _cb
+
     def _cross_validate(train_params: dict) -> Tuple[Dict[str, float], int]:
         acc_scores = []
         f1_scores = []
@@ -127,13 +148,16 @@ def train_regime_lgbm(
             train_set = lgb.Dataset(X_train, label=y_train)
             valid_set = lgb.Dataset(X_valid, label=y_valid)
 
+            callbacks = [
+                lgb.early_stopping(train_params.get("early_stopping_rounds", 50), verbose=False)
+            ]
+            if profile_gpu:
+                callbacks.append(_gpu_logging_callback())
             booster = lgb.train(
                 train_params,
                 train_set,
                 valid_sets=[valid_set],
-                callbacks=[
-                    lgb.early_stopping(train_params.get("early_stopping_rounds", 50), verbose=False)
-                ],
+                callbacks=callbacks,
             )
 
             best_iterations.append(booster.best_iteration)
@@ -195,6 +219,7 @@ def train_regime_lgbm(
         final_params,
         final_set,
         num_boost_round=final_num_boost_round,
+        callbacks=[_gpu_logging_callback()] if profile_gpu else None,
     )
 
     if not isinstance(final_model, Booster):

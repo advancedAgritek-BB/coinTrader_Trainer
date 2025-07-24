@@ -13,11 +13,15 @@ import ml_trainer
 
 class FakeBooster:
     best_iteration = 1
+
     def predict(self, data, num_iteration=None):
         return np.zeros(len(data))
 
 
 def simple_fake_federated(start, end, **kwargs):
+    return FakeBooster(), {}
+
+
 def fake_federated_fn(start, end, **kwargs):
     """Return a ``FakeBooster`` and empty metrics."""
     return FakeBooster(), {}
@@ -81,7 +85,7 @@ def test_gpu_params_passed_to_lightgbm(monkeypatch):
 def test_cli_gpu_overrides(monkeypatch):
     captured = {}
 
-    def fake_train(X, y, params, use_gpu=False):
+    def fake_train(X, y, params, use_gpu=False, profile_gpu=False):
         captured.update(params)
         class FakeBooster:
             best_iteration = 1
@@ -134,6 +138,7 @@ def test_cli_federated_trainer_invoked(monkeypatch, fake_federated):
         return FakeBooster(), {}
 
     monkeypatch.setattr(ml_trainer, "train_regime_lgbm", fake_train)
+    monkeypatch.setitem(ml_trainer.TRAINERS, "regime", (fake_train, "regime_lgbm"))
     monkeypatch.setattr(
         ml_trainer,
         "_make_dummy_data",
@@ -195,36 +200,24 @@ def test_cli_federated_trainer_invoked(monkeypatch):
     used = {}
 def test_cli_federated_trainer_invoked_no_fixture(monkeypatch):
     import ml_trainer
-
     used = {}
-
-    def fake_train(*args, **kwargs):
-        used["called"] = True
-        return FakeBooster(), {}
-
     called = {}
-    used = {}
 
     def fake_train(*args, **kwargs):
         used["called"] = True
         return FakeBooster(), {}
 
     def capture_federated(start, end, **kwargs):
-        used["called"] = True
         called["args"] = (start, end)
-        used["called"] = True
         return simple_fake_federated(start, end, **kwargs)
-        return fake_federated_fn(start, end, **kwargs)
 
     monkeypatch.setattr(ml_trainer, "train_regime_lgbm", fake_train)
+    monkeypatch.setitem(ml_trainer.TRAINERS, "regime", (fake_train, "regime_lgbm"))
     monkeypatch.setattr(ml_trainer, "_make_dummy_data", lambda n=200: (
         pd.DataFrame(np.random.normal(size=(10, 2))),
         pd.Series([0, 1] * 5),
     ))
-        used["called"] = True
-        return FakeBooster(), {}
 
-    monkeypatch.setattr(ml_trainer, "train_regime_lgbm", fake_train)
     monkeypatch.setattr(ml_trainer, "train_federated_regime", capture_federated)
     monkeypatch.setattr(ml_trainer, "load_cfg", lambda p: {"federated_regime": {"objective": "binary"}})
     argv = [
@@ -241,7 +234,6 @@ def test_cli_federated_trainer_invoked_no_fixture(monkeypatch):
 
     ml_trainer.main()
 
-    assert used.get("called") is True
     assert "called" not in used
     assert called.get("args") == ("2021-01-01", "2021-01-02")
 
