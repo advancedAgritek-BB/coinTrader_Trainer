@@ -153,7 +153,7 @@ def ensure_lightgbm_gpu(supabase_url: str, supabase_key: str, script_path: str |
         import lightgbm as lgb
 
         lgb.train(
-            {"device": "gpu", "gpu_platform_id": 0, "gpu_device_id": 0},
+            {"device_type": "gpu", "gpu_platform_id": 0, "gpu_device_id": 0},
             lgb.Dataset([[1.0]], label=[0]),
             num_boost_round=1,
         )

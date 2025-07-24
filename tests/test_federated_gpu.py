@@ -51,7 +51,7 @@ def test_federated_gpu_training(monkeypatch, tmp_path):
         return DummyClient()
 
     def fake_train(params, dataset, *a, **k):
-        captured["device"] = params.get("device")
+        captured["device_type"] = params.get("device_type")
         return FakeBooster()
 
     monkeypatch.setattr(ft, "fetch_data_range_async", fake_fetch)
@@ -63,6 +63,6 @@ def test_federated_gpu_training(monkeypatch, tmp_path):
 
     ft.train_federated_regime(None, None, num_clients=1)
 
-    assert captured.get("device") == "gpu"
+    assert captured.get("device_type") == "gpu"
     assert captured.get("use_gpu") is True
     assert uploads == ["federated_model.pkl"]
