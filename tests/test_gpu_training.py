@@ -187,7 +187,15 @@ def test_cli_federated_flag(monkeypatch, fake_federated):
     )
     monkeypatch.setattr(ml_trainer, "load_cfg", lambda p: {"regime_lgbm": {}})
 
-def test_cli_federated_trainer_invoked(monkeypatch):
+def test_cli_federated_trainer_invoked_no_fixture(monkeypatch):
+    import ml_trainer
+
+    used = {}
+
+    def fake_train(*args, **kwargs):
+        used["called"] = True
+        return FakeBooster(), {}
+
     called = {}
     used = {}
 
@@ -196,6 +204,7 @@ def test_cli_federated_trainer_invoked(monkeypatch):
         used["called"] = True
         return FakeBooster(), {}
 
+    monkeypatch.setattr(ml_trainer, "train_regime_lgbm", fake_train)
     monkeypatch.setattr(ml_trainer, "train_federated_regime", capture_federated)
     monkeypatch.setattr(ml_trainer, "load_cfg", lambda p: {"federated_regime": {"objective": "binary"}})
     argv = [
@@ -213,5 +222,6 @@ def test_cli_federated_trainer_invoked(monkeypatch):
     ml_trainer.main()
 
     assert used.get("called") is True
+    assert "called" not in used
     assert called.get("args") == ("2021-01-01", "2021-01-02")
 

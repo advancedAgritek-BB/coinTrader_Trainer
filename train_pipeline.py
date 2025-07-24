@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import os
 from datetime import datetime, timedelta
 
@@ -14,6 +15,8 @@ from feature_engineering import make_features
 from trainers.regime_lgbm import train_regime_lgbm
 from evaluation import simulate_signal_pnl
 from registry import ModelRegistry
+
+logger = logging.getLogger(__name__)
 
 
 def load_cfg(path: str) -> dict:
@@ -46,7 +49,8 @@ def main() -> None:
     # Import and invoke LightGBM GPU wheel helper
     try:
         from lightgbm_gpu_build import build_and_upload_lightgbm_wheel
-    except Exception:  # pragma: no cover - helper may not be available during tests
+    except ImportError as exc:  # pragma: no cover - helper may not be available during tests
+        logger.warning("GPU wheel helper unavailable: %s", exc)
         build_and_upload_lightgbm_wheel = None
     if build_and_upload_lightgbm_wheel is not None:
         build_and_upload_lightgbm_wheel(url, key)
