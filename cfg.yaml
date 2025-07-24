@@ -14,6 +14,8 @@ regime_lgbm:
   device_type: cpu
   gpu_platform_id: null
   gpu_device_id: null
+  gpu_use_opencl: true
+  max_bin: 63
 
 federated_regime:
   objective: binary
