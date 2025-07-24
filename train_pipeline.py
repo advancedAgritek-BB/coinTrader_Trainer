@@ -6,6 +6,7 @@ import argparse
 import logging
 import os
 from datetime import datetime, timedelta
+import logging
 
 import pandas as pd
 import yaml
@@ -15,6 +16,9 @@ from feature_engineering import make_features
 from trainers.regime_lgbm import train_regime_lgbm
 from evaluation import simulate_signal_pnl
 from registry import ModelRegistry
+
+logger = logging.getLogger(__name__)
+
 
 logger = logging.getLogger(__name__)
 
@@ -122,9 +126,11 @@ def ensure_lightgbm_gpu(supabase_url: str, supabase_key: str, script_path: str |
         platform is not Windows.
     """
 
+
     if platform.system() != "Windows":
         return False
 
+    logger.info("Checking existing LightGBM GPU support")
     try:
         import lightgbm as lgb
 
@@ -138,6 +144,7 @@ def ensure_lightgbm_gpu(supabase_url: str, supabase_key: str, script_path: str |
         pass
 
     script = Path(script_path or Path(__file__).with_name("build_lightgbm_gpu.ps1"))
+    logger.info("Running %s", script)
     subprocess.run([
         "powershell",
         "-ExecutionPolicy",
@@ -154,4 +161,5 @@ def ensure_lightgbm_gpu(supabase_url: str, supabase_key: str, script_path: str |
     for whl in wheels:
         with open(whl, "rb") as fh:
             bucket.upload(os.path.basename(whl), fh)
+        logger.info("Uploaded %s to Supabase", os.path.basename(whl))
     return True
