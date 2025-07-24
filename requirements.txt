@@ -15,7 +15,7 @@ pyyaml
 pyarrow
 pytz
 networkx
-pyopencl
+pyopencl  # optional for GPU; needs Visual Studio Build Tools on Windows
 redis  # optional, used for caching
 requests
 python-dotenv
