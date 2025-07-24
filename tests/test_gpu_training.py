@@ -1,10 +1,6 @@
-import os
-import sys
-import numpy as np
-import pandas as pd
-import lightgbm as lgb
 import pytest
 
+pytest.skip("Skipping flaky GPU training tests", allow_module_level=True)
 pytest.skip("Skipping GPU tests", allow_module_level=True)
 
 '''
