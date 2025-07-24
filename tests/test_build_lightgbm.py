@@ -4,7 +4,6 @@ import types
 import subprocess
 import platform
 
-import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 import train_pipeline

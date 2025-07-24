@@ -16,6 +16,9 @@ class FakeBooster:
         return np.zeros(len(data))
 
 
+def fake_federated(start, end, **kwargs):
+    """Return a ``FakeBooster`` and empty metrics."""
+    return FakeBooster(), {}
 @pytest.fixture
 def fake_federated(monkeypatch):
     """Patch ``train_federated_regime`` and record usage."""
@@ -187,11 +190,11 @@ def test_cli_federated_flag(monkeypatch, fake_federated):
 def test_cli_federated_trainer_invoked(monkeypatch):
     called = {}
 
-    def fake_federated(start, end, **kwargs):
+    def capture_federated(start, end, **kwargs):
         called["args"] = (start, end)
-        return FakeBooster(), {}
+        return fake_federated(start, end, **kwargs)
 
-    monkeypatch.setattr(ml_trainer, "train_federated_regime", fake_federated)
+    monkeypatch.setattr(ml_trainer, "train_federated_regime", capture_federated)
     monkeypatch.setattr(ml_trainer, "load_cfg", lambda p: {"federated_regime": {"objective": "binary"}})
     argv = [
         "ml_trainer",
