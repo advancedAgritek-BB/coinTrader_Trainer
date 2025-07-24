@@ -113,8 +113,6 @@ def fetch_trade_logs(
                 cached = cached.decode()
             return pd.read_json(cached, orient="split")
 
-    client = _get_client()
-
     if start_ts.tzinfo is None:
         start_ts = start_ts.replace(tzinfo=timezone.utc)
     else:
@@ -124,9 +122,6 @@ def fetch_trade_logs(
         end_ts = end_ts.replace(tzinfo=timezone.utc)
     else:
         end_ts = end_ts.astimezone(timezone.utc)
-
-    if cache_path and os.path.exists(cache_path):
-        return pd.read_parquet(cache_path)
 
     redis_client = _get_redis_client()
     cache_key = None
