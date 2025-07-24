@@ -86,7 +86,15 @@ def make_features(
         import cudf
 
         gdf = cudf.from_pandas(df)
-        df = gdf.to_pandas()
+        pl_df = gdf.to_pandas()
+
+        df = pl_df.bfill().ffill().dropna()
+
+        if log_time and start_time is not None:
+            elapsed = time.time() - start_time
+            print(f"feature generation took {elapsed:.3f}s")
+
+        return df
 
     df = df.sort_values('ts').reset_index(drop=True).copy()
 
