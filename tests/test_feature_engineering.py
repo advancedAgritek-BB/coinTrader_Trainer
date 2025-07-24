@@ -42,22 +42,51 @@ def test_make_features_interpolation_and_columns():
     assert not result.isna().any().any()
 
 
-def test_make_features_gpu_uses_cudf(monkeypatch):
-    calls = {"from": False, "to": False}
+def test_make_features_gpu_uses_opencl(monkeypatch):
+    executed = {"kernel": False}
 
-    class FakeDF(pd.DataFrame):
-        def to_pandas(self):
-            calls["to"] = True
-            return pd.DataFrame(self)
+    class FakeKernel:
+        def __call__(self, queue, global_size, local_size, *args):
+            executed["kernel"] = True
 
-    module = types.ModuleType("cudf")
+    class FakeProgram:
+        def __init__(self, ctx, src):
+            pass
 
-    def from_pandas(df):
-        calls["from"] = True
-        return FakeDF(df)
+        def build(self):
+            return self
 
-    module.from_pandas = from_pandas
-    monkeypatch.setitem(sys.modules, "cudf", module)
+        @property
+        def compute_features(self):
+            return FakeKernel()
+
+    class FakePlatform:
+        name = "AMD"
+
+        def get_devices(self):
+            return ["gpu"]
+
+    class FakeQueue:
+        def finish(self):
+            pass
+
+    def fake_buffer(ctx, flags, hostbuf=None, size=None):
+        return types.SimpleNamespace(
+            buf=np.empty(0) if hostbuf is None else hostbuf,
+            nbytes=size if size is not None else getattr(hostbuf, "nbytes", 0)
+        )
+
+    fake_cl = types.SimpleNamespace(
+        get_platforms=lambda: [FakePlatform()],
+        Context=lambda devices=None: "ctx",
+        CommandQueue=lambda ctx: FakeQueue(),
+        mem_flags=types.SimpleNamespace(READ_ONLY=1, COPY_HOST_PTR=2, WRITE_ONLY=4),
+        Buffer=fake_buffer,
+        Program=FakeProgram,
+        enqueue_copy=lambda queue, dest, src: None,
+    )
+
+    monkeypatch.setitem(sys.modules, "pyopencl", fake_cl)
 
     df = pd.DataFrame(
         {
@@ -70,7 +99,7 @@ def test_make_features_gpu_uses_cudf(monkeypatch):
 
     make_features(df, use_gpu=True, ema_short_period=2, ema_long_period=3)
 
-    assert calls["from"] and calls["to"]
+    assert executed["kernel"]
 
 
 def test_make_features_adds_columns_and_handles_params(capsys):

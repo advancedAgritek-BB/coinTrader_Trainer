@@ -22,7 +22,7 @@ optionally persisted to Supabase Storage and the ``models`` table.
   ``coinTrader2.0`` and the trainer.
 * ``PARAMS_BUCKET`` and ``PARAMS_TABLE`` control where swarm optimisation
   parameters are uploaded. Defaults are ``agent_params`` for both.
-* Optional: ``cudf`` and a CUDA capable GPU for accelerated feature
+* Optional: ``pyopencl`` and ``polars`` plus an AMD GPU for accelerated feature
   generation.
 * Optional: a GPU-enabled LightGBM build for faster training. A helper script
   is provided to compile and upload wheels.
@@ -51,12 +51,11 @@ pip install -r requirements.txt
 
 If you update the repository at a later date, run the installation
 command again so new dependencies such as ``pyyaml`` or ``networkx`` are installed.
-For GPU-accelerated feature engineering install
-[`cudf`](https://rapids.ai/). The package requires CUDA
-and is not included in ``requirements.txt`` by default:
+For GPU-accelerated feature engineering install ``pyopencl`` and ``polars``. These
+packages target OpenCL devices and are included in ``requirements.txt``:
 
 ```bash
-pip install cudf-cu12 --extra-index-url=https://pypi.nvidia.com
+pip install pyopencl polars
 ```
 
 If you prefer to install packages individually:
@@ -123,9 +122,9 @@ technical indicators that are produced:
 * ``volatility_period`` – period used to compute log return volatility (default ``20``)
 * ``ema_periods`` – list of exponential moving average periods to generate
 
-GPU acceleration is possible when the `cudf` package is installed.  Pass
-``use_gpu=True`` to ``make_features`` to switch to GPU-backed DataFrame
-operations.
+GPU acceleration is possible when ``pyopencl`` and ``polars`` are installed. Pass
+``use_gpu=True`` to ``make_features`` to execute OpenCL kernels for the
+rolling computations.
 
 Set ``log_time=True`` to print the total processing time for feature
 generation.
