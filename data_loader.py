@@ -113,8 +113,6 @@ def fetch_trade_logs(
                 cached = cached.decode()
             return pd.read_json(cached, orient="split")
 
-    client = _get_client()
-
     if start_ts.tzinfo is None:
         start_ts = start_ts.replace(tzinfo=timezone.utc)
     else:
