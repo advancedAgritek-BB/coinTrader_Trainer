@@ -4,11 +4,36 @@ from __future__ import annotations
 import os
 from datetime import datetime, timezone
 from typing import Optional, Dict, AsyncGenerator
+from io import BytesIO
+
+try:
+    import redis  # type: ignore
+except Exception:  # pragma: no cover - optional dependency
+    redis = None
 
 import httpx
 import pandas as pd
 from supabase import create_client, Client
 from tenacity import retry, wait_exponential, stop_after_attempt
+
+
+_REDIS_CLIENT = None
+
+
+def _get_redis_client():
+    """Return a configured Redis client or ``None`` if unavailable."""
+    global _REDIS_CLIENT
+    if redis is None:
+        return None
+    if _REDIS_CLIENT is not None:
+        return _REDIS_CLIENT
+    host = os.environ.get("REDIS_HOST")
+    if not host:
+        return None
+    port = int(os.environ.get("REDIS_PORT", 6379))
+    db = int(os.environ.get("REDIS_DB", 0))
+    _REDIS_CLIENT = redis.Redis(host=host, port=port, db=db)
+    return _REDIS_CLIENT
 
 
 def _get_client() -> Client:
@@ -74,11 +99,6 @@ def fetch_trade_logs(
 ) -> pd.DataFrame:
     """Return trade logs between ``start_ts`` and ``end_ts`` as a DataFrame."""
 
-    if cache_path and os.path.exists(cache_path):
-        return pd.read_parquet(cache_path)
-
-    client = _get_client()
-
     if start_ts.tzinfo is None:
         start_ts = start_ts.replace(tzinfo=timezone.utc)
     else:
@@ -88,6 +108,19 @@ def fetch_trade_logs(
         end_ts = end_ts.replace(tzinfo=timezone.utc)
     else:
         end_ts = end_ts.astimezone(timezone.utc)
+
+    if cache_path and os.path.exists(cache_path):
+        return pd.read_parquet(cache_path)
+
+    redis_client = _get_redis_client()
+    cache_key = None
+    if redis_client is not None:
+        cache_key = f"trades_{int(start_ts.timestamp())}_{int(end_ts.timestamp())}_{symbol or ''}"
+        cached = redis_client.get(cache_key)
+        if cached:
+            return pd.read_parquet(BytesIO(cached))
+
+    client = _get_client()
 
     rows = _fetch_logs(client, start_ts, end_ts, symbol=symbol)
     df = pd.DataFrame(rows)
@@ -100,6 +133,12 @@ def fetch_trade_logs(
 
     if cache_path:
         df.to_parquet(cache_path)
+
+    if redis_client is not None and cache_key is not None:
+        ttl = int(os.environ.get("REDIS_TTL", 3600))
+        buf = BytesIO()
+        df.to_parquet(buf)
+        redis_client.setex(cache_key, ttl, buf.getvalue())
 
     return df
 
