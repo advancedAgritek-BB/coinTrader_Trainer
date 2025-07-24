@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import os
 from datetime import datetime, timedelta
+import logging
 
 import pandas as pd
 import yaml
@@ -15,11 +17,19 @@ from trainers.regime_lgbm import train_regime_lgbm
 from evaluation import simulate_signal_pnl
 from registry import ModelRegistry
 
+logger = logging.getLogger(__name__)
+
+
+logger = logging.getLogger(__name__)
+
 
 def load_cfg(path: str) -> dict:
-    """Load YAML configuration file and return a dictionary."""
+    """Load YAML configuration file and return a dictionary with defaults."""
     with open(path, "r") as f:
-        return yaml.safe_load(f) or {}
+        cfg = yaml.safe_load(f) or {}
+
+    cfg.setdefault("default_window_days", 7)
+    return cfg
 
 
 def parse_args() -> argparse.Namespace:
@@ -43,16 +53,18 @@ def main() -> None:
     # Import and invoke LightGBM GPU wheel helper
     try:
         from lightgbm_gpu_build import build_and_upload_lightgbm_wheel
-    except Exception:  # pragma: no cover - helper may not be available during tests
+    except ImportError as exc:  # pragma: no cover - helper may not be available during tests
+        logger.warning("GPU wheel helper unavailable: %s", exc)
         build_and_upload_lightgbm_wheel = None
     if build_and_upload_lightgbm_wheel is not None:
         build_and_upload_lightgbm_wheel(url, key)
 
     end_ts = pd.to_datetime(args.end_ts) if args.end_ts else datetime.utcnow()
+    window = cfg.get("default_window_days", 7)
     start_ts = (
         pd.to_datetime(args.start_ts)
         if args.start_ts
-        else end_ts - timedelta(days=7)
+        else end_ts - timedelta(days=window)
     )
 
     df = fetch_trade_logs(start_ts, end_ts)
@@ -114,9 +126,11 @@ def ensure_lightgbm_gpu(supabase_url: str, supabase_key: str, script_path: str |
         platform is not Windows.
     """
 
+
     if platform.system() != "Windows":
         return False
 
+    logger.info("Checking existing LightGBM GPU support")
     try:
         import lightgbm as lgb
 
@@ -130,6 +144,7 @@ def ensure_lightgbm_gpu(supabase_url: str, supabase_key: str, script_path: str |
         pass
 
     script = Path(script_path or Path(__file__).with_name("build_lightgbm_gpu.ps1"))
+    logger.info("Running %s", script)
     subprocess.run([
         "powershell",
         "-ExecutionPolicy",
@@ -146,4 +161,5 @@ def ensure_lightgbm_gpu(supabase_url: str, supabase_key: str, script_path: str |
     for whl in wheels:
         with open(whl, "rb") as fh:
             bucket.upload(os.path.basename(whl), fh)
+        logger.info("Uploaded %s to Supabase", os.path.basename(whl))
     return True

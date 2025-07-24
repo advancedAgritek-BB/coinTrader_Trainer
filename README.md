@@ -130,6 +130,12 @@ operations.
 Set ``log_time=True`` to print the total processing time for feature
 generation.
 
+### Training Pipeline
+
+The training pipeline reads options from ``cfg.yaml``. The new
+``default_window_days`` key determines how many days of data are loaded when
+``--start-ts`` is not specified on the command line.
+
 ## GPU Setup
 
 LightGBM wheels from PyPI do not include GPU support. Use the provided
