@@ -3,6 +3,7 @@ import sys
 import numpy as np
 import pandas as pd
 import lightgbm as lgb
+import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
@@ -16,7 +17,7 @@ class FakeBooster:
         return np.zeros(len(data))
 
 
-def fake_federated(start, end, **kwargs):
+def simple_fake_federated(start, end, **kwargs):
     """Return a ``FakeBooster`` and empty metrics."""
     return FakeBooster(), {}
 @pytest.fixture
@@ -87,7 +88,6 @@ def test_cli_gpu_overrides(monkeypatch):
             def predict(self, data, num_iteration=None):
                 return np.zeros(len(data))
 
-        return FakeBooster()
         return FakeBooster(), {}
 
     monkeypatch.setitem(ml_trainer.TRAINERS, "regime", (fake_train, "regime_lgbm"))
@@ -187,12 +187,14 @@ def test_cli_federated_flag(monkeypatch, fake_federated):
     )
     monkeypatch.setattr(ml_trainer, "load_cfg", lambda p: {"regime_lgbm": {}})
 
-def test_cli_federated_trainer_invoked(monkeypatch):
+def test_cli_federated_trainer_invoked(monkeypatch, fake_federated):
     called = {}
+    used = {}
 
     def capture_federated(start, end, **kwargs):
         called["args"] = (start, end)
-        return fake_federated(start, end, **kwargs)
+        used["called"] = True
+        return simple_fake_federated(start, end, **kwargs)
 
     monkeypatch.setattr(ml_trainer, "train_federated_regime", capture_federated)
     monkeypatch.setattr(ml_trainer, "load_cfg", lambda p: {"federated_regime": {"objective": "binary"}})
