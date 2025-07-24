@@ -6,7 +6,6 @@ import argparse
 import logging
 import os
 from datetime import datetime, timedelta
-import logging
 
 import pandas as pd
 import yaml
@@ -18,9 +17,6 @@ from feature_engineering import make_features
 from trainers.regime_lgbm import train_regime_lgbm
 from evaluation import simulate_signal_pnl
 from registry import ModelRegistry
-
-logger = logging.getLogger(__name__)
-
 
 logger = logging.getLogger(__name__)
 
