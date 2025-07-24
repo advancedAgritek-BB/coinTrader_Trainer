@@ -4,6 +4,7 @@ numpy
 pandas
 pytest
 pytest-asyncio
+fakeredis
 scikit-learn
 supabase
 tenacity
