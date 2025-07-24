@@ -14,3 +14,4 @@ pyyaml
 pyarrow
 pytz
 networkx
+pyopencl
