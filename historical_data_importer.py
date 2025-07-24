@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Optional
+import os
 
 import pandas as pd
 from supabase import Client, create_client
@@ -12,15 +13,10 @@ from tenacity import retry, wait_exponential, stop_after_attempt
 
 def download_historical_data(
     path: str,
-    start_ts: Optional[str | datetime] = None,
-    end_ts: Optional[str | datetime] = None,
-from tenacity import retry, wait_exponential, stop_after_attempt
-
-
-def download_historical_data(
-    url: str,
     *,
     symbol: Optional[str] = None,
+    start_ts: Optional[str | datetime] = None,
+    end_ts: Optional[str | datetime] = None,
     output_path: Optional[str] = None,
 ) -> pd.DataFrame:
     """Load historical price data from ``path`` and return a normalized DataFrame."""
@@ -104,16 +100,8 @@ def insert_to_supabase(
         url = arg1
         key = arg2
         client = create_client(url, key)
-    url: str,
-    key: str,
-    *,
-    table: str = "historical_prices",
-    batch_size: int = 500,
-) -> None:
-    """Upload ``df`` rows to ``table`` in Supabase."""
 
     records = df.to_dict(orient="records")
     for i in range(0, len(records), batch_size):
         batch = records[i : i + batch_size]
         _insert_batch(client, table, batch)
-
