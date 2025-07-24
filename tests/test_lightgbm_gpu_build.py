@@ -5,7 +5,7 @@ def test_opencl_available():
     """Ensure LightGBM was built with OpenCL support."""
     import numpy as np
 
-    params = {"device": "gpu", "gpu_platform_id": 0, "gpu_device_id": 0}
+    params = {"device_type": "gpu", "gpu_platform_id": 0, "gpu_device_id": 0}
     try:
         lgb.train(
             params,
