@@ -71,6 +71,29 @@ def main() -> None:  # pragma: no cover - CLI entry
     train_p.add_argument("--end-ts", help="Data end timestamp (ISO format)")
     train_p.add_argument("--profile-gpu", action="store_true", help="Profile GPU usage with AMD RGP")
 
+    csv_p = sub.add_parser("import-csv", help="Import historical CSV data")
+    csv_p.add_argument("csv", help="CSV file path")
+    csv_p.add_argument("--start-ts", help="Start timestamp (ISO)")
+    csv_p.add_argument("--end-ts", help="End timestamp (ISO)")
+    csv_p.add_argument("--table", default="ohlcv", help="Supabase table name")
+
+    dl_p = sub.add_parser("download-data", help="Download historical data and insert to Supabase")
+    dl_p.add_argument("--source-url", required=True, help="HTTP endpoint for historical data")
+    dl_p.add_argument("--symbol", required=True, help="Trading pair symbol")
+    dl_p.add_argument("--start-ts", required=True, help="Data start timestamp (ISO)")
+    dl_p.add_argument("--end-ts", required=True, help="Data end timestamp (ISO)")
+    dl_p.add_argument("--output-file", required=True, help="File to store downloaded data")
+    dl_p.add_argument("--batch-size", type=int, default=1000, help="Insert batch size")
+
+    args = parser.parse_args()
+
+    if args.command == "import-csv":
+        df = historical_data_importer.download_historical_data(
+            args.csv, args.start_ts, args.end_ts
+        )
+        historical_data_importer.insert_to_supabase(df, args.table)
+        return
+    if args.command == "download-data":
     import_p = sub.add_parser(
         "import-data", help="Download historical data and insert to Supabase"
     )
