@@ -1,3 +1,4 @@
+default_window_days: 7
 regime_lgbm:
   objective: binary
   metric: binary_logloss

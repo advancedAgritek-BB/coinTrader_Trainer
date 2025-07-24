@@ -197,9 +197,11 @@ def test_cli_federated_trainer_invoked_no_fixture(monkeypatch):
         return FakeBooster(), {}
 
     called = {}
+    used = {}
 
     def capture_federated(start, end, **kwargs):
         called["args"] = (start, end)
+        used["called"] = True
         return FakeBooster(), {}
 
     monkeypatch.setattr(ml_trainer, "train_regime_lgbm", fake_train)
@@ -219,6 +221,7 @@ def test_cli_federated_trainer_invoked_no_fixture(monkeypatch):
 
     ml_trainer.main()
 
+    assert used.get("called") is True
     assert "called" not in used
     assert called.get("args") == ("2021-01-01", "2021-01-02")
 
