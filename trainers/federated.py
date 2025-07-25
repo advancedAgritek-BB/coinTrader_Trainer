@@ -2,18 +2,18 @@ from __future__ import annotations
 
 import asyncio
 import os
-from dotenv import load_dotenv
-from typing import Callable, Tuple, Optional, List
+from typing import Callable, List, Optional, Tuple
 
-import pandas as pd
-import numpy as np
 import lightgbm as lgb
-
-load_dotenv()
+import numpy as np
+import pandas as pd
+from dotenv import load_dotenv
 
 from data_loader import fetch_data_range_async
 from feature_engineering import make_features
 from registry import ModelRegistry
+
+load_dotenv()
 
 
 def _train_single(df: pd.DataFrame, params: dict) -> lgb.Booster:

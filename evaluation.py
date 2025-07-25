@@ -66,4 +66,3 @@ def simulate_signal_pnl(
         "sharpe": float(sharpe),
         "sortino": float(sortino),
     }
-

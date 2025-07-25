@@ -1,6 +1,7 @@
 import os
 import sys
 from datetime import datetime, timedelta
+
 import numpy as np
 import pandas as pd
 
@@ -68,5 +69,3 @@ def test_default_window_used(monkeypatch, tmp_path):
     train_pipeline.main()
 
     assert captured["start"] == fixed_now - timedelta(days=3)
-
-

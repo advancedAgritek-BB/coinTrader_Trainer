@@ -1,11 +1,13 @@
 """Async data loading utilities for Supabase-backed datasets."""
+
 from __future__ import annotations
 
 import os
-from dotenv import load_dotenv
 from datetime import datetime, timezone
-from typing import Optional, Dict, AsyncGenerator, Any
 from io import BytesIO
+from typing import Any, AsyncGenerator, Dict, Optional
+
+from dotenv import load_dotenv
 
 try:
     import redis  # type: ignore
@@ -14,8 +16,8 @@ except Exception:  # pragma: no cover - optional dependency
 
 import httpx
 import pandas as pd
-from supabase import create_client, Client
-from tenacity import retry, wait_exponential, stop_after_attempt
+from supabase import Client, create_client
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 load_dotenv()
 
@@ -109,7 +111,10 @@ def fetch_trade_logs(
     if cache_path and os.path.exists(cache_path):
         return pd.read_parquet(cache_path)
     if redis_client is not None:
-        key = redis_key or f"{table}:{start_ts.isoformat()}:{end_ts.isoformat()}:{symbol or 'all'}"
+        key = (
+            redis_key
+            or f"{table}:{start_ts.isoformat()}:{end_ts.isoformat()}:{symbol or 'all'}"
+        )
         cached = redis_client.get(key)
         if cached:
             if isinstance(cached, bytes):
@@ -148,7 +153,10 @@ def fetch_trade_logs(
     if cache_path:
         df.to_parquet(cache_path)
     if redis_client is not None:
-        key = redis_key or f"{table}:{start_ts.isoformat()}:{end_ts.isoformat()}:{symbol or 'all'}"
+        key = (
+            redis_key
+            or f"{table}:{start_ts.isoformat()}:{end_ts.isoformat()}:{symbol or 'all'}"
+        )
         redis_client.set(key, df.to_json(orient="split"))
 
     if redis_client is not None and cache_key is not None:
@@ -195,7 +203,6 @@ def fetch_trade_aggregates(
     for col in df.columns:
         df[col] = pd.to_numeric(df[col], errors="ignore")
     return df
-
 
 
 async def fetch_table_async(

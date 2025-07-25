@@ -2,16 +2,17 @@
 
 import os
 import sys
-import pandas as pd
+
 import httpx
+import pandas as pd
 import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from data_loader import (
-    fetch_table_async,
-    fetch_data_range_async,
     fetch_data_async,
     fetch_data_between_async,
+    fetch_data_range_async,
+    fetch_table_async,
 )
 
 # Common mock transport used across tests
@@ -56,9 +57,7 @@ async def test_fetch_data_range_async(monkeypatch):
 
     async with fake_client() as client:
         df1 = await fetch_table_async("trade_logs", page_size=CHUNK_SIZE, client=client)
-        df1 = await fetch_table_async(
-            "trade_logs", page_size=CHUNK_SIZE, client=client
-        )
+        df1 = await fetch_table_async("trade_logs", page_size=CHUNK_SIZE, client=client)
 
     df2 = await fetch_data_range_async(
         "trade_logs", "start", "end", chunk_size=CHUNK_SIZE
@@ -111,16 +110,16 @@ async def test_async_headers_use_jwt(monkeypatch):
     captured = {}
 
     def fake_client(**kwargs):
-        captured['headers'] = kwargs.get('headers')
-        kwargs.setdefault('transport', transport)
-        kwargs.setdefault('base_url', 'https://sb.example.com')
+        captured["headers"] = kwargs.get("headers")
+        kwargs.setdefault("transport", transport)
+        kwargs.setdefault("base_url", "https://sb.example.com")
         return real_client(**kwargs)
 
-    monkeypatch.setattr(httpx, 'AsyncClient', fake_client)
-    monkeypatch.setenv('SUPABASE_URL', 'https://sb.example.com')
-    monkeypatch.setenv('SUPABASE_KEY', 'test')
-    monkeypatch.setenv('SUPABASE_JWT', 'token123')
+    monkeypatch.setattr(httpx, "AsyncClient", fake_client)
+    monkeypatch.setenv("SUPABASE_URL", "https://sb.example.com")
+    monkeypatch.setenv("SUPABASE_KEY", "test")
+    monkeypatch.setenv("SUPABASE_JWT", "token123")
 
-    await fetch_data_range_async('trade_logs', 's', 'e')
+    await fetch_data_range_async("trade_logs", "s", "e")
 
-    assert captured['headers']['Authorization'] == 'Bearer token123'
+    assert captured["headers"]["Authorization"] == "Bearer token123"

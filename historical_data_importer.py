@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
+import os
 from datetime import datetime
 from typing import Optional
-import os
-from dotenv import load_dotenv
 
 import pandas as pd
+from dotenv import load_dotenv
 from supabase import Client, create_client
-from tenacity import retry, wait_exponential, stop_after_attempt
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 load_dotenv()
 

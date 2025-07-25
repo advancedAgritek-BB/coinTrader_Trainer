@@ -4,16 +4,18 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import os
+import subprocess
 from datetime import datetime, timedelta
 from typing import Any, Dict, Tuple
-import os
-from dotenv import load_dotenv
-import subprocess
-
 
 import numpy as np
 import pandas as pd
 import yaml
+from dotenv import load_dotenv
+
+import historical_data_importer
+from data_import import download_historical_data, insert_to_supabase
 
 load_dotenv()
 
@@ -22,8 +24,6 @@ try:
 except Exception:  # pragma: no cover - optional during tests
     train_regime_lgbm = None  # type: ignore
 
-from data_import import download_historical_data, insert_to_supabase
-import historical_data_importer
 
 try:  # pragma: no cover - optional dependency
     from federated_trainer import train_federated_regime
@@ -71,14 +71,28 @@ def main() -> None:  # pragma: no cover - CLI entry
     train_p.add_argument("task", help="Task to train, e.g. 'regime'")
     train_p.add_argument("--cfg", default="cfg.yaml", help="Config file path")
     train_p.add_argument("--use-gpu", action="store_true", help="Enable GPU training")
-    train_p.add_argument("--gpu-platform-id", type=int, default=None, help="OpenCL platform id")
-    train_p.add_argument("--gpu-device-id", type=int, default=None, help="OpenCL device id")
-    train_p.add_argument("--swarm", action="store_true", help="Run hyperparameter swarm search before training")
-    train_p.add_argument("--federated", action="store_true", help="Use federated learning (regime task only)")
+    train_p.add_argument(
+        "--gpu-platform-id", type=int, default=None, help="OpenCL platform id"
+    )
+    train_p.add_argument(
+        "--gpu-device-id", type=int, default=None, help="OpenCL device id"
+    )
+    train_p.add_argument(
+        "--swarm",
+        action="store_true",
+        help="Run hyperparameter swarm search before training",
+    )
+    train_p.add_argument(
+        "--federated",
+        action="store_true",
+        help="Use federated learning (regime task only)",
+    )
     train_p.add_argument("--start-ts", help="Data start timestamp (ISO format)")
     train_p.add_argument("--end-ts", help="Data end timestamp (ISO format)")
     train_p.add_argument("--table", default="trade_logs", help="Supabase table name")
-    train_p.add_argument("--profile-gpu", action="store_true", help="Profile GPU usage with AMD RGP")
+    train_p.add_argument(
+        "--profile-gpu", action="store_true", help="Profile GPU usage with AMD RGP"
+    )
 
     csv_p = sub.add_parser("import-csv", help="Import historical CSV data")
     csv_p.add_argument("csv", help="CSV file path")
@@ -91,13 +105,23 @@ def main() -> None:  # pragma: no cover - CLI entry
         default=None,
     )
 
-    import_p = sub.add_parser("import-data", help="Download historical data and insert to Supabase")
-    import_p.add_argument("--source-url", required=True, help="HTTP endpoint for historical data")
+    import_p = sub.add_parser(
+        "import-data", help="Download historical data and insert to Supabase"
+    )
+    import_p.add_argument(
+        "--source-url", required=True, help="HTTP endpoint for historical data"
+    )
     import_p.add_argument("--symbol", required=True, help="Trading pair symbol")
-    import_p.add_argument("--start-ts", required=True, help="Data start timestamp (ISO)")
+    import_p.add_argument(
+        "--start-ts", required=True, help="Data start timestamp (ISO)"
+    )
     import_p.add_argument("--end-ts", required=True, help="Data end timestamp (ISO)")
-    import_p.add_argument("--output-file", required=True, help="File to store downloaded data")
-    import_p.add_argument("--batch-size", type=int, default=1000, help="Insert batch size")
+    import_p.add_argument(
+        "--output-file", required=True, help="File to store downloaded data"
+    )
+    import_p.add_argument(
+        "--batch-size", type=int, default=1000, help="Insert batch size"
+    )
 
     args = parser.parse_args()
 
@@ -165,7 +189,9 @@ def main() -> None:  # pragma: no cover - CLI entry
         try:
             import swarm_sim
         except Exception as exc:  # pragma: no cover - optional dependency
-            raise SystemExit("--swarm requires the 'swarm_sim' module to be installed") from exc
+            raise SystemExit(
+                "--swarm requires the 'swarm_sim' module to be installed"
+            ) from exc
         end_ts = datetime.utcnow()
         start_ts = end_ts - timedelta(days=7)
         swarm_params = asyncio.run(

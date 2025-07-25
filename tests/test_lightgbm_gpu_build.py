@@ -1,6 +1,7 @@
 import lightgbm as lgb
 import pytest
 
+
 def test_opencl_available():
     """Ensure LightGBM was built with OpenCL support."""
     import numpy as np
@@ -15,4 +16,3 @@ def test_opencl_available():
     except lgb.basic.LightGBMError as exc:
         pytest.skip(str(exc))
     assert True
-

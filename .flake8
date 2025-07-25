@@ -1,0 +1,10 @@
+[flake8]
+max-line-length = 120
+extend-ignore = E203, W503
+extend-select = I
+per-file-ignores =
+    tests/*: I001,I004,I005,E402
+[isort]
+profile = black
+line_length = 120
+known_first_party = coinTrader_Trainer

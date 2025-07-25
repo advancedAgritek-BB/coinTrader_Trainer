@@ -1,31 +1,37 @@
 """Federated LightGBM training utilities."""
+# isort: skip_file
 
 from __future__ import annotations
 
 import asyncio
 import os
-from dotenv import load_dotenv
 from dataclasses import dataclass
 from typing import Iterable, List, Optional, Tuple
 
 import joblib
 import lightgbm as lgb
 import numpy as np
-
-load_dotenv()
 import pandas as pd
+import yaml
+from dotenv import load_dotenv
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
 from supabase import create_client
-import yaml
 
-from coinTrader_Trainer.data_loader import fetch_data_range_async
-from coinTrader_Trainer.data_loader import fetch_trade_aggregates
+from coinTrader_Trainer.data_loader import (
+    fetch_data_range_async,
+    fetch_trade_aggregates,
+)
 from coinTrader_Trainer.feature_engineering import make_features
+
+load_dotenv()
+
 
 __all__ = ["train_federated_regime"]
 
 
-async def _fetch_async(start: str, end: str, *, table: str = "trade_logs") -> pd.DataFrame:
+async def _fetch_async(
+    start: str, end: str, *, table: str = "trade_logs"
+) -> pd.DataFrame:
     """Fetch trade logs between ``start`` and ``end`` asynchronously."""
     return await fetch_data_range_async(table, start, end)
 
@@ -42,11 +48,16 @@ def _load_params(cfg_path: str) -> dict:
     return params
 
 
-def _prepare_data(start_ts: str | pd.Timestamp, end_ts: str | pd.Timestamp,
-                  symbols: Optional[Iterable[str]] = None,
-                  *,
-                  table: str = "trade_logs") -> Tuple[pd.DataFrame, pd.Series]:
-    start = start_ts.isoformat() if isinstance(start_ts, pd.Timestamp) else str(start_ts)
+def _prepare_data(
+    start_ts: str | pd.Timestamp,
+    end_ts: str | pd.Timestamp,
+    symbols: Optional[Iterable[str]] = None,
+    *,
+    table: str = "trade_logs",
+) -> Tuple[pd.DataFrame, pd.Series]:
+    start = (
+        start_ts.isoformat() if isinstance(start_ts, pd.Timestamp) else str(start_ts)
+    )
     end = end_ts.isoformat() if isinstance(end_ts, pd.Timestamp) else str(end_ts)
 
     df = asyncio.run(_fetch_async(start, end, table=table))
@@ -97,9 +108,7 @@ def train_federated_regime(
 
     # Optionally fetch aggregated stats before downloading the full dataset
     try:
-        fetch_trade_aggregates(
-            pd.to_datetime(start_ts), pd.to_datetime(end_ts)
-        )
+        fetch_trade_aggregates(pd.to_datetime(start_ts), pd.to_datetime(end_ts))
     except Exception:
         pass
 
@@ -137,4 +146,3 @@ def train_federated_regime(
             pass
 
     return ensemble, metrics
-

@@ -9,7 +9,7 @@ from typing import Any, Dict, Optional, Tuple
 import joblib
 from jsonschema import validate
 from supabase import Client, create_client
-from tenacity import retry, wait_exponential, stop_after_attempt
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 
 @dataclass
@@ -37,7 +37,9 @@ METRICS_SCHEMA = {
 class ModelRegistry:
     """Registry for ML models stored in Supabase."""
 
-    def __init__(self, url: str, key: str, bucket: str = "models", table: str = "models") -> None:
+    def __init__(
+        self, url: str, key: str, bucket: str = "models", table: str = "models"
+    ) -> None:
         self.supabase: Client = create_client(url, key)
         self.bucket = bucket
         self.table = table
@@ -46,8 +48,12 @@ class ModelRegistry:
         """Return the SHA256 hex digest for ``data``."""
         return hashlib.sha256(data).hexdigest()
 
-    @retry(wait=wait_exponential(multiplier=1, min=1, max=10), stop=stop_after_attempt(5))
-    def upload_bytes(self, payload: bytes, name: str, metrics: Dict[str, Any]) -> ModelEntry:
+    @retry(
+        wait=wait_exponential(multiplier=1, min=1, max=10), stop=stop_after_attempt(5)
+    )
+    def upload_bytes(
+        self, payload: bytes, name: str, metrics: Dict[str, Any]
+    ) -> ModelEntry:
         """Upload raw ``payload`` bytes as a model artifact."""
         validate(instance=metrics, schema=METRICS_SCHEMA)
         digest = self._hash_bytes(payload)
@@ -65,7 +71,9 @@ class ModelRegistry:
 
     def upload(self, model_obj: Any, name: str, metrics: Dict[str, Any]) -> ModelEntry:
         """Serialize and upload ``model_obj`` with ``metrics``."""
-        if not isinstance(metrics, dict) or not all(isinstance(v, (int, float)) for v in metrics.values()):
+        if not isinstance(metrics, dict) or not all(
+            isinstance(v, (int, float)) for v in metrics.values()
+        ):
             raise ValueError("metrics must be a dict of numeric values")
         validate(instance=metrics, schema=METRICS_SCHEMA)
 
@@ -85,13 +93,17 @@ class ModelRegistry:
         data = self.supabase.table(self.table).insert(row).execute().data[0]
         return ModelEntry(**data)
 
-    def upload_dict(self, payload_dict: Dict[str, Any], name: str, metrics: Dict[str, Any]) -> ModelEntry:
+    def upload_dict(
+        self, payload_dict: Dict[str, Any], name: str, metrics: Dict[str, Any]
+    ) -> ModelEntry:
         """Serialize and upload a dictionary as JSON."""
         validate(instance=metrics, schema=METRICS_SCHEMA)
         raw = json.dumps(payload_dict).encode()
         return self.upload_bytes(raw, name, metrics)
 
-    def get_latest(self, name: str, approved: bool = True) -> Optional[Tuple[Any, ModelEntry]]:
+    def get_latest(
+        self, name: str, approved: bool = True
+    ) -> Optional[Tuple[Any, ModelEntry]]:
         """Return the most recent model matching ``name``."""
         query = self.supabase.table(self.table).select("*").eq("name", name)
         if approved is not None:
@@ -106,9 +118,13 @@ class ModelRegistry:
 
     def approve(self, model_id: int) -> None:
         """Mark a model row as approved."""
-        self.supabase.table(self.table).update({"approved": True}).eq("id", model_id).execute()
+        self.supabase.table(self.table).update({"approved": True}).eq(
+            "id", model_id
+        ).execute()
 
-    def list_models(self, *, tag: Optional[str] = None, approved: Optional[bool] = None) -> list[ModelEntry]:
+    def list_models(
+        self, *, tag: Optional[str] = None, approved: Optional[bool] = None
+    ) -> list[ModelEntry]:
         """Return models filtered by tag and approval state."""
         query = self.supabase.table(self.table).select("*")
         if approved is not None:
@@ -117,4 +133,3 @@ class ModelRegistry:
             query = query.contains("tags", [tag])
         res = query.execute()
         return [ModelEntry(**row) for row in res.data]
-

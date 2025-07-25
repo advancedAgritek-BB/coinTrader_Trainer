@@ -1,9 +1,9 @@
 """Utilities for working with DirectML devices."""
+
 from __future__ import annotations
 
-from typing import Any
 import logging
-
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +27,7 @@ def get_dml_device() -> Any:
 
     try:
         import torch  # type: ignore
+
         return torch.device("cpu")
     except Exception:  # pragma: no cover - PyTorch missing
         logger.warning("PyTorch not installed, returning 'cpu' string")

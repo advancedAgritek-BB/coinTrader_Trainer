@@ -3,16 +3,26 @@
 from __future__ import annotations
 
 import argparse
+import glob
 import logging
 import os
-from dotenv import load_dotenv
-import subprocess
+import platform
 import shutil
+import subprocess
 from datetime import datetime, timedelta
+from pathlib import Path
 
 import pandas as pd
 import yaml
-import lightgbm as lgb
+from dotenv import load_dotenv
+from supabase import create_client
+
+from data_loader import fetch_trade_logs
+from evaluation import simulate_signal_pnl
+from feature_engineering import make_features
+from registry import ModelRegistry
+from trainers.regime_lgbm import train_regime_lgbm
+
 try:  # optional dependency
     import pyopencl as cl
 except Exception as exc:  # pragma: no cover - pyopencl may be absent
@@ -21,11 +31,6 @@ except Exception as exc:  # pragma: no cover - pyopencl may be absent
 
 load_dotenv()
 
-from data_loader import fetch_trade_logs
-from feature_engineering import make_features
-from trainers.regime_lgbm import train_regime_lgbm
-from evaluation import simulate_signal_pnl
-from registry import ModelRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -56,14 +61,18 @@ def main() -> None:
     url = os.environ.get("SUPABASE_URL")
     key = os.environ.get("SUPABASE_KEY") or os.environ.get("SUPABASE_SERVICE_KEY")
     if not url or not key:
-        raise ValueError("SUPABASE_URL and SUPABASE_KEY environment variables must be set")
+        raise ValueError(
+            "SUPABASE_URL and SUPABASE_KEY environment variables must be set"
+        )
 
     check_clinfo_gpu()
 
     # Import and invoke LightGBM GPU wheel helper
     try:
         from lightgbm_gpu_build import build_and_upload_lightgbm_wheel
-    except ImportError as exc:  # pragma: no cover - helper may not be available during tests
+    except (
+        ImportError
+    ) as exc:  # pragma: no cover - helper may not be available during tests
         logger.warning("GPU wheel helper unavailable: %s", exc)
         build_and_upload_lightgbm_wheel = None
     if build_and_upload_lightgbm_wheel is not None:
@@ -102,14 +111,6 @@ def main() -> None:
 if __name__ == "__main__":
     main()
 
-import glob
-import os
-import platform
-import subprocess
-from pathlib import Path
-
-from supabase import create_client
-
 
 def check_clinfo_gpu() -> bool:
     """Return True if clinfo reports a GPU device."""
@@ -126,7 +127,9 @@ def check_clinfo_gpu() -> bool:
     raise RuntimeError("No GPU device detected via clinfo")
 
 
-def ensure_lightgbm_gpu(supabase_url: str, supabase_key: str, script_path: str | None = None) -> bool:
+def ensure_lightgbm_gpu(
+    supabase_url: str, supabase_key: str, script_path: str | None = None
+) -> bool:
     """Ensure a GPU-enabled LightGBM build and upload wheels to Supabase.
 
     When running on Windows and LightGBM with GPU support is not available,
@@ -152,7 +155,6 @@ def ensure_lightgbm_gpu(supabase_url: str, supabase_key: str, script_path: str |
         platform is not Windows.
     """
 
-
     if platform.system() != "Windows":
         return False
 
@@ -171,13 +173,16 @@ def ensure_lightgbm_gpu(supabase_url: str, supabase_key: str, script_path: str |
 
     script = Path(script_path or Path(__file__).with_name("build_lightgbm_gpu.ps1"))
     logger.info("Running %s", script)
-    subprocess.run([
-        "powershell",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        str(script),
-    ], check=True)
+    subprocess.run(
+        [
+            "powershell",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(script),
+        ],
+        check=True,
+    )
 
     wheel_dir = script.with_name("LightGBM").joinpath("python-package", "dist")
     wheels = glob.glob(str(wheel_dir / "*.whl"))
@@ -196,9 +201,9 @@ def verify_opencl():
         raise ValueError("pyopencl not installed")
 
     platforms = cl.get_platforms()
-    for platform in platforms:
-        if "AMD" in platform.name:
-            devices = platform.get_devices(cl.device_type.GPU)
+    for plat in platforms:
+        if "AMD" in plat.name:
+            devices = plat.get_devices(cl.device_type.GPU)
             if devices:
                 print(f"AMD GPU detected: {devices[0].name}")
                 return True

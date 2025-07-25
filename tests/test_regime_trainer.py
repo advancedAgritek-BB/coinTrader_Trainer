@@ -2,11 +2,12 @@
 
 import os
 import sys
+import types
+
+import lightgbm as lgb
 import numpy as np
 import pandas as pd
 from lightgbm import Booster
-import types
-import lightgbm as lgb
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from trainers.regime_lgbm import train_regime_lgbm
@@ -46,10 +47,14 @@ def test_train_regime_lgbm_with_tuning():
         "early_stopping_rounds": 5,
     }
 
-    model, metrics = train_regime_lgbm(X, y, params, use_gpu=False, tune=True, n_trials=2)
+    model, metrics = train_regime_lgbm(
+        X, y, params, use_gpu=False, tune=True, n_trials=2
+    )
 
     assert isinstance(model, Booster)
     assert isinstance(metrics, dict)
+
+
 def _fake_booster():
     class FakeBooster(Booster):
         def __init__(self, *args, **kwargs):
@@ -93,6 +98,7 @@ def test_optuna_tuning_sets_learning_rate(monkeypatch):
 
     class FakeStudy:
         best_params = {"learning_rate": best_lr}
+
         def optimize(self, obj, n_trials=10):
             calls["optimize"] = True
 
@@ -122,10 +128,13 @@ def test_train_regime_lgbm_tune_and_lr(monkeypatch):
 
     class FakeStudy:
         best_params = {"learning_rate": 0.1}
+
         def optimize(self, obj, n_trials=2):
             pass
 
-    fake_optuna = types.SimpleNamespace(create_study=lambda direction="minimize": FakeStudy())
+    fake_optuna = types.SimpleNamespace(
+        create_study=lambda direction="minimize": FakeStudy()
+    )
     try:
         monkeypatch.setattr(train_regime_lgbm.__globals__, "optuna", fake_optuna)
     except AttributeError:
@@ -133,7 +142,9 @@ def test_train_regime_lgbm_tune_and_lr(monkeypatch):
     monkeypatch.setattr(lgb, "train", lambda *a, **k: _fake_booster())
 
     params = {"objective": "binary", "num_boost_round": 5, "tune_learning_rate": True}
-    model, metrics = train_regime_lgbm(X, y, params, use_gpu=False, tune=True, n_trials=2)
+    model, metrics = train_regime_lgbm(
+        X, y, params, use_gpu=False, tune=True, n_trials=2
+    )
     assert isinstance(model, Booster)
 
 
@@ -145,6 +156,7 @@ def test_model_registry_upload_called(monkeypatch, registry_with_dummy):
     y = pd.Series([0, 1] * 5)
 
     uploaded = {}
+
     def fake_upload(model, name, metrics):
         uploaded["model"] = model
         uploaded["metrics"] = metrics
@@ -157,4 +169,3 @@ def test_model_registry_upload_called(monkeypatch, registry_with_dummy):
 
     assert uploaded["model"] is model
     assert uploaded["metrics"] == metrics
-

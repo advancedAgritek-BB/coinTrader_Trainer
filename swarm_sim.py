@@ -1,30 +1,27 @@
 from __future__ import annotations
 
+import logging
+import os
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List
-import yaml
+
+import lightgbm as lgb
+import networkx as nx
 import numpy as np
 import pandas as pd
-import networkx as nx
-import lightgbm as lgb
-import os
+import yaml
 from dotenv import load_dotenv
-import logging
-
-load_dotenv()
-
 
 import data_loader
 from feature_engineering import make_features
 from registry import ModelRegistry
 
+load_dotenv()
+
 
 async def fetch_and_prepare_data(
-    start_ts: datetime | str,
-    end_ts: datetime | str,
-    *,
-    table: str = "trade_logs"
+    start_ts: datetime | str, end_ts: datetime | str, *, table: str = "trade_logs"
 ) -> tuple[pd.DataFrame, pd.Series]:
     """Fetch trade data and return feature matrix ``X`` and targets ``y``."""
 
@@ -65,7 +62,9 @@ class SwarmAgent:
     params: Dict[str, Any]
     fitness: float = field(default=float("inf"))
 
-    def simulate(self, X: pd.DataFrame, y: pd.Series, base_params: Dict[str, Any]) -> None:
+    def simulate(
+        self, X: pd.DataFrame, y: pd.Series, base_params: Dict[str, Any]
+    ) -> None:
         """Train a small LightGBM model and update ``fitness``.
 
         Parameters
@@ -178,4 +177,3 @@ async def run_swarm_search(
         logging.info("SUPABASE credentials not set; skipping parameter upload")
 
     return best.params
-
