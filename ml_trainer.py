@@ -83,7 +83,11 @@ def main() -> None:  # pragma: no cover - CLI entry
     csv_p.add_argument("csv", help="CSV file path")
     csv_p.add_argument("--start-ts", help="Start timestamp (ISO)")
     csv_p.add_argument("--end-ts", help="End timestamp (ISO)")
-    csv_p.add_argument("--table", default="ohlcv", help="Supabase table name")
+    csv_p.add_argument(
+        "--table",
+        default="historical_prices",
+        help="Supabase table name",
+    )
 
     import_p = sub.add_parser("import-data", help="Download historical data and insert to Supabase")
     import_p.add_argument("--source-url", required=True, help="HTTP endpoint for historical data")
