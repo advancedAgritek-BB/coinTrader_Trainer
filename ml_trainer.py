@@ -139,6 +139,9 @@ def main() -> None:  # pragma: no cover - CLI entry
         raise SystemExit(f"Unknown task: {args.task}")
 
     trainer_fn, cfg_key = TRAINERS[args.task]
+    if trainer_fn is None:
+        raise SystemExit(f"Trainer '{args.task}' not available, install LightGBM")
+
     if args.federated:
         if args.task != "regime":
             raise SystemExit("--federated only supported for 'regime' task")

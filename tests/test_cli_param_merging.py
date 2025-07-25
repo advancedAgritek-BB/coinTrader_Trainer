@@ -3,6 +3,7 @@ import sys
 import types
 import numpy as np
 import pandas as pd
+import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
@@ -96,4 +97,12 @@ def test_federated_param_merge(monkeypatch):
     assert captured['start'] == '2021-01-01'
     assert captured['end'] == '2021-01-02'
     assert captured['params'].get('device_type') == 'gpu'
+
+
+def test_missing_trainer_exits(monkeypatch):
+    monkeypatch.setitem(ml_trainer.TRAINERS, 'regime', (None, 'regime_lgbm'))
+    monkeypatch.setattr(sys, 'argv', ['prog', 'train', 'regime'])
+    with pytest.raises(SystemExit) as exc:
+        ml_trainer.main()
+    assert "Trainer 'regime' not available" in str(exc.value)
 
