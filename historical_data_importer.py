@@ -27,13 +27,23 @@ def download_historical_data(
 
     rename_map = {
         "timestamp": "ts",
+        "unix": "ts",
+        "date": "ts",
         "close": "price",
         "open": "open",
         "high": "high",
         "low": "low",
         "volume": "volume",
     }
-    df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns})
+
+    rename_map_lower = {k.lower(): v for k, v in rename_map.items()}
+    df = df.rename(
+        columns={
+            col: rename_map_lower[col.lower()]
+            for col in df.columns
+            if col.lower() in rename_map_lower
+        }
+    )
 
     if "ts" not in df.columns or "price" not in df.columns:
         raise ValueError("CSV must contain timestamp and close/price columns")
