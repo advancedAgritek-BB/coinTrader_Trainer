@@ -4,7 +4,8 @@ import os
 from dotenv import load_dotenv
 from typing import Optional
 
-import httpx
+import io
+import requests
 import pandas as pd
 from supabase import create_client
 
@@ -13,26 +14,34 @@ load_dotenv()
 
 def download_historical_data(
     source_url: str,
-    symbol: str,
-    start_ts: str,
-    end_ts: str,
+    symbol: Optional[str] = None,
+    start_ts: Optional[str] = None,
+    end_ts: Optional[str] = None,
     *,
-    batch_size: int = 1000,
+    batch_size: int = 1000,  # kept for backwards compatibility
     output_file: Optional[str] = None,
 ) -> pd.DataFrame:
-    """Download historical trade data and optionally save to ``output_file``."""
-    params = {
-        "symbol": symbol,
-        "start": start_ts,
-        "end": end_ts,
-        "limit": batch_size,
-    }
-    response = httpx.get(source_url, params=params)
+    """Download historical trade data from ``source_url``.
+
+    The function fetches ``source_url`` using ``requests`` and parses the
+    response as CSV. The optional ``symbol``, ``start_ts`` and ``end_ts``
+    parameters are retained for API compatibility but no longer modify the
+    request.  Any downloaded data is returned as a ``pandas.DataFrame`` and can
+    optionally be saved to ``output_file``.
+    """
+
+    response = requests.get(source_url)
     response.raise_for_status()
-    data = response.json()
-    df = pd.DataFrame(data)
+
     if output_file:
-        df.to_parquet(output_file)
+        with open(output_file, "wb") as f:
+            f.write(response.content)
+
+    df = pd.read_csv(
+        io.StringIO(response.text),
+        skiprows=1 if "cryptodatadownload" in source_url.lower() else 0,
+    )
+
     return df
 
 
