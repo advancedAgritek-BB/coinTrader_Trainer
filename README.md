@@ -328,6 +328,9 @@ python ml_trainer.py import-data \
 
 To process a local file, replace the URL with the file path. The command writes
 the parsed rows to the given output file before inserting them into Supabase.
+Files downloaded from CryptoDataDownload include a banner line at the top of the
+CSV. ``import-data`` now detects and skips this line automatically even when
+reading from a local path.
 
 ``import-data`` expects trade log entries with the same columns that the live
 system stores in ``trade_logs``.  For importing OHLCV datasets use the

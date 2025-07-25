@@ -35,20 +35,24 @@ def download_historical_data(
     if is_local:
         if source_url.startswith("file://"):
             source_url = source_url[7:]
-        df = pd.read_csv(
-            source_url,
-            skiprows=1 if "cryptodatadownload" in source_url.lower() else 0,
-        )
+        skiprows = 0
+        try:
+            with open(source_url, "r", encoding="utf-8") as f:
+                first_line = f.readline()
+            if "cryptodatadownload" in first_line.lower():
+                skiprows = 1
+        except OSError:
+            pass
+        df = pd.read_csv(source_url, skiprows=skiprows)
     else:
         response = requests.get(source_url)
         response.raise_for_status()
         if output_file:
             with open(output_file, "wb") as f:
                 f.write(response.content)
-        df = pd.read_csv(
-            io.StringIO(response.text),
-            skiprows=1 if "cryptodatadownload" in source_url.lower() else 0,
-        )
+        first_line = response.text.splitlines()[0].lower()
+        skiprows = 1 if "cryptodatadownload" in first_line else 0
+        df = pd.read_csv(io.StringIO(response.text), skiprows=skiprows)
 
     return df
 
