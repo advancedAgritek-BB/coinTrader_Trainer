@@ -161,6 +161,11 @@ def insert_to_supabase(
     elif table is None:
         table = "historical_prices"
 
+    df = df.copy()
+    for col in df.columns:
+        if pd.api.types.is_datetime64_any_dtype(df[col]):
+            df[col] = df[col].dt.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
     records = df.to_dict(orient="records")
     for i in range(0, len(records), batch_size):
         batch = records[i : i + batch_size]
