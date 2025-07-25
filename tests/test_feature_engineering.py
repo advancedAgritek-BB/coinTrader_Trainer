@@ -74,6 +74,52 @@ def test_make_features_gpu_uses_cudf(monkeypatch):
     assert calls["from"] and calls["to"]
 
 
+def test_make_features_gpu_generates_columns(monkeypatch):
+    module = types.ModuleType("cudf")
+
+    class FakeDF(pd.DataFrame):
+        def to_pandas(self):
+            return pd.DataFrame(self)
+
+    def from_pandas(df):
+        return FakeDF(df)
+
+    module.from_pandas = from_pandas
+    module.concat = pd.concat
+    module.to_datetime = pd.to_datetime
+    monkeypatch.setitem(sys.modules, "cudf", module)
+
+    df = pd.DataFrame(
+        {
+            "ts": pd.date_range("2020-01-01", periods=6, freq="D"),
+            "price": [1.0, 1.1, 1.2, 1.3, 1.2, 1.4],
+            "high": [1.1, 1.2, 1.3, 1.4, 1.25, 1.5],
+            "low": [0.9, 1.0, 1.1, 1.15, 1.0, 1.3],
+        }
+    )
+
+    result = make_features(
+        df,
+        ema_short_period=2,
+        ema_long_period=3,
+        rsi_period=5,
+        volatility_window=2,
+        atr_window=2,
+        use_gpu=True,
+    )
+
+    expected_cols = {
+        "ema_short",
+        "ema_long",
+        "macd",
+        "rsi5",
+        "volatility2",
+        "atr2",
+    }
+
+    assert expected_cols.issubset(result.columns)
+
+
 def test_make_features_adds_columns_and_handles_params(capsys):
     df = pd.DataFrame(
         {

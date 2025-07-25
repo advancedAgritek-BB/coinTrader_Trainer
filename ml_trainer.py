@@ -150,7 +150,11 @@ def main() -> None:  # pragma: no cover - CLI entry
             raise SystemExit("SUPABASE_URL and service key must be set")
         table = args.table or f"historical_prices_{args.symbol.lower()}"
         historical_data_importer.insert_to_supabase(
-            df, url, key, table=table, symbol=args.symbol
+            df,
+            url=url,
+            key=key,
+            table=table,
+            symbol=args.symbol,
         )
         return
 

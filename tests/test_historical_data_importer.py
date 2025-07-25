@@ -69,6 +69,13 @@ def test_insert_to_supabase_batches(monkeypatch):
     monkeypatch.setattr(hdi, "create_client", fake_create)
 
     hdi.insert_to_supabase(df, "http://localhost", "key", symbol="BTC", batch_size=2)
+    hdi.insert_to_supabase(
+        df,
+        url='http://localhost',
+        key='key',
+        symbol='BTC',
+        batch_size=2,
+    )
 
     assert len(inserted) == 2
     assert sum(len(b) for b in inserted) == 3
@@ -136,6 +143,18 @@ def test_cli_import_csv(monkeypatch):
     def fake_insert(df, url, key, table=None, symbol=None, batch_size=500):
         captured["table"] = table
         captured["insert_symbol"] = symbol
+    def fake_insert(
+        df,
+        *,
+        url=None,
+        key=None,
+        table=None,
+        symbol=None,
+        batch_size=500,
+        client=None,
+    ):
+        captured['table'] = table
+        captured['insert_symbol'] = symbol
 
     monkeypatch.setattr(hdi, "download_historical_data", fake_download)
     monkeypatch.setattr(hdi, "insert_to_supabase", fake_insert)
