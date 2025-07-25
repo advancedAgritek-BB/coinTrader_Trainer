@@ -80,12 +80,27 @@ def _insert_batch(client: Client, table: str, rows: list[dict]) -> None:
     client.table(table).insert(rows).execute()
 
 
+def ensure_table_exists(symbol: str, *, client: Optional[Client] = None) -> str:
+    """Create historical prices table for ``symbol`` if needed and return its name."""
+    table = f"historical_prices_{symbol.lower()}"
+    if client is None:
+        client = _get_write_client()
+    sql = (
+        f"create table if not exists {table} "
+        "(like historical_prices including defaults including constraints)"
+    )
+    # Use Supabase RPC to execute the SQL statement
+    client.rpc("sql", {"query": sql}).execute()
+    return table
+
+
 def insert_to_supabase(
     df: pd.DataFrame,
     arg1: str,
     arg2: Optional[str] = None,
     *,
-    table: str = "historical_prices",
+    table: str | None = "historical_prices",
+    symbol: Optional[str] = None,
     client: Optional[Client] = None,
     batch_size: int = 500,
 ) -> None:
@@ -103,6 +118,11 @@ def insert_to_supabase(
         url = arg1
         key = arg2
         client = create_client(url, key)
+
+    if symbol is not None:
+        table = ensure_table_exists(symbol, client=client)
+    elif table is None:
+        table = "historical_prices"
 
     records = df.to_dict(orient="records")
     for i in range(0, len(records), batch_size):
