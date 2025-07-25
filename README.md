@@ -341,6 +341,23 @@ rows into the requested table:
 python ml_trainer.py import-csv ./prices.csv --table historical_prices
 ```
 
+### Creating the `historical_prices` table
+
+The import tools expect a table named `historical_prices` to exist in your Supabase project. Symbol-specific tables such as `historical_prices_btc` are created by cloning this schema. Here is a minimal definition:
+
+```sql
+CREATE TABLE historical_prices (
+    ts TIMESTAMPTZ PRIMARY KEY,
+    open DOUBLE PRECISION NOT NULL,
+    high DOUBLE PRECISION NOT NULL,
+    low DOUBLE PRECISION NOT NULL,
+    price DOUBLE PRECISION NOT NULL,
+    volume DOUBLE PRECISION,
+    target INTEGER DEFAULT 0
+);
+```
+
+
 ## GPU Training
 
 LightGBM must be built with OpenCL/ROCm support to train on AMD GPUs such
