@@ -140,9 +140,6 @@ def test_cli_import_csv(monkeypatch):
         captured["symbol"] = symbol
         return pd.DataFrame()
 
-    def fake_insert(df, url, key, table=None, symbol=None, batch_size=500):
-        captured["table"] = table
-        captured["insert_symbol"] = symbol
     def fake_insert(
         df,
         *,
