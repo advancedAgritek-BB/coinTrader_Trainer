@@ -25,9 +25,9 @@ from coinTrader_Trainer.feature_engineering import make_features
 __all__ = ["train_federated_regime"]
 
 
-async def _fetch_async(start: str, end: str) -> pd.DataFrame:
+async def _fetch_async(start: str, end: str, *, table: str = "trade_logs") -> pd.DataFrame:
     """Fetch trade logs between ``start`` and ``end`` asynchronously."""
-    return await fetch_data_range_async("trade_logs", start, end)
+    return await fetch_data_range_async(table, start, end)
 
 
 def _load_params(cfg_path: str) -> dict:
@@ -43,11 +43,13 @@ def _load_params(cfg_path: str) -> dict:
 
 
 def _prepare_data(start_ts: str | pd.Timestamp, end_ts: str | pd.Timestamp,
-                  symbols: Optional[Iterable[str]] = None) -> Tuple[pd.DataFrame, pd.Series]:
+                  symbols: Optional[Iterable[str]] = None,
+                  *,
+                  table: str = "trade_logs") -> Tuple[pd.DataFrame, pd.Series]:
     start = start_ts.isoformat() if isinstance(start_ts, pd.Timestamp) else str(start_ts)
     end = end_ts.isoformat() if isinstance(end_ts, pd.Timestamp) else str(end_ts)
 
-    df = asyncio.run(_fetch_async(start, end))
+    df = asyncio.run(_fetch_async(start, end, table=table))
 
     if "timestamp" in df.columns and "ts" not in df.columns:
         df = df.rename(columns={"timestamp": "ts"})
@@ -85,6 +87,7 @@ def train_federated_regime(
     num_clients: int = 3,
     config_path: str = "cfg.yaml",
     params_override: Optional[dict] = None,
+    table: str = "trade_logs",
 ) -> Tuple[FederatedEnsemble, dict]:
     """Train LightGBM models across ``num_clients`` and aggregate their predictions."""
 
@@ -100,7 +103,7 @@ def train_federated_regime(
     except Exception:
         pass
 
-    X, y = _prepare_data(start_ts, end_ts)
+    X, y = _prepare_data(start_ts, end_ts, table=table)
 
     indices = np.array_split(np.arange(len(X)), num_clients)
     models: List[lgb.Booster] = []

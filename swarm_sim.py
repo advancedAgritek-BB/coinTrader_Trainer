@@ -21,7 +21,10 @@ from registry import ModelRegistry
 
 
 async def fetch_and_prepare_data(
-    start_ts: datetime | str, end_ts: datetime | str
+    start_ts: datetime | str,
+    end_ts: datetime | str,
+    *,
+    table: str = "trade_logs"
 ) -> tuple[pd.DataFrame, pd.Series]:
     """Fetch trade data and return feature matrix ``X`` and targets ``y``."""
 
@@ -30,7 +33,7 @@ async def fetch_and_prepare_data(
     if isinstance(end_ts, datetime):
         end_ts = end_ts.isoformat()
 
-    df = await data_loader.fetch_data_range_async("trade_logs", str(start_ts), str(end_ts))
+    df = await data_loader.fetch_data_range_async(table, str(start_ts), str(end_ts))
 
     if "timestamp" in df.columns and "ts" not in df.columns:
         df = df.rename(columns={"timestamp": "ts"})
@@ -114,7 +117,11 @@ def evolve_swarm(agents: List[SwarmAgent], graph: nx.Graph) -> None:
 
 
 async def run_swarm_search(
-    start_ts: datetime, end_ts: datetime, num_agents: int = 50
+    start_ts: datetime,
+    end_ts: datetime,
+    num_agents: int = 50,
+    *,
+    table: str = "trade_logs",
 ) -> Dict[str, Any]:
     """Run an asynchronous swarm optimisation simulation.
 
@@ -132,7 +139,7 @@ async def run_swarm_search(
     Dict[str, Any]
         Parameter dictionary from the best-performing agent.
     """
-    X, y = await fetch_and_prepare_data(start_ts, end_ts)
+    X, y = await fetch_and_prepare_data(start_ts, end_ts, table=table)
 
     with open("cfg.yaml", "r") as fh:
         cfg = yaml.safe_load(fh) or {}

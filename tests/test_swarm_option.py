@@ -28,8 +28,9 @@ def test_cli_swarm_merges_params(monkeypatch):
         lambda n=200: (pd.DataFrame(np.random.normal(size=(4, 2))), pd.Series([0, 1, 0, 1]))
     )
 
-    async def fake_run(start, end):
+    async def fake_run(start, end, *, table="trade_logs"):
         captured['swarm_called'] = True
+        captured['table'] = table
         return {'learning_rate': 0.1}
 
     module = types.SimpleNamespace(run_swarm_search=fake_run)

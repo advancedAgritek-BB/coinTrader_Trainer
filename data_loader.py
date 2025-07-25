@@ -79,10 +79,11 @@ def _fetch_logs(
     end_ts: datetime,
     *,
     symbol: Optional[str] = None,
+    table: str = "trade_logs",
 ) -> list[dict]:
-    """Fetch rows from the ``trade_logs`` table with retry."""
+    """Fetch rows from ``table`` between ``start_ts`` and ``end_ts`` with retry."""
     query = (
-        client.table("trade_logs")
+        client.table(table)
         .select("*")
         .gte("timestamp", start_ts.isoformat())
         .lt("timestamp", end_ts.isoformat())
@@ -98,6 +99,7 @@ def fetch_trade_logs(
     end_ts: datetime,
     *,
     symbol: Optional[str] = None,
+    table: str = "trade_logs",
     cache_path: Optional[str] = None,
     redis_client: Optional[Any] = None,
     redis_key: Optional[str] = None,
@@ -107,7 +109,7 @@ def fetch_trade_logs(
     if cache_path and os.path.exists(cache_path):
         return pd.read_parquet(cache_path)
     if redis_client is not None:
-        key = redis_key or f"trade_logs:{start_ts.isoformat()}:{end_ts.isoformat()}:{symbol or 'all'}"
+        key = redis_key or f"{table}:{start_ts.isoformat()}:{end_ts.isoformat()}:{symbol or 'all'}"
         cached = redis_client.get(key)
         if cached:
             if isinstance(cached, bytes):
@@ -134,7 +136,7 @@ def fetch_trade_logs(
 
     client = _get_client()
 
-    rows = _fetch_logs(client, start_ts, end_ts, symbol=symbol)
+    rows = _fetch_logs(client, start_ts, end_ts, symbol=symbol, table=table)
     df = pd.DataFrame(rows)
     for col in df.columns:
         try:
@@ -146,7 +148,7 @@ def fetch_trade_logs(
     if cache_path:
         df.to_parquet(cache_path)
     if redis_client is not None:
-        key = redis_key or f"trade_logs:{start_ts.isoformat()}:{end_ts.isoformat()}:{symbol or 'all'}"
+        key = redis_key or f"{table}:{start_ts.isoformat()}:{end_ts.isoformat()}:{symbol or 'all'}"
         redis_client.set(key, df.to_json(orient="split"))
 
     if redis_client is not None and cache_key is not None:

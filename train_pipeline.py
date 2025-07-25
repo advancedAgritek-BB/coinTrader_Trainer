@@ -44,6 +44,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--cfg", default="cfg.yaml", help="Config file path")
     parser.add_argument("--start-ts", help="Start timestamp ISO format")
     parser.add_argument("--end-ts", help="End timestamp ISO format")
+    parser.add_argument("--table", default="trade_logs", help="Supabase table name")
     return parser.parse_args()
 
 
@@ -77,7 +78,7 @@ def main() -> None:
         else end_ts - timedelta(days=window)
     )
 
-    df = fetch_trade_logs(start_ts, end_ts)
+    df = fetch_trade_logs(start_ts, end_ts, table=args.table)
     if "timestamp" in df.columns and "ts" not in df.columns:
         df = df.rename(columns={"timestamp": "ts"})
 
