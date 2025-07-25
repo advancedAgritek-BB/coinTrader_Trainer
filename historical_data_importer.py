@@ -25,16 +25,17 @@ def download_historical_data(
     """Load historical price data from ``path`` and return a normalized DataFrame."""
     df = pd.read_csv(path)
 
+    # Normalize column names to a standard schema
     rename_map = {
         "timestamp": "ts",
-        "unix": "ts",
-        "date": "ts",
         "close": "price",
         "open": "open",
         "high": "high",
         "low": "low",
         "volume": "volume",
     }
+    # Handle common alternative timestamp column names
+    rename_map.update({"unix": "ts", "date": "ts"})
 
     rename_map_lower = {k.lower(): v for k, v in rename_map.items()}
     df = df.rename(
