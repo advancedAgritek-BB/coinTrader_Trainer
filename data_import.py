@@ -1,12 +1,12 @@
 from __future__ import annotations
 
+import io
 import os
-from dotenv import load_dotenv
 from typing import Optional
 
-import io
 import pandas as pd
 import requests
+from dotenv import load_dotenv
 from supabase import create_client
 
 load_dotenv()
@@ -70,4 +70,3 @@ def insert_to_supabase(
     for start in range(0, len(records), batch_size):
         chunk = records[start : start + batch_size]
         client.table(table).insert(chunk).execute()
-

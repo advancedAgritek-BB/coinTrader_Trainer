@@ -1,5 +1,6 @@
-import sys
 import os
+import sys
+
 import numpy as np
 import pandas as pd
 
@@ -12,16 +13,23 @@ def test_profile_gpu_prints_message(monkeypatch, capsys):
     def fake_train(X, y, params, use_gpu=False, profile_gpu=False):
         class FakeBooster:
             best_iteration = 1
+
             def predict(self, data, num_iteration=None):
                 return np.zeros(len(data))
+
         return FakeBooster(), {}
 
     monkeypatch.setitem(ml_trainer.TRAINERS, "regime", (fake_train, "regime_lgbm"))
-    monkeypatch.setattr(ml_trainer, "load_cfg", lambda p: {"regime_lgbm": {"objective": "binary"}})
+    monkeypatch.setattr(
+        ml_trainer, "load_cfg", lambda p: {"regime_lgbm": {"objective": "binary"}}
+    )
     monkeypatch.setattr(
         ml_trainer,
         "_make_dummy_data",
-        lambda n=200: (pd.DataFrame(np.random.normal(size=(4, 2))), pd.Series([0, 1, 0, 1])),
+        lambda n=200: (
+            pd.DataFrame(np.random.normal(size=(4, 2))),
+            pd.Series([0, 1, 0, 1]),
+        ),
     )
     monkeypatch.setattr(sys, "argv", ["ml_trainer", "train", "regime", "--profile-gpu"])
 

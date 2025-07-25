@@ -1,7 +1,8 @@
+import logging
 import os
 import sys
+
 import pandas as pd
-import logging
 import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
@@ -36,7 +37,11 @@ def test_gpu_helper_import_warning(monkeypatch, caplog):
         lambda s, e, **k: pd.DataFrame({"ts": [0], "target": [0]}),
     )
     monkeypatch.setattr(train_pipeline, "make_features", lambda d: d)
-    monkeypatch.setattr(train_pipeline, "train_regime_lgbm", lambda X, y, p, use_gpu=True: (DummyModel(), {}))
+    monkeypatch.setattr(
+        train_pipeline,
+        "train_regime_lgbm",
+        lambda X, y, p, use_gpu=True: (DummyModel(), {}),
+    )
     monkeypatch.setattr(train_pipeline, "simulate_signal_pnl", lambda df, preds: 0.0)
     monkeypatch.setattr(train_pipeline, "ModelRegistry", DummyRegistry)
 
@@ -54,14 +59,22 @@ def test_main_aborts_without_gpu(monkeypatch):
     monkeypatch.setenv("SUPABASE_URL", "http://localhost")
     monkeypatch.setenv("SUPABASE_KEY", "anon")
 
-    monkeypatch.setattr(train_pipeline, "check_clinfo_gpu", lambda: (_ for _ in ()).throw(RuntimeError("no gpu")))
+    monkeypatch.setattr(
+        train_pipeline,
+        "check_clinfo_gpu",
+        lambda: (_ for _ in ()).throw(RuntimeError("no gpu")),
+    )
     monkeypatch.setattr(
         train_pipeline,
         "fetch_trade_logs",
         lambda s, e, **k: pd.DataFrame({"ts": [0], "target": [0]}),
     )
     monkeypatch.setattr(train_pipeline, "make_features", lambda d: d)
-    monkeypatch.setattr(train_pipeline, "train_regime_lgbm", lambda X, y, p, use_gpu=True: (DummyModel(), {}))
+    monkeypatch.setattr(
+        train_pipeline,
+        "train_regime_lgbm",
+        lambda X, y, p, use_gpu=True: (DummyModel(), {}),
+    )
     monkeypatch.setattr(train_pipeline, "simulate_signal_pnl", lambda df, preds: 0.0)
     monkeypatch.setattr(train_pipeline, "ModelRegistry", DummyRegistry)
 

@@ -1,10 +1,11 @@
+import io
 import os
 import sys
 import types
-import pandas as pd
 from datetime import datetime
-import io
+
 import fakeredis
+import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
@@ -77,10 +78,15 @@ def test_fetch_trade_logs_redis_cache(monkeypatch):
     )
 
     pd.testing.assert_frame_equal(df, df_cached)
+
+
 def test_fetch_trade_logs_uses_redis(monkeypatch):
     start = datetime(2021, 1, 1)
     end = datetime(2021, 1, 2)
-    key = f"trades_{int(start.replace(tzinfo=data_loader.timezone.utc).timestamp())}_{int(end.replace(tzinfo=data_loader.timezone.utc).timestamp())}_BTC"
+    key = (
+        f"trades_{int(start.replace(tzinfo=data_loader.timezone.utc).timestamp())}_"
+        f"{int(end.replace(tzinfo=data_loader.timezone.utc).timestamp())}_BTC"
+    )
 
     fake_r = fakeredis.FakeRedis()
     df_cached = pd.DataFrame({"a": [1], "symbol": ["BTC"]})
@@ -89,7 +95,11 @@ def test_fetch_trade_logs_uses_redis(monkeypatch):
     fake_r.set(key, buf.getvalue())
 
     monkeypatch.setattr(data_loader, "_get_redis_client", lambda: fake_r)
-    monkeypatch.setattr(data_loader, "_get_client", lambda: (_ for _ in ()).throw(AssertionError("client should not be called")))
+    monkeypatch.setattr(
+        data_loader,
+        "_get_client",
+        lambda: (_ for _ in ()).throw(AssertionError("client should not be called")),
+    )
 
     df = data_loader.fetch_trade_logs(start, end, symbol="BTC")
 
@@ -113,7 +123,10 @@ def test_fetch_trade_logs_sets_redis(monkeypatch):
 
     df = data_loader.fetch_trade_logs(start, end, symbol="BTC")
 
-    key = f"trades_{int(start.replace(tzinfo=data_loader.timezone.utc).timestamp())}_{int(end.replace(tzinfo=data_loader.timezone.utc).timestamp())}_BTC"
+    key = (
+        f"trades_{int(start.replace(tzinfo=data_loader.timezone.utc).timestamp())}_"
+        f"{int(end.replace(tzinfo=data_loader.timezone.utc).timestamp())}_BTC"
+    )
     cached = fake_r.get(key)
     assert cached is not None
     pd.testing.assert_frame_equal(df, pd.read_parquet(io.BytesIO(cached)))

@@ -1,29 +1,37 @@
 from __future__ import annotations
-"""LightGBM trainer for predicting trading regimes."""
 
-import numpy as np
-import pandas as pd
-import lightgbm as lgb
-from lightgbm import Booster
-from sklearn.model_selection import StratifiedKFold
-from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
-from typing import Dict, Tuple, Optional
-import os
-from dotenv import load_dotenv
+"""LightGBM trainer for predicting trading regimes."""
+# isort: skip_file
+
 import logging
+import os
 import subprocess
+from typing import Dict, Optional, Tuple
+
+import lightgbm as lgb
+import numpy as np
 import optuna
+import pandas as pd
+from dotenv import load_dotenv
+from lightgbm import Booster
+from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
+from sklearn.model_selection import StratifiedKFold
+
+from registry import ModelRegistry
 
 load_dotenv()
 
 # Compatibility shim for pytest monkeypatch on dict globals
 try:  # pragma: no cover - only used during testing
     import _pytest.monkeypatch
+
     if not getattr(_pytest.monkeypatch.MonkeyPatch, "_dict_attr_patch", False):
         _orig_setattr = _pytest.monkeypatch.MonkeyPatch.setattr
         _orig_undo = _pytest.monkeypatch.MonkeyPatch.undo
 
-        def _setattr(self, target, name, value=_pytest.monkeypatch.notset, raising=True):
+        def _setattr(
+            self, target, name, value=_pytest.monkeypatch.notset, raising=True
+        ):
             if isinstance(target, dict):
                 oldval = target.get(name, _pytest.monkeypatch.notset)
                 if raising and oldval is _pytest.monkeypatch.notset:
@@ -31,7 +39,9 @@ try:  # pragma: no cover - only used during testing
                 target[name] = value
                 self._setattr.append((target, name, oldval, True))
                 return None
-            self._setattr.append((target, name, getattr(target, name, _pytest.monkeypatch.notset), False))
+            self._setattr.append(
+                (target, name, getattr(target, name, _pytest.monkeypatch.notset), False)
+            )
             setattr(target, name, value)
 
         def _undo(self):
@@ -53,8 +63,6 @@ try:  # pragma: no cover - only used during testing
         _pytest.monkeypatch.MonkeyPatch._dict_attr_patch = True
 except Exception:
     pass
-
-from registry import ModelRegistry
 
 
 def train_regime_lgbm(
@@ -124,7 +132,11 @@ def train_regime_lgbm(
         def _cb(env: lgb.callback.CallbackEnv) -> None:
             util = "N/A"
             for cmd in (
-                ["nvidia-smi", "--query-gpu=utilization.gpu", "--format=csv,noheader,nounits"],
+                [
+                    "nvidia-smi",
+                    "--query-gpu=utilization.gpu",
+                    "--format=csv,noheader,nounits",
+                ],
                 ["rocm-smi", "--showuse"],
             ):
                 try:
@@ -152,7 +164,9 @@ def train_regime_lgbm(
             valid_set = lgb.Dataset(X_valid, label=y_valid)
 
             callbacks = [
-                lgb.early_stopping(train_params.get("early_stopping_rounds", 50), verbose=False)
+                lgb.early_stopping(
+                    train_params.get("early_stopping_rounds", 50), verbose=False
+                )
             ]
             if profile_gpu:
                 callbacks.append(_gpu_logging_callback())
@@ -178,10 +192,15 @@ def train_regime_lgbm(
             "precision_long": float(np.mean(precision_scores)),
             "recall_long": float(np.mean(recall_scores)),
         }
-        final_num_boost_round = int(np.mean(best_iterations)) if best_iterations else train_params.get("num_boost_round", 100)
+        final_num_boost_round = (
+            int(np.mean(best_iterations))
+            if best_iterations
+            else train_params.get("num_boost_round", 100)
+        )
         return metrics, final_num_boost_round
 
     if tune:
+
         def objective(trial: optuna.Trial) -> float:
             lr = trial.suggest_float("learning_rate", 0.01, 0.1)
             trial_params = dict(params)

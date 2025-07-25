@@ -1,14 +1,16 @@
 import os
 import sys
 import types
-import pandas as pd
+
 import numpy as np
+import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 # Import the module under test which expects a package name
 import data_loader
 import feature_engineering
+
 module = types.ModuleType("coinTrader_Trainer")
 module.data_loader = data_loader
 module.feature_engineering = feature_engineering

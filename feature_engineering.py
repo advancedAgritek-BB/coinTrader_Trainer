@@ -1,8 +1,9 @@
 """Feature generation utilities used by coinTrader models."""
 
-import pandas as pd
-import numpy as np
 import time
+
+import numpy as np
+import pandas as pd
 
 try:
     import cudf  # type: ignore
@@ -24,9 +25,9 @@ def _rsi(series: pd.Series, period: int = 14) -> pd.Series:
 
 def _atr(df: pd.DataFrame, period: int = 3) -> pd.Series:
     """Return the Average True Range for ``df``."""
-    high = df['high']
-    low = df['low']
-    close = df['price'].shift()
+    high = df["high"]
+    low = df["low"]
+    close = df["price"].shift()
     tr1 = high - low
     tr2 = (high - close).abs()
     tr3 = (low - close).abs()
@@ -114,7 +115,7 @@ def make_features(
 
     start_time = time.time() if log_time else None
 
-    if 'ts' not in df.columns or 'price' not in df.columns:
+    if "ts" not in df.columns or "price" not in df.columns:
         raise ValueError("DataFrame must contain 'ts' and 'price' columns")
 
     if use_gpu:
@@ -197,6 +198,37 @@ def make_features(
             elapsed = time.time() - start_time
             print(f"feature generation took {elapsed:.3f}s")
 
+        return df
+
+    df = df.sort_values("ts").reset_index(drop=True).copy()
+
+    # Interpolate missing values before computing indicators
+    df["ts"] = pd.to_datetime(df["ts"], errors="coerce")
+    df = df.set_index("ts").interpolate(method="time").reset_index()
+    df = df.ffill()
+
+    df["log_ret"] = np.log(df["price"] / df["price"].shift(1))
+
+    # Exponential moving averages and MACD
+    df["ema_short"] = df["price"].ewm(span=ema_short_period, adjust=False).mean()
+    df["ema_long"] = df["price"].ewm(span=ema_long_period, adjust=False).mean()
+    df["macd"] = df["ema_short"] - df["ema_long"]
+
+    rsi_col = f"rsi{rsi_period}"
+    df[rsi_col] = _rsi(df["price"], rsi_period)
+
+    vol_col = f"volatility{volatility_window}"
+    df[vol_col] = (
+        df["log_ret"]
+        .rolling(window=volatility_window, min_periods=volatility_window)
+        .std()
+    )
+
+    atr_col = f"atr{atr_window}"
+    if {"high", "low"}.issubset(df.columns):
+        df[atr_col] = _atr(df, atr_window)
+    else:
+        df[atr_col] = np.nan
         return result
 
     df, rsi_col, vol_col, atr_col = _compute_features_pandas(
@@ -209,7 +241,7 @@ def make_features(
     )
 
     if df[[rsi_col, vol_col, atr_col]].isna().all().all():
-        raise ValueError('Too many NaN values after interpolation')
+        raise ValueError("Too many NaN values after interpolation")
 
     df = df.bfill().ffill()
     result = df.dropna()
