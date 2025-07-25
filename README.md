@@ -259,17 +259,28 @@ interface.  Use ``--help`` to see all available options.
 python ml_trainer.py --help
 ```
 
-To download historical trades and upload them to Supabase run:
+To import historical trades from a CSV and upload them to Supabase run:
 
 ```bash
 python ml_trainer.py train regime
-python ml_trainer.py download-data \
-  --source-url https://example.com/api \
+python ml_trainer.py import-data \
+  --source-url https://example.com/data.csv \
   --symbol BTC \
   --start-ts 2024-01-01T00:00:00Z \
   --end-ts 2024-01-02T00:00:00Z \
   --output-file trades.parquet \
   --batch-size 1000
+```
+
+If you already have a CSV on disk, pass its path instead of a URL:
+
+```bash
+python ml_trainer.py import-data \
+  --source-url ./trades.csv \
+  --symbol BTC \
+  --start-ts 2024-01-01T00:00:00Z \
+  --end-ts 2024-01-02T00:00:00Z \
+  --output-file trades.parquet
 ```
 
 ### Federated Training
@@ -301,13 +312,12 @@ uploaded to the ``models`` bucket automatically.
 
 ### Importing Historical Data
 
-Use the ``download-data`` command to export trade logs or aggregated market data
-to a local Parquet file for offline analysis. Specify the table name and time
-range to fetch:
+Use the ``import-data`` command to load a CSV from a URL or local path and
+upload the rows to Supabase. Specify the desired time window:
 
 ```bash
-python ml_trainer.py download-data \
-  --source-url https://example.com/api \
+python ml_trainer.py import-data \
+  --source-url https://example.com/data.csv \
   --symbol BTC \
   --start-ts 2023-01-01T00:00:00Z \
   --end-ts 2023-01-02T00:00:00Z \
@@ -315,8 +325,8 @@ python ml_trainer.py download-data \
   --batch-size 1000
 ```
 
-The command downloads the rows between the two timestamps and writes them to the
-given file path using your configured Supabase credentials.
+To process a local file, replace the URL with the file path. The command writes
+the parsed rows to the given output file before inserting them into Supabase.
 
 ## GPU Training
 

@@ -5,8 +5,8 @@ from dotenv import load_dotenv
 from typing import Optional
 
 import io
-import requests
 import pandas as pd
+import requests
 from supabase import create_client
 
 load_dotenv()
@@ -30,17 +30,25 @@ def download_historical_data(
     optionally be saved to ``output_file``.
     """
 
-    response = requests.get(source_url)
-    response.raise_for_status()
+    is_local = os.path.isfile(source_url) or source_url.startswith("file://")
 
-    if output_file:
-        with open(output_file, "wb") as f:
-            f.write(response.content)
-
-    df = pd.read_csv(
-        io.StringIO(response.text),
-        skiprows=1 if "cryptodatadownload" in source_url.lower() else 0,
-    )
+    if is_local:
+        if source_url.startswith("file://"):
+            source_url = source_url[7:]
+        df = pd.read_csv(
+            source_url,
+            skiprows=1 if "cryptodatadownload" in source_url.lower() else 0,
+        )
+    else:
+        response = requests.get(source_url)
+        response.raise_for_status()
+        if output_file:
+            with open(output_file, "wb") as f:
+                f.write(response.content)
+        df = pd.read_csv(
+            io.StringIO(response.text),
+            skiprows=1 if "cryptodatadownload" in source_url.lower() else 0,
+        )
 
     return df
 
