@@ -124,9 +124,9 @@ def test_insert_to_supabase_batches(monkeypatch):
         batch_size=2,
     )
 
-    assert len(inserted) == 2
-    assert sum(len(b) for b in inserted) == 3
-    assert fake_client.rpcs
+    assert len(inserted) == 4
+    assert sum(len(b) for b in inserted) == 6
+    assert len(fake_client.rpcs) == 1
     assert "historical_prices_btc" in fake_client.rpcs[0][1]["query"]
     assert all(t == "historical_prices_btc" for t in fake_client.tables)
 
