@@ -170,6 +170,36 @@ def test_insert_to_supabase_custom_table(monkeypatch):
     assert all(t == "prices" for t in fake_client.tables)
 
 
+def test_insert_to_supabase_datetime_conversion(monkeypatch):
+    df = pd.DataFrame({"ts": pd.date_range("2021-01-01", periods=2, freq="H")})
+    captured: list[dict] = []
+
+    class FakeTable:
+        def insert(self, rows):
+            captured.extend(rows)
+            return types.SimpleNamespace(execute=lambda: None)
+
+    class FakeClient:
+        def __init__(self):
+            self.rpcs = []
+
+        def table(self, name):
+            return FakeTable()
+
+        def rpc(self, name, params):
+            self.rpcs.append((name, params))
+            return types.SimpleNamespace(execute=lambda: None)
+
+    def fake_create(url, key):
+        return FakeClient()
+
+    monkeypatch.setattr(hdi, "create_client", fake_create)
+
+    hdi.insert_to_supabase(df, "http://localhost", "key", symbol="BTC", batch_size=1)
+
+    assert all(isinstance(row["ts"], str) for row in captured)
+
+
 def test_cli_import_data(monkeypatch):
     captured = {}
 
