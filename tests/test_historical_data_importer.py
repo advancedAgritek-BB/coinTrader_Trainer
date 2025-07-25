@@ -69,6 +69,23 @@ def test_download_historical_data_skip_banner(tmp_path):
     assert list(df.columns[:2]) == ["ts", "price"]
 
 
+def test_download_historical_data_drop_duplicate_ts(tmp_path):
+    data = pd.DataFrame(
+        {
+            "unix": [1, 2, 3],
+            "date": pd.date_range("2021-01-01", periods=3, freq="D"),
+            "close": [1, 2, 3],
+        }
+    )
+    csv_path = tmp_path / "dup.csv"
+    data.to_csv(csv_path, index=False)
+
+    df = hdi.download_historical_data(str(csv_path))
+
+    assert "ts" in df.columns
+    assert not df.columns.duplicated().any()
+
+
 def test_insert_to_supabase_batches(monkeypatch):
     df = pd.DataFrame({"a": [1, 2, 3]})
     inserted: list[list[dict]] = []

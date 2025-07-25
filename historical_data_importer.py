@@ -54,6 +54,9 @@ def download_historical_data(
             if col.lower() in rename_map_lower
         }
     )
+    # Drop duplicate columns created by renaming (e.g. 'unix' and 'date')
+    if df.columns.duplicated().any():
+        df = df.loc[:, ~df.columns.duplicated()]
 
     if "ts" not in df.columns or "price" not in df.columns:
         raise ValueError("CSV must contain timestamp and close/price columns")
