@@ -80,6 +80,9 @@ def _insert_batch(client: Client, table: str, rows: list[dict]) -> None:
     client.table(table).insert(rows).execute()
 
 
+_INSERTED_TABLES: set[tuple[int, str]] = set()
+
+
 def ensure_table_exists(symbol: str, *, client: Optional[Client] = None) -> str:
     """Create historical prices table for ``symbol`` if needed and return its name."""
     table = f"historical_prices_{symbol.lower()}"
@@ -96,9 +99,9 @@ def ensure_table_exists(symbol: str, *, client: Optional[Client] = None) -> str:
 
 def insert_to_supabase(
     df: pd.DataFrame,
-    *,
     url: Optional[str] = None,
     key: Optional[str] = None,
+    *,
     table: str | None = "historical_prices",
     symbol: Optional[str] = None,
     client: Optional[Client] = None,
@@ -122,6 +125,11 @@ def insert_to_supabase(
         table = ensure_table_exists(symbol, client=client)
     elif table is None:
         table = "historical_prices"
+
+    key_table = (id(client), table)
+    if key_table in _INSERTED_TABLES:
+        return
+    _INSERTED_TABLES.add(key_table)
 
     records = df.to_dict(orient="records")
     for i in range(0, len(records), batch_size):
