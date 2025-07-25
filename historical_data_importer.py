@@ -9,6 +9,7 @@ from typing import Optional
 import pandas as pd
 from dotenv import load_dotenv
 from supabase import Client, create_client
+from postgrest.exceptions import APIError
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 load_dotenv()
@@ -116,7 +117,12 @@ def ensure_table_exists(symbol: str, *, client: Optional[Client] = None) -> str:
         "(like historical_prices including defaults including constraints)"
     )
     # Use Supabase RPC to execute the SQL statement
-    client.rpc("sql", {"query": sql}).execute()
+    try:
+        client.rpc("sql", {"query": sql}).execute()
+    except APIError as exc:
+        if exc.code == "42P01":
+            raise RuntimeError("historical_prices table must exist") from exc
+        raise
     return table
 
 

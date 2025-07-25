@@ -214,3 +214,18 @@ def test_cli_import_csv(monkeypatch):
     assert captured["symbol"] == "ETH"
     assert captured["table"] == "historical_prices_eth"
     assert captured["insert_symbol"] == "ETH"
+
+
+def test_ensure_table_exists_requires_base_table():
+    class FakeRpc:
+        def execute(self):
+            from postgrest.exceptions import APIError
+
+            raise APIError({"code": "42P01"})
+
+    class FakeClient:
+        def rpc(self, name, params):
+            return FakeRpc()
+
+    with pytest.raises(RuntimeError):
+        hdi.ensure_table_exists("BTC", client=FakeClient())
