@@ -23,7 +23,16 @@ def download_historical_data(
     output_path: Optional[str] = None,
 ) -> pd.DataFrame:
     """Load historical price data from ``path`` and return a normalized DataFrame."""
-    df = pd.read_csv(path)
+    skiprows = 0
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            first_line = f.readline()
+        if "cryptodatadownload" in first_line.lower():
+            skiprows = 1
+    except OSError:
+        pass
+
+    df = pd.read_csv(path, skiprows=skiprows)
 
     # Normalize column names to a standard schema
     rename_map = {

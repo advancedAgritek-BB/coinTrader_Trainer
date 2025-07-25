@@ -55,6 +55,20 @@ def test_download_historical_data_alt_timestamp(tmp_path, time_col):
     assert "price" in df.columns
 
 
+def test_download_historical_data_skip_banner(tmp_path):
+    content = (
+        "https://www.CryptoDataDownload.com\n"
+        "timestamp,close\n"
+        "2024-01-01,1\n"
+    )
+    csv_path = tmp_path / "banner.csv"
+    csv_path.write_text(content)
+
+    df = hdi.download_historical_data(str(csv_path))
+
+    assert list(df.columns[:2]) == ["ts", "price"]
+
+
 def test_insert_to_supabase_batches(monkeypatch):
     df = pd.DataFrame({"a": [1, 2, 3]})
     inserted: list[list[dict]] = []
