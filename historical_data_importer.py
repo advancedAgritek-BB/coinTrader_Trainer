@@ -43,6 +43,9 @@ def download_historical_data(
         "high": "high",
         "low": "low",
         "volume": "volume",
+        "volume usdt": "volume",
+        "volume btc": "volume",
+        "symbol": "symbol",
     }
     # Handle common alternative timestamp column names
     rename_map.update({"unix": "ts", "date": "ts"})
@@ -80,6 +83,9 @@ def download_historical_data(
     df = df.sort_values("ts").drop_duplicates("ts").reset_index(drop=True)
     if "target" not in df.columns:
         df["target"] = (df["price"].shift(-1) > df["price"]).fillna(0).astype(int)
+
+    keep_cols = {"ts", "open", "high", "low", "price", "volume", "target"}
+    df = df[[c for c in df.columns if c in keep_cols]]
 
     if output_path:
         if output_path.endswith(".parquet"):

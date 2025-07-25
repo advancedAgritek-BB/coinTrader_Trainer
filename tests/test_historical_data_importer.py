@@ -86,6 +86,24 @@ def test_download_historical_data_drop_duplicate_ts(tmp_path):
     assert not df.columns.duplicated().any()
 
 
+def test_download_historical_data_drops_unknown_columns(tmp_path):
+    data = pd.DataFrame(
+        {
+            "timestamp": [0, 1],
+            "close": [1, 2],
+            "symbol": ["BTC", "BTC"],
+            "Volume USDT": [10, 20],
+            "tradecount": [100, 200],
+        }
+    )
+    csv = tmp_path / "prices.csv"
+    data.to_csv(csv, index=False)
+
+    df = hdi.download_historical_data(str(csv), symbol="BTC")
+
+    assert set(df.columns) <= {"ts", "price", "volume", "target"}
+
+
 def test_insert_to_supabase_batches(monkeypatch):
     df = pd.DataFrame({"a": [1, 2, 3]})
     inserted: list[list[dict]] = []
