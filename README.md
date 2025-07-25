@@ -56,6 +56,11 @@ Windows users should activate the environment with:
 ./.venv\Scripts\Activate.ps1
 ```
 
+If PowerShell blocks the script, run
+`Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` in the same
+session to temporarily allow script execution. Alternatively, switch to
+Command Prompt and run `./.venv\Scripts\activate`.
+
 or in Command Prompt:
 
 ```cmd
