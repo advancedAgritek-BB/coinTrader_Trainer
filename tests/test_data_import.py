@@ -14,3 +14,18 @@ def test_download_historical_data_local(tmp_path):
 
     df = data_import.download_historical_data(str(csv_path))
     pd.testing.assert_frame_equal(df, df_in)
+
+
+def test_download_historical_data_skip_banner(tmp_path):
+    content = (
+        "https://www.CryptoDataDownload.com\n"
+        "Unix,Date,Symbol,Open\n"
+        "1,2024-01-01,TEST,100\n"
+    )
+    csv_path = tmp_path / "banner.csv"
+    csv_path.write_text(content)
+    df = data_import.download_historical_data(str(csv_path))
+    expected = pd.DataFrame(
+        {"Unix": [1], "Date": ["2024-01-01"], "Symbol": ["TEST"], "Open": [100]}
+    )
+    pd.testing.assert_frame_equal(df, expected)
