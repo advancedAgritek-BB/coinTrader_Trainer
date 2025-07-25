@@ -88,8 +88,7 @@ def main() -> None:  # pragma: no cover - CLI entry
     csv_p.add_argument(
         "--table",
         help="Supabase table name (defaults to historical_prices_<symbol>)",
-        default="historical_prices",
-        help="Supabase table name",
+        default=None,
     )
 
     import_p = sub.add_parser("import-data", help="Download historical data and insert to Supabase")
@@ -140,6 +139,9 @@ def main() -> None:  # pragma: no cover - CLI entry
         raise SystemExit(f"Unknown task: {args.task}")
 
     trainer_fn, cfg_key = TRAINERS[args.task]
+    if trainer_fn is None:
+        raise SystemExit(f"Trainer '{args.task}' not available, install LightGBM")
+
     if args.federated:
         if args.task != "regime":
             raise SystemExit("--federated only supported for 'regime' task")
