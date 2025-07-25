@@ -87,6 +87,8 @@ def main() -> None:  # pragma: no cover - CLI entry
     csv_p.add_argument(
         "--table",
         help="Supabase table name (defaults to historical_prices_<symbol>)",
+        default="historical_prices",
+        help="Supabase table name",
     )
 
     import_p = sub.add_parser("import-data", help="Download historical data and insert to Supabase")
