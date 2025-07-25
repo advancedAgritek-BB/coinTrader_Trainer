@@ -96,9 +96,9 @@ def ensure_table_exists(symbol: str, *, client: Optional[Client] = None) -> str:
 
 def insert_to_supabase(
     df: pd.DataFrame,
-    arg1: str,
-    arg2: Optional[str] = None,
     *,
+    url: Optional[str] = None,
+    key: Optional[str] = None,
     table: str | None = "historical_prices",
     symbol: Optional[str] = None,
     client: Optional[Client] = None,
@@ -106,18 +106,17 @@ def insert_to_supabase(
 ) -> None:
     """Insert ``df`` rows into Supabase.
 
-    ``insert_to_supabase(df, table, client=client)`` uses an existing client.
-    ``insert_to_supabase(df, url, key, table="tbl")`` creates the client from
-    ``url`` and ``key``.
+    A new Supabase ``Client`` is created from ``url`` and ``key`` if provided.
+    Otherwise ``client`` is used or created from environment variables.
     """
-    if arg2 is None:
-        table = arg1
-        if client is None:
+
+    if client is None:
+        if url is not None and key is not None:
+            client = create_client(url, key)
+        elif url is None and key is None:
             client = _get_write_client()
-    else:
-        url = arg1
-        key = arg2
-        client = create_client(url, key)
+        else:
+            raise ValueError("Both url and key must be provided")
 
     if symbol is not None:
         table = ensure_table_exists(symbol, client=client)
