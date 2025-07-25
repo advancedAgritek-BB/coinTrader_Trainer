@@ -145,14 +145,14 @@ def insert_to_supabase(
             raise ValueError("Both url and key must be provided")
 
     if symbol is not None:
-        table = ensure_table_exists(symbol, client=client)
+        table_name = f"historical_prices_{symbol.lower()}"
+        key_table = (id(client), table_name)
+        if key_table not in _INSERTED_TABLES:
+            ensure_table_exists(symbol, client=client)
+            _INSERTED_TABLES.add(key_table)
+        table = table_name
     elif table is None:
         table = "historical_prices"
-
-    key_table = (id(client), table)
-    if key_table in _INSERTED_TABLES:
-        return
-    _INSERTED_TABLES.add(key_table)
 
     records = df.to_dict(orient="records")
     for i in range(0, len(records), batch_size):
