@@ -160,8 +160,9 @@ The ``make_features`` function now accepts several parameters to customise the
 technical indicators that are produced:
 * ``rsi_period`` – lookback window for the relative strength index (default ``14``)
 * ``atr_window`` – average true range window (default ``3``)
-* ``volatility_period`` – period used to compute log return volatility (default ``20``)
-* ``ema_periods`` – list of exponential moving average periods to generate
+* ``volatility_window`` – period used to compute log return volatility (default ``20``)
+* ``ema_short_period`` – window for the short-term EMA (default ``12``)
+* ``ema_long_period`` – window for the long-term EMA (default ``26``)
 
 GPU acceleration is possible when the `cudf` package is installed.  Pass
 ``use_gpu=True`` to ``make_features`` to switch to GPU-backed DataFrame
