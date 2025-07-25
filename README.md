@@ -312,8 +312,8 @@ uploaded to the ``models`` bucket automatically.
 
 ### Importing Historical Data
 
-Use the ``import-data`` command to load a CSV from a URL or local path and
-upload the rows to Supabase. Specify the desired time window:
+Use the ``import-data`` command to load a CSV of trade logs from a URL or
+local path and upload the rows to Supabase. Specify the desired time window:
 
 ```bash
 python ml_trainer.py import-data \
@@ -327,6 +327,15 @@ python ml_trainer.py import-data \
 
 To process a local file, replace the URL with the file path. The command writes
 the parsed rows to the given output file before inserting them into Supabase.
+
+``import-data`` expects trade log entries with the same columns that the live
+system stores in ``trade_logs``.  For importing OHLCV datasets use the
+``import-csv`` command instead.  It reads a CSV of candle data and inserts the
+rows into the requested table:
+
+```bash
+python ml_trainer.py import-csv ./prices.csv --table historical_prices
+```
 
 ## GPU Training
 
