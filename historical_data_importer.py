@@ -125,7 +125,7 @@ def insert_to_supabase(
     url: Optional[str] = None,
     key: Optional[str] = None,
     *,
-    table: str | None = "historical_prices",
+    table: str | None = None,
     symbol: Optional[str] = None,
     client: Optional[Client] = None,
     batch_size: int = 500,
@@ -150,7 +150,8 @@ def insert_to_supabase(
         if key_table not in _INSERTED_TABLES:
             ensure_table_exists(symbol, client=client)
             _INSERTED_TABLES.add(key_table)
-        table = table_name
+        if table is None:
+            table = table_name
     elif table is None:
         table = "historical_prices"
 

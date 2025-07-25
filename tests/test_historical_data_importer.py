@@ -131,6 +131,45 @@ def test_insert_to_supabase_batches(monkeypatch):
     assert all(t == "historical_prices_btc" for t in fake_client.tables)
 
 
+def test_insert_to_supabase_custom_table(monkeypatch):
+    df = pd.DataFrame({"a": [1, 2, 3]})
+    inserted: list[list[dict]] = []
+
+    class FakeTable:
+        def insert(self, rows):
+            inserted.append(rows)
+            return types.SimpleNamespace(execute=lambda: None)
+
+    class FakeClient:
+        def __init__(self):
+            self.rpcs = []
+            self.tables = []
+
+        def table(self, name):
+            self.tables.append(name)
+            return FakeTable()
+
+        def rpc(self, name, params):
+            self.rpcs.append((name, params))
+            return types.SimpleNamespace(execute=lambda: None)
+
+    fake_client = FakeClient()
+
+    def fake_create(url, key):
+        return fake_client
+
+    monkeypatch.setattr(hdi, "create_client", fake_create)
+
+    hdi.insert_to_supabase(df, "http://localhost", "key", symbol="BTC", table="prices", batch_size=2)
+    hdi.insert_to_supabase(df, url="http://localhost", key="key", symbol="BTC", table="prices", batch_size=2)
+
+    assert len(inserted) == 4
+    assert sum(len(b) for b in inserted) == 6
+    assert len(fake_client.rpcs) == 1
+    assert "historical_prices_btc" in fake_client.rpcs[0][1]["query"]
+    assert all(t == "prices" for t in fake_client.tables)
+
+
 def test_cli_import_data(monkeypatch):
     captured = {}
 
