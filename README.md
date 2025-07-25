@@ -338,7 +338,7 @@ system stores in ``trade_logs``.  For importing OHLCV datasets use the
 rows into the requested table:
 
 ```bash
-python ml_trainer.py import-csv ./prices.csv --table historical_prices
+python ml_trainer.py import-csv ./prices.csv --symbol BTC --table historical_prices
 ```
 
 ## GPU Training
