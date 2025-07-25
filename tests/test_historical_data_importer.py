@@ -3,6 +3,7 @@ import sys
 import types
 
 import pandas as pd
+import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 import historical_data_importer as hdi
@@ -37,6 +38,21 @@ def test_download_historical_data(tmp_path):
     assert "target" in df.columns
     expected_target = (df["price"].shift(-1) > df["price"]).fillna(0).astype(int)
     pd.testing.assert_series_equal(df["target"], expected_target, check_names=False)
+
+
+@pytest.mark.parametrize("time_col", ["unix", "date", "UNIX", "Date"])
+def test_download_historical_data_alt_timestamp(tmp_path, time_col):
+    data = pd.DataFrame({
+        time_col: pd.date_range("2021-01-01", periods=3, freq="D"),
+        "close": [1, 2, 3],
+    })
+    csv_path = tmp_path / "prices.csv"
+    data.to_csv(csv_path, index=False)
+
+    df = hdi.download_historical_data(str(csv_path))
+
+    assert "ts" in df.columns
+    assert "price" in df.columns
 
 
 def test_insert_to_supabase_batches(monkeypatch):
