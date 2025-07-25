@@ -81,9 +81,13 @@ def main() -> None:  # pragma: no cover - CLI entry
 
     csv_p = sub.add_parser("import-csv", help="Import historical CSV data")
     csv_p.add_argument("csv", help="CSV file path")
+    csv_p.add_argument("--symbol", required=True, help="Trading pair symbol")
     csv_p.add_argument("--start-ts", help="Start timestamp (ISO)")
     csv_p.add_argument("--end-ts", help="End timestamp (ISO)")
-    csv_p.add_argument("--table", default="ohlcv", help="Supabase table name")
+    csv_p.add_argument(
+        "--table",
+        help="Supabase table name (defaults to historical_prices_<symbol>)",
+    )
 
     import_p = sub.add_parser("import-data", help="Download historical data and insert to Supabase")
     import_p.add_argument("--source-url", required=True, help="HTTP endpoint for historical data")
@@ -110,6 +114,7 @@ def main() -> None:  # pragma: no cover - CLI entry
     if args.command == "import-csv":
         df = historical_data_importer.download_historical_data(
             args.csv,
+            symbol=args.symbol,
             start_ts=args.start_ts,
             end_ts=args.end_ts,
         )
@@ -117,7 +122,10 @@ def main() -> None:  # pragma: no cover - CLI entry
         key = os.environ.get("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABASE_KEY")
         if not url or not key:
             raise SystemExit("SUPABASE_URL and service key must be set")
-        historical_data_importer.insert_to_supabase(df, url, key, table=args.table)
+        table = args.table or f"historical_prices_{args.symbol.lower()}"
+        historical_data_importer.insert_to_supabase(
+            df, url, key, table=table, symbol=args.symbol
+        )
         return
 
     cfg = load_cfg(args.cfg)

@@ -43,18 +43,32 @@ def test_insert_to_supabase_batches(monkeypatch):
             return types.SimpleNamespace(execute=lambda: None)
 
     class FakeClient:
+        def __init__(self):
+            self.rpcs = []
+            self.tables = []
+
         def table(self, name):
+            self.tables.append(name)
             return FakeTable()
 
+        def rpc(self, name, params):
+            self.rpcs.append((name, params))
+            return types.SimpleNamespace(execute=lambda: None)
+
+    fake_client = FakeClient()
+
     def fake_create(url, key):
-        return FakeClient()
+        return fake_client
 
     monkeypatch.setattr(hdi, 'create_client', fake_create)
 
-    hdi.insert_to_supabase(df, 'http://localhost', 'key', table='t', batch_size=2)
+    hdi.insert_to_supabase(df, 'http://localhost', 'key', symbol='BTC', batch_size=2)
 
     assert len(inserted) == 2
     assert sum(len(b) for b in inserted) == 3
+    assert fake_client.rpcs
+    assert 'historical_prices_btc' in fake_client.rpcs[0][1]['query']
+    assert all(t == 'historical_prices_btc' for t in fake_client.tables)
 
 
 def test_cli_import_data(monkeypatch):
@@ -97,3 +111,28 @@ def test_cli_import_data(monkeypatch):
         'http://host/data.csv', 'BTC', '2021-01-01', '2021-01-02', 2, 'out.parquet'
     )
     assert captured['batch'] == 2
+
+
+def test_cli_import_csv(monkeypatch):
+    captured = {}
+
+    def fake_download(path, *, symbol=None, start_ts=None, end_ts=None, output_path=None):
+        captured['symbol'] = symbol
+        return pd.DataFrame()
+
+    def fake_insert(df, url, key, table=None, symbol=None, batch_size=500):
+        captured['table'] = table
+        captured['insert_symbol'] = symbol
+
+    monkeypatch.setattr(hdi, 'download_historical_data', fake_download)
+    monkeypatch.setattr(hdi, 'insert_to_supabase', fake_insert)
+
+    monkeypatch.setattr(sys, 'argv', ['prog', 'import-csv', 'prices.csv', '--symbol', 'ETH'])
+    monkeypatch.setenv('SUPABASE_URL', 'http://sb')
+    monkeypatch.setenv('SUPABASE_SERVICE_KEY', 'key')
+
+    ml_trainer.main()
+
+    assert captured['symbol'] == 'ETH'
+    assert captured['table'] == 'historical_prices_eth'
+    assert captured['insert_symbol'] == 'ETH'
