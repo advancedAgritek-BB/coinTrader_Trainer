@@ -77,6 +77,7 @@ def main() -> None:  # pragma: no cover - CLI entry
     train_p.add_argument("--federated", action="store_true", help="Use federated learning (regime task only)")
     train_p.add_argument("--start-ts", help="Data start timestamp (ISO format)")
     train_p.add_argument("--end-ts", help="Data end timestamp (ISO format)")
+    train_p.add_argument("--table", default="trade_logs", help="Supabase table name")
     train_p.add_argument("--profile-gpu", action="store_true", help="Profile GPU usage with AMD RGP")
 
     csv_p = sub.add_parser("import-csv", help="Import historical CSV data")
@@ -155,7 +156,9 @@ def main() -> None:  # pragma: no cover - CLI entry
             raise SystemExit("--swarm requires the 'swarm_sim' module to be installed") from exc
         end_ts = datetime.utcnow()
         start_ts = end_ts - timedelta(days=7)
-        swarm_params = asyncio.run(swarm_sim.run_swarm_search(start_ts, end_ts))
+        swarm_params = asyncio.run(
+            swarm_sim.run_swarm_search(start_ts, end_ts, table=args.table)
+        )
         if isinstance(swarm_params, dict):
             params.update(swarm_params)
 
@@ -176,6 +179,7 @@ def main() -> None:  # pragma: no cover - CLI entry
             args.end_ts,
             config_path=args.cfg,
             params_override=params,
+            table=args.table,
         )
     else:
         X, y = _make_dummy_data()

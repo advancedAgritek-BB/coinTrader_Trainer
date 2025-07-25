@@ -19,6 +19,7 @@ def test_default_window_used(monkeypatch, tmp_path):
     Args.cfg = str(cfg_path)
     Args.start_ts = None
     Args.end_ts = None
+    Args.table = "trade_logs"
 
     monkeypatch.setattr(train_pipeline, "parse_args", lambda: Args)
     monkeypatch.setenv("SUPABASE_URL", "http://localhost")
@@ -36,7 +37,7 @@ def test_default_window_used(monkeypatch, tmp_path):
 
     captured = {}
 
-    def fake_fetch(start, end):
+    def fake_fetch(start, end, **k):
         captured["start"] = start
         captured["end"] = end
         return pd.DataFrame({"ts": [start], "target": [0]})
