@@ -239,8 +239,15 @@ def test_insert_to_supabase_datetime_conversion(monkeypatch):
 def test_cli_import_data(monkeypatch):
     captured = {}
 
-    def fake_download(url, symbol, start_ts, end_ts, batch_size=1000, output_file=None):
-        captured["args"] = (url, symbol, start_ts, end_ts, batch_size, output_file)
+    def fake_download(
+        url,
+        *,
+        output_file=None,
+        symbol=None,
+        start_ts=None,
+        end_ts=None,
+    ):
+        captured["args"] = (url, output_file, symbol, start_ts, end_ts)
         return pd.DataFrame()
 
     def fake_insert(df, batch_size=1000):
@@ -274,11 +281,10 @@ def test_cli_import_data(monkeypatch):
 
     assert captured["args"] == (
         "http://host/data.csv",
+        "out.parquet",
         "BTC",
         "2021-01-01",
         "2021-01-02",
-        2,
-        "out.parquet",
     )
     assert captured["batch"] == 2
 
