@@ -243,7 +243,7 @@ def test_insert_to_supabase_custom_table(monkeypatch):
 
 
 def test_insert_to_supabase_datetime_conversion(monkeypatch):
-    df = pd.DataFrame({"timestamp": pd.date_range("2021-01-01", periods=2, freq="H", tz="UTC")})
+    df = pd.DataFrame({"timestamp": pd.date_range("2021-01-01", periods=2, freq="h", tz="UTC")})
     captured: list[dict] = []
 
     class FakeTable:
