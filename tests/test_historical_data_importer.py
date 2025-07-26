@@ -175,6 +175,7 @@ def test_insert_to_supabase_batches(monkeypatch):
             return types.SimpleNamespace(execute=lambda: None)
 
     fake_client = FakeClient()
+    hdi._INSERTED_TABLES.clear()
 
     def fake_create(url, key):
         return fake_client
@@ -227,6 +228,7 @@ def test_insert_to_supabase_custom_table(monkeypatch):
 
     fake_client = FakeClient()
 
+    hdi._INSERTED_TABLES.clear()
     def fake_create(url, key):
         return fake_client
 

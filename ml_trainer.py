@@ -89,7 +89,7 @@ def main() -> None:  # pragma: no cover - CLI entry
     )
     train_p.add_argument("--start-ts", help="Data start timestamp (ISO format)")
     train_p.add_argument("--end-ts", help="Data end timestamp (ISO format)")
-    train_p.add_argument("--table", default="trade_logs", help="Supabase table name")
+    train_p.add_argument("--table", default="ohlc_data", help="Supabase table name")
     train_p.add_argument(
         "--profile-gpu", action="store_true", help="Profile GPU usage with AMD RGP"
     )

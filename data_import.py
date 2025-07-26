@@ -112,7 +112,7 @@ def _insert_batch(client: Client, table: str, rows: list[dict]) -> None:
 def insert_to_supabase(
     df: pd.DataFrame,
     *,
-    table: str = "trade_logs",
+    table: str = "ohlc_data",
     batch_size: int = 1000,
 ) -> None:
     """Insert ``df`` rows into ``table`` using Supabase credentials."""

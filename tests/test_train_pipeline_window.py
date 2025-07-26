@@ -20,7 +20,7 @@ def test_default_window_used(monkeypatch, tmp_path):
     Args.cfg = str(cfg_path)
     Args.start_ts = None
     Args.end_ts = None
-    Args.table = "trade_logs"
+    Args.table = "ohlc_data"
 
     monkeypatch.setattr(train_pipeline, "parse_args", lambda: Args)
     monkeypatch.setenv("SUPABASE_URL", "http://localhost")

@@ -81,7 +81,7 @@ def _fetch_logs(
     end_ts: datetime,
     *,
     symbol: Optional[str] = None,
-    table: str = "trade_logs",
+    table: str = "ohlc_data",
 ) -> list[dict]:
     """Fetch rows from ``table`` between ``start_ts`` and ``end_ts`` with retry."""
     query = (
@@ -101,7 +101,7 @@ def fetch_trade_logs(
     end_ts: datetime,
     *,
     symbol: Optional[str] = None,
-    table: str = "trade_logs",
+    table: str = "ohlc_data",
     cache_path: Optional[str] = None,
     redis_client: Optional[Any] = None,
     redis_key: Optional[str] = None,

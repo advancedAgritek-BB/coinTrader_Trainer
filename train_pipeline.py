@@ -49,7 +49,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--cfg", default="cfg.yaml", help="Config file path")
     parser.add_argument("--start-ts", help="Start timestamp ISO format")
     parser.add_argument("--end-ts", help="End timestamp ISO format")
-    parser.add_argument("--table", default="trade_logs", help="Supabase table name")
+    parser.add_argument("--table", default="ohlc_data", help="Supabase table name")
     return parser.parse_args()
 
 

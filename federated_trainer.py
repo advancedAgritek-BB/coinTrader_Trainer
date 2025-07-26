@@ -30,7 +30,7 @@ __all__ = ["train_federated_regime"]
 
 
 async def _fetch_async(
-    start: str, end: str, *, table: str = "trade_logs"
+    start: str, end: str, *, table: str = "ohlc_data"
 ) -> pd.DataFrame:
     """Fetch trade logs between ``start`` and ``end`` asynchronously."""
     return await fetch_data_range_async(table, start, end)
@@ -53,7 +53,7 @@ def _prepare_data(
     end_ts: str | pd.Timestamp,
     symbols: Optional[Iterable[str]] = None,
     *,
-    table: str = "trade_logs",
+    table: str = "ohlc_data",
 ) -> Tuple[pd.DataFrame, pd.Series]:
     start = (
         start_ts.isoformat() if isinstance(start_ts, pd.Timestamp) else str(start_ts)
@@ -98,7 +98,7 @@ def train_federated_regime(
     num_clients: int = 3,
     config_path: str = "cfg.yaml",
     params_override: Optional[dict] = None,
-    table: str = "trade_logs",
+    table: str = "ohlc_data",
 ) -> Tuple[FederatedEnsemble, dict]:
     """Train LightGBM models across ``num_clients`` and aggregate their predictions."""
 
