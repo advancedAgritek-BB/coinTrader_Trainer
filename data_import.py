@@ -44,13 +44,9 @@ def download_historical_data(
         resp.raise_for_status()
         if output_file:
             with open(output_file, "wb") as f:
-                f.write(response.content)
-        first_line = response.text.splitlines()[0].lower()
+                f.write(resp.content)
+        first_line = resp.text.splitlines()[0].lower()
         skiprows = 1 if "cryptodatadownload" in first_line else 0
-
-        df = pd.read_csv(io.StringIO(response.text), skiprows=skiprows)
-            with open(output_file, "wb") as fh:
-                fh.write(resp.content)
         df = pd.read_csv(io.StringIO(resp.text), skiprows=skiprows)
 
     rename_map = {
