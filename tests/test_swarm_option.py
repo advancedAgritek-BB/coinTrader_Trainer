@@ -37,7 +37,7 @@ def test_cli_swarm_merges_params(monkeypatch):
         ),
     )
 
-    async def fake_run(start, end, *, table="trade_logs"):
+    async def fake_run(start, end, *, table="ohlc_data"):
         captured["swarm_called"] = True
         captured["table"] = table
         return {"learning_rate": 0.1}

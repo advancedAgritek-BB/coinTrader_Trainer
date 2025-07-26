@@ -20,7 +20,7 @@ import data_loader
 def test_fetch_trade_logs_symbol_filter(monkeypatch):
     called = {}
 
-    def fake_fetch(client, start_ts, end_ts, *, symbol=None, table="trade_logs"):
+    def fake_fetch(client, start_ts, end_ts, *, symbol=None, table="ohlc_data"):
         called["symbol"] = symbol
         called["table"] = table
         return [
@@ -62,7 +62,7 @@ def test_fetch_trade_logs_redis_cache(monkeypatch):
     r = fakeredis.FakeRedis()
     start = datetime(2021, 1, 1)
     end = datetime(2021, 1, 2)
-    key = f"trade_logs:{start.isoformat()}:{end.isoformat()}:BTC"
+    key = f"ohlc_data:{start.isoformat()}:{end.isoformat()}:BTC"
     df_cached = pd.DataFrame({"a": [1, 2]})
     r.set(key, df_cached.to_json(orient="split"))
 
@@ -110,7 +110,7 @@ def test_fetch_trade_logs_sets_redis(monkeypatch):
     fake_r = fakeredis.FakeRedis()
     monkeypatch.setattr(data_loader, "_get_redis_client", lambda: fake_r)
 
-    def fake_fetch(client, start_ts, end_ts, *, symbol=None, table="trade_logs"):
+    def fake_fetch(client, start_ts, end_ts, *, symbol=None, table="ohlc_data"):
         return [
             {"timestamp": start_ts.isoformat(), "symbol": symbol, "price": 1},
         ]

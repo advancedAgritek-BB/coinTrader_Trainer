@@ -21,7 +21,7 @@ load_dotenv()
 
 
 async def fetch_and_prepare_data(
-    start_ts: datetime | str, end_ts: datetime | str, *, table: str = "trade_logs"
+    start_ts: datetime | str, end_ts: datetime | str, *, table: str = "ohlc_data"
 ) -> tuple[pd.DataFrame, pd.Series]:
     """Fetch trade data and return feature matrix ``X`` and targets ``y``."""
 
@@ -120,7 +120,7 @@ async def run_swarm_search(
     end_ts: datetime,
     num_agents: int = 50,
     *,
-    table: str = "trade_logs",
+    table: str = "ohlc_data",
 ) -> Dict[str, Any]:
     """Run an asynchronous swarm optimisation simulation.
 

@@ -69,7 +69,7 @@ def test_swarm_merges_once(monkeypatch):
 
         return FakeBooster(), {}
 
-    async def fake_swarm(start, end, *, table="trade_logs"):
+    async def fake_swarm(start, end, *, table="ohlc_data"):
         captured["count"] += 1
         return {"lr": 0.1}
 
@@ -94,7 +94,7 @@ def test_swarm_merges_once(monkeypatch):
 def test_federated_param_merge(monkeypatch):
     captured = {}
 
-    def fake_federated(start, end, *, table="trade_logs", **kwargs):
+    def fake_federated(start, end, *, table="ohlc_data", **kwargs):
         captured["start"] = start
         captured["end"] = end
         captured["params"] = kwargs.get("params_override", {}).copy()

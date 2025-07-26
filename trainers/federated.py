@@ -38,7 +38,7 @@ def train_federated_regime(
 
     models: List[lgb.Booster] = []
     for _ in range(n_clients):
-        df = asyncio.run(fetch_data_range_async("trade_logs", "start", "end"))
+        df = asyncio.run(fetch_data_range_async("ohlc_data", "start", "end"))
         df = make_features(df)
         booster = _train_single(df, params)
         models.append(booster)

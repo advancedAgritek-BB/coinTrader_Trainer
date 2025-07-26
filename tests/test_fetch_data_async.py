@@ -56,14 +56,14 @@ async def test_fetch_data_range_async(monkeypatch):
     monkeypatch.setenv("SUPABASE_KEY", "test")
 
     async with fake_client() as client:
-        df1 = await fetch_table_async("trade_logs", page_size=CHUNK_SIZE, client=client)
-        df1 = await fetch_table_async("trade_logs", page_size=CHUNK_SIZE, client=client)
+        df1 = await fetch_table_async("ohlc_data", page_size=CHUNK_SIZE, client=client)
+        df1 = await fetch_table_async("ohlc_data", page_size=CHUNK_SIZE, client=client)
 
     df2 = await fetch_data_range_async(
-        "trade_logs", "start", "end", chunk_size=CHUNK_SIZE
+        "ohlc_data", "start", "end", chunk_size=CHUNK_SIZE
     )
     df3 = await fetch_data_between_async(
-        "trade_logs", "start", "end", chunk_size=CHUNK_SIZE
+        "ohlc_data", "start", "end", chunk_size=CHUNK_SIZE
     )
 
     expected = pd.concat([pd.DataFrame(p) for p in PAGES], ignore_index=True)
@@ -71,7 +71,7 @@ async def test_fetch_data_range_async(monkeypatch):
     pd.testing.assert_frame_equal(df2, expected)
     pd.testing.assert_frame_equal(df3, expected)
     df = await fetch_data_range_async(
-        "trade_logs",
+        "ohlc_data",
         "2021-01-01",
         "2021-01-02",
         chunk_size=CHUNK_SIZE,
@@ -97,7 +97,7 @@ async def test_fetch_data_async_table(monkeypatch):
     monkeypatch.setenv("SUPABASE_KEY", "test")
 
     async with fake_client() as client:
-        df = await fetch_data_async("trade_logs", page_size=CHUNK_SIZE, client=client)
+        df = await fetch_data_async("ohlc_data", page_size=CHUNK_SIZE, client=client)
 
     expected = pd.concat([pd.DataFrame(p) for p in PAGES], ignore_index=True)
     pd.testing.assert_frame_equal(df, expected)
@@ -120,6 +120,6 @@ async def test_async_headers_use_jwt(monkeypatch):
     monkeypatch.setenv("SUPABASE_KEY", "test")
     monkeypatch.setenv("SUPABASE_JWT", "token123")
 
-    await fetch_data_range_async("trade_logs", "s", "e")
+    await fetch_data_range_async("ohlc_data", "s", "e")
 
     assert captured["headers"]["Authorization"] == "Bearer token123"

@@ -50,4 +50,4 @@ def test_train_federated_regime_returns_callable_and_uploads(monkeypatch):
     assert callable(ensemble)
     assert "uploaded" in calls
     assert metrics["n_models"] == 1
-    assert calls["fetch"][0] == "trade_logs"
+    assert calls["fetch"][0] == "ohlc_data"
