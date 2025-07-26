@@ -52,7 +52,28 @@ def download_historical_data(
                 f.write(response.content)
         first_line = response.text.splitlines()[0].lower()
         skiprows = 1 if "cryptodatadownload" in first_line else 0
+
         df = pd.read_csv(io.StringIO(response.text), skiprows=skiprows)
+
+    rename_map = {
+        "timestamp": "ts",
+        "unix": "ts",
+        "date": "ts",
+        "close": "price",
+    }
+    rename_map_lower = {k.lower(): v for k, v in rename_map.items()}
+    df = df.rename(
+        columns={
+            col: rename_map_lower[col.lower()]
+            for col in df.columns
+            if col.lower() in rename_map_lower
+        }
+    )
+    if "ts" in df.columns:
+        df["ts"] = pd.to_datetime(df["ts"], utc=True)
+
+    if "ts" in df.columns and "price" in df.columns:
+        df = df.loc[:, ~df.columns.duplicated()]
 
     return df
 
