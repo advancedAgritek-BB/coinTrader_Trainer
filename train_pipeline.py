@@ -12,6 +12,7 @@ import subprocess
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import yaml
 from dotenv import load_dotenv
@@ -104,6 +105,11 @@ def main() -> None:
 
     labels = preds.argmax(axis=1) - 1
     sharpe = simulate_signal_pnl(df, labels)
+    if preds.ndim > 1:
+        pred_labels = np.argmax(preds, axis=1)
+    else:
+        pred_labels = (preds >= 0.5).astype(int)
+    sharpe = simulate_signal_pnl(df, pred_labels)
     eval_metrics = {"sharpe": sharpe}
 
     registry = ModelRegistry(url, key)

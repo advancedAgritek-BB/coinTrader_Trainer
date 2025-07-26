@@ -16,7 +16,7 @@ class FakeBooster:
 
 
 def test_train_federated_regime_returns_callable_and_uploads(monkeypatch):
-    df = pd.DataFrame({"f": [1, 2], "target": [0, 1]})
+    df = pd.DataFrame({"f": [1, 2, 3], "target": [-1, 0, 1]})
     calls = {}
 
     async def fake_fetch(table, start, end):
