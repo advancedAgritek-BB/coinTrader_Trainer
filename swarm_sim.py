@@ -170,7 +170,12 @@ async def run_swarm_search(
     if url and key:
         try:
             reg = ModelRegistry(url, key, bucket=bucket, table=table)
-            reg.upload_dict(best.params, "swarm_params", {"fitness": best.fitness})
+            entry_id = reg.upload_dict(
+                best.params,
+                "swarm_params",
+                {"fitness": best.fitness},
+            )
+            logging.info("Uploaded swarm parameters %s", entry_id)
         except Exception as exc:
             logging.exception("Failed to upload parameters: %s", exc)
     else:

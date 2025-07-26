@@ -95,3 +95,36 @@ class ModelRegistry:
         self.client.table(self.table).update({"approved": True}).eq(
             "id", model_id
         ).execute()
+
+    def upload_dict(
+        self,
+        obj: dict,
+        name: str,
+        metadata: Optional[dict] = None,
+        *,
+        approved: bool = False,
+    ) -> str:
+        """Upload a dictionary as JSON and return the inserted row ID."""
+
+        import json
+
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False, mode="w+b") as tmp:
+            tmp.write(json.dumps(obj).encode())
+            tmp.flush()
+            path = f"{name}.json"
+            tmp.seek(0)
+            self.client.storage.from_(self.bucket).upload(path, tmp.read())
+
+        os.unlink(tmp.name)
+
+        now = datetime.utcnow().isoformat()
+        entry = {
+            "name": name,
+            "path": path,
+            "metadata": metadata or {},
+            "approved": approved,
+            "created_at": now,
+            "updated_at": now,
+        }
+        resp = self.client.table(self.table).insert(entry).execute()
+        return resp.data[0]["id"]

@@ -43,3 +43,44 @@ def test_approve_calls_update(registry_with_dummy):
         reg.approve("1")
     except AttributeError:
         pytest.fail("approve() not implemented")
+
+
+def test_upload_dict_uploads_json(monkeypatch, registry_with_dummy):
+    reg, dummy = registry_with_dummy
+    captured = {}
+
+    class Table:
+        def insert(self, row):
+            captured["row"] = row
+            return types.SimpleNamespace(execute=lambda: types.SimpleNamespace(data=[{**row, "id": 1}]))
+
+    monkeypatch.setattr(reg.client, "table", lambda name: Table())
+
+    reg.upload_dict({"a": 1}, "params", {"m": 2})
+
+    assert dummy.storage.bucket.uploads
+    path, data = dummy.storage.bucket.uploads[-1]
+    assert path == "params.json"
+    import json
+
+    assert json.loads(data.decode()) == {"a": 1}
+    row = captured["row"]
+    assert row["metadata"] == {"m": 2}
+    assert not row["approved"]
+
+
+def test_upload_dict_approved(registry_with_dummy, monkeypatch):
+    reg, dummy = registry_with_dummy
+    captured = {}
+
+    class Table:
+        def insert(self, row):
+            captured["row"] = row
+            return types.SimpleNamespace(execute=lambda: types.SimpleNamespace(data=[{**row, "id": 1}]))
+
+    monkeypatch.setattr(reg.client, "table", lambda name: Table())
+
+    reg.upload_dict({}, "p", approved=True)
+
+    row = captured["row"]
+    assert row["approved"] is True
