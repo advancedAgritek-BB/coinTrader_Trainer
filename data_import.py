@@ -20,7 +20,6 @@ def download_historical_data(
     start_ts: Optional[str] = None,
     end_ts: Optional[str] = None,
     *,
-    batch_size: int = 1000,  # kept for backwards compatibility
     output_file: Optional[str] = None,
     return_threshold: float = 0.01,
 ) -> pd.DataFrame:
