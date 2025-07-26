@@ -230,11 +230,5 @@ __all__ = [
     "launch",
     "start_server",
     "start_client",
-    "LightGBMClient",
-    "booster_to_parameters",
-    "parameters_to_booster",
-    "start_server",
-    "start_client",
-    "run_federated_fl",
 ]
 

@@ -104,12 +104,11 @@ def main() -> None:
 
     preds = model.predict(X)
 
-    labels = preds.argmax(axis=1) - 1
-    sharpe = simulate_signal_pnl(df, labels)
     if preds.ndim > 1:
-        pred_labels = np.argmax(preds, axis=1)
+        pred_labels = preds.argmax(axis=1) - 1
     else:
         pred_labels = (preds >= 0.5).astype(int)
+
     sharpe = simulate_signal_pnl(df, pred_labels)
     eval_metrics = {"sharpe": sharpe}
 
