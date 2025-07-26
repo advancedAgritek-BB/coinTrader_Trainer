@@ -48,7 +48,7 @@ def test_default_window_used(monkeypatch, tmp_path):
 
     class FakeModel:
         def predict(self, data):
-            return np.zeros(len(data))
+            return np.zeros((len(data), 3))
 
     monkeypatch.setattr(
         train_pipeline,
