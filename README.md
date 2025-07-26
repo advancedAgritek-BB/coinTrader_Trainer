@@ -314,15 +314,16 @@ python ml_trainer.py import-data \
 
 ### Federated Training
 
-Passing the ``--federated`` flag enables federated learning. Each
-participant trains on its own dataset locally and only model parameters
-are shared for aggregation. Data never leaves the client machine.
-By default the configuration trains ``num_clients`` models over ``num_rounds`` aggregation rounds. These settings start at ``10`` clients and ``20`` rounds under the ``federated_regime`` section of ``cfg.yaml``.
+Passing the ``--federated`` flag runs a local federated **simulation**.  The
+trainer splits the dataset into ``num_clients`` partitions and trains a model on
+each in memory. Only the resulting weights are aggregated, so the individual
+rows never mix. This approach stays entirely within a single process and is
+useful for quick experiments.
 
-Passing the ``--federated`` flag runs a local simulation where multiple
-models are trained on different data splits and then aggregated.
-To launch a real federated learning session across machines, start the
-trainer with ``--true-federated`` which uses Flower under the hood.
+To run a true distributed federated session across machines, pass
+``--true-federated`` instead.  This launches a Flower server and multiple
+Flower clients that exchange parameters over the network while keeping each
+participant's data local.
 
 ```bash
 python ml_trainer.py train regime --true-federated \
@@ -340,6 +341,21 @@ Programmatic access is also available via
 from coinTrader_Trainer import federated_trainer
 
 ensemble, metrics = federated_trainer.train_federated_regime(
+    "2023-01-01T00:00:00Z", "2023-01-02T00:00:00Z"
+)
+```
+
+For the Flower-based variant, call ``federated_fl.start_server`` on the
+aggregation host and ``federated_fl.start_client`` on each participant:
+
+```python
+from coinTrader_Trainer import federated_fl
+
+# server side
+federated_fl.start_server(num_rounds=20)
+
+# client side
+federated_fl.start_client(
     "2023-01-01T00:00:00Z", "2023-01-02T00:00:00Z"
 )
 ```
