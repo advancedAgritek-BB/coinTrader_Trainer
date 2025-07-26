@@ -267,7 +267,7 @@ def main() -> None:  # pragma: no cover - CLI entry
             raise SystemExit("True federated training not supported")
         if not args.start_ts or not args.end_ts:
             raise SystemExit("--true-federated requires --start-ts and --end-ts")
-        federated_fl.launch(
+        federated_fl.start_server(
             args.start_ts,
             args.end_ts,
             config_path=args.cfg,

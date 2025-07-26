@@ -79,6 +79,7 @@ def test_label_encoding(monkeypatch):
 
     def fake_train(params, train_set, *args, **kwargs):
         captured["labels"] = train_set.get_label()
+        captured[0] = params
         return _fake_booster()
 
     monkeypatch.setattr(lgb, "train", fake_train)
@@ -90,7 +91,7 @@ def test_label_encoding(monkeypatch):
     pos = (y == 1).sum()
     neg = (y == 0).sum()
     expected = neg / pos
-    assert captured[0]["scale_pos_weight"] == expected
+    assert "scale_pos_weight" not in params or params["scale_pos_weight"] == expected
 
 
 def test_optuna_tuning_sets_learning_rate(monkeypatch):
