@@ -43,14 +43,11 @@ def download_historical_data(
         resp = requests.get(source_url)
         resp.raise_for_status()
         if output_file:
-            with open(output_file, "wb") as f:
-                f.write(response.content)
-        first_line = response.text.splitlines()[0].lower()
-        skiprows = 1 if "cryptodatadownload" in first_line else 0
-
-        df = pd.read_csv(io.StringIO(response.text), skiprows=skiprows)
             with open(output_file, "wb") as fh:
                 fh.write(resp.content)
+        first_line = resp.text.splitlines()[0].lower()
+        skiprows = 1 if "cryptodatadownload" in first_line else 0
+
         df = pd.read_csv(io.StringIO(resp.text), skiprows=skiprows)
 
     rename_map = {
@@ -79,45 +76,23 @@ def download_historical_data(
         df = df.loc[:, ~df.columns.duplicated()]
 
     if "ts" in df.columns:
-        df["ts"] = pd.to_datetime(df["ts"], errors="coerce", utc=True).dt.strftime(
-            "%Y-%m-%dT%H:%M:%S.%fZ"
-        )
+        df["ts"] = pd.to_datetime(df["ts"], errors="coerce", utc=True)
 
     if symbol is not None and "symbol" in df.columns:
         df = df[df["symbol"] == symbol]
 
     if start_ts is not None and "ts" in df.columns:
         start = pd.to_datetime(start_ts, utc=True)
-        df = df[df["ts"] >= start.strftime("%Y-%m-%dT%H:%M:%S.%fZ")]
+        df = df[df["ts"] >= start]
     if end_ts is not None and "ts" in df.columns:
         end = pd.to_datetime(end_ts, utc=True)
-        df = df[df["ts"] < end.strftime("%Y-%m-%dT%H:%M:%S.%fZ")]
+        df = df[df["ts"] < end]
 
     if "ts" in df.columns:
         df = df.sort_values("ts").reset_index(drop=True)
 
     if "target" not in df.columns and "price" in df.columns:
         df["target"] = (df["price"].shift(-1) > df["price"]).fillna(0).astype(int)
-
-    rename_map = {
-        "timestamp": "ts",
-        "unix": "ts",
-        "date": "ts",
-        "close": "price",
-    }
-    rename_map_lower = {k.lower(): v for k, v in rename_map.items()}
-    df = df.rename(
-        columns={
-            col: rename_map_lower[col.lower()]
-            for col in df.columns
-            if col.lower() in rename_map_lower
-        }
-    )
-    if "ts" in df.columns:
-        df["ts"] = pd.to_datetime(df["ts"], utc=True)
-
-    if "ts" in df.columns and "price" in df.columns:
-        df = df.loc[:, ~df.columns.duplicated()]
 
     return df
 
