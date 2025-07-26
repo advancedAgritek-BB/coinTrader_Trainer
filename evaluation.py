@@ -7,7 +7,10 @@ import pandas as pd
 
 
 def simulate_signal_pnl(
-    df: pd.DataFrame, preds: np.ndarray, costs: float = 0.001
+    df: pd.DataFrame,
+    preds: np.ndarray,
+    costs: float = 0.002,
+    slippage: float = 0.005,
 ) -> dict:
     """Simulate PnL for long/short/flat predictions.
 
@@ -20,7 +23,10 @@ def simulate_signal_pnl(
         Array of predictions of the same length as ``df``. ``1`` denotes a
         long position, ``-1`` a short position and ``0`` a flat position.
     costs : float, optional
-        Transaction cost applied when positions change. Defaults to ``0.001``.
+        Transaction cost applied when positions change. Defaults to ``0.002``.
+    slippage : float, optional
+        Price slippage incurred when positions change. The deduction is
+        proportional to the absolute change in signal. Defaults to ``0.005``.
 
     Returns
     -------
@@ -47,6 +53,7 @@ def simulate_signal_pnl(
     strategy_returns = asset_returns * signals
 
     signal_diff = np.diff(signals, prepend=0)
+    strategy_returns -= slippage * np.abs(signal_diff)
     strategy_returns -= costs * np.abs(signal_diff)
 
     strategy_std = strategy_returns.std(ddof=0)
