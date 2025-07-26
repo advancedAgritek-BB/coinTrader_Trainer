@@ -45,9 +45,11 @@ def test_train_federated_regime_returns_callable_and_uploads(monkeypatch):
     monkeypatch.setenv("SUPABASE_URL", "http://localhost")
     monkeypatch.setenv("SUPABASE_KEY", "anon")
 
-    ensemble, metrics = train_federated_regime(None, None, {"objective": "reg"})
+    start = "2021-01-01"
+    end = "2021-01-02"
+    ensemble, metrics = train_federated_regime(start, end, {"objective": "reg"})
 
     assert callable(ensemble)
     assert "uploaded" in calls
     assert metrics["n_models"] == 1
-    assert calls["fetch"][0] == "ohlc_data"
+    assert calls["fetch"] == ("ohlc_data", start, end)
