@@ -216,16 +216,30 @@ def main() -> None:  # pragma: no cover - CLI entry
     # Optuna optimisation
     if args.optuna:
         try:
-            import optuna_search as optuna_optimizer
+            import optuna_search as optuna_mod
         except Exception:
             try:
-                import optuna_optimizer  # type: ignore
+                import optuna_optimizer as optuna_mod  # type: ignore
             except Exception as exc:  # pragma: no cover - optional dependency
                 raise SystemExit(
                     "--optuna requires the 'optuna_optimizer' module to be installed"
                 ) from exc
+
         window = cfg.get("default_window_days", 7)
         defaults = cfg.get("optuna", {})
+
+        run_func = optuna_mod.run_optuna_search
+        sig = inspect.signature(run_func)
+        param_names = set(sig.parameters.keys())
+        if {"start", "end"}.issubset(param_names):
+            start = datetime.utcnow() - timedelta(days=window)
+            end = datetime.utcnow()
+            result = run_func(start, end, table=args.table, **defaults)
+        else:
+            result = run_func(window, table=args.table, **defaults)
+
+        if inspect.iscoroutine(result):
+            result = asyncio.run(result)
         try:
             fn = optuna_optimizer.run_optuna_search
             if inspect.iscoroutinefunction(fn):
