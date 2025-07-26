@@ -661,3 +661,23 @@ metrics = simulate_signal_pnl(df, preds)
 ``run_backtest`` returns the final portfolio value while
 ``simulate_signal_pnl`` computes Sharpe and Sortino ratios for the same
 signals.
+
+## Monitoring and Automation
+
+To monitor the trainer during long running jobs install the Prometheus client and run Grafana:
+
+```bash
+pip install prometheus_client
+docker run -p 3000:3000 grafana/grafana
+```
+
+`ml_trainer.py` exposes metrics on port `8000`. Configure a new Grafana data source of type `Prometheus` pointing at `http://localhost:8000` and create a dashboard to visualise training loss or other statistics.
+
+For automated retraining you can schedule the trainer via `cron`. The example below performs a weekly run with parameter optimisation enabled:
+
+```cron
+0 0 * * 0 python /path/to/ml_trainer.py train regime --optuna
+```
+
+Make sure the job inherits your Supabase credentials such as `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` (or `SUPABASE_KEY`) and any other variables referenced by `ml_trainer.py`.
+
