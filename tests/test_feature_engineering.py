@@ -18,6 +18,7 @@ def test_make_features_interpolation_and_columns():
             "price": [1.0, 1.1, np.nan, 1.3, 1.2, 1.4],
             "high": [1.1, 1.2, 1.3, np.nan, 1.25, 1.5],
             "low": [0.9, 1.0, 1.1, 1.15, np.nan, 1.3],
+            "volume": [10, 11, 12, 13, 14, 15],
         }
     )
 
@@ -72,6 +73,7 @@ def test_make_features_gpu_uses_cudf(monkeypatch):
             "price": [1, 2, 3, 4, 5, 6],
             "high": [1, 2, 3, 4, 5, 6],
             "low": [0, 1, 2, 3, 4, 5],
+            "volume": [1, 1, 1, 1, 1, 1],
         }
     )
 
@@ -101,6 +103,7 @@ def test_make_features_gpu_generates_columns(monkeypatch):
             "price": [1.0, 1.1, 1.2, 1.3, 1.2, 1.4],
             "high": [1.1, 1.2, 1.3, 1.4, 1.25, 1.5],
             "low": [0.9, 1.0, 1.1, 1.15, 1.0, 1.3],
+            "volume": [1, 1, 1, 1, 1, 1],
         }
     )
 
@@ -139,6 +142,7 @@ def test_make_features_adds_columns_and_handles_params(capsys):
             "price": np.linspace(100, 399, 300),
             "high": np.linspace(101, 400, 300),
             "low": np.linspace(99, 398, 300),
+            "volume": np.ones(300),
         }
     )
 
@@ -153,6 +157,12 @@ def test_make_features_adds_columns_and_handles_params(capsys):
         "rsi14",
         "volatility20",
         "atr3",
+        "bol_upper",
+        "bol_mid",
+        "bol_lower",
+        "momentum_10",
+        "adx_14",
+        "obv",
     ]:
         assert col in result.columns
     assert pd.api.types.is_datetime64_any_dtype(result["ts"])

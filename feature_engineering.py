@@ -36,6 +36,57 @@ def _atr(df: pd.DataFrame, period: int = 3) -> pd.Series:
     return atr
 
 
+def _bollinger_bands(
+    series: pd.Series,
+    window: int = 20,
+    num_std: float = 2.0,
+) -> tuple[pd.Series, pd.Series, pd.Series]:
+    """Return Bollinger Band series for ``series``."""
+    mid = series.rolling(window=window, min_periods=window).mean()
+    std = series.rolling(window=window, min_periods=window).std()
+    upper = mid + num_std * std
+    lower = mid - num_std * std
+    return mid, upper, lower
+
+
+def _momentum(series: pd.Series, period: int = 10) -> pd.Series:
+    """Return the momentum indicator for ``series``."""
+    return series - series.shift(period)
+
+
+def _adx(df: pd.DataFrame, period: int = 14) -> pd.Series:
+    """Return the Average Directional Index for ``df``."""
+    high = df["high"]
+    low = df["low"]
+    close = df["price"].shift()
+
+    up_move = high.diff()
+    down_move = -low.diff()
+    plus_dm = np.where((up_move > down_move) & (up_move > 0), up_move, 0.0)
+    minus_dm = np.where((down_move > up_move) & (down_move > 0), down_move, 0.0)
+
+    tr1 = high - low
+    tr2 = (high - close).abs()
+    tr3 = (low - close).abs()
+    tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+
+    atr = tr.ewm(alpha=1 / period, min_periods=period, adjust=False).mean()
+    plus_di = 100 * pd.Series(plus_dm).ewm(alpha=1 / period, min_periods=period, adjust=False).mean() / atr
+    minus_di = 100 * pd.Series(minus_dm).ewm(alpha=1 / period, min_periods=period, adjust=False).mean() / atr
+    dx = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di)
+    adx = dx.ewm(alpha=1 / period, min_periods=period, adjust=False).mean()
+    return adx
+
+
+def _obv(df: pd.DataFrame) -> pd.Series:
+    """Return the On-Balance Volume for ``df``."""
+    price_diff = df["price"].diff().fillna(0)
+    direction = np.sign(price_diff)
+    volume = df.get("volume", pd.Series(0, index=df.index)).fillna(0)
+    obv = (direction * volume).cumsum()
+    return obv
+
+
 def _compute_features_pandas(
     df: pd.DataFrame,
     ema_short_period: int,
@@ -43,6 +94,10 @@ def _compute_features_pandas(
     rsi_period: int,
     volatility_window: int,
     atr_window: int,
+    bollinger_window: int,
+    bollinger_std: float,
+    momentum_period: int,
+    adx_period: int,
 ) -> tuple[pd.DataFrame, str, str, str]:
     df = df.sort_values("ts").reset_index(drop=True).copy()
     df["ts"] = pd.to_datetime(df["ts"], errors="coerce")
@@ -53,6 +108,14 @@ def _compute_features_pandas(
     df["ema_short"] = df["price"].ewm(span=ema_short_period, adjust=False).mean()
     df["ema_long"] = df["price"].ewm(span=ema_long_period, adjust=False).mean()
     df["macd"] = df["ema_short"] - df["ema_long"]
+
+    mid, upper, lower = _bollinger_bands(df["price"], bollinger_window, bollinger_std)
+    df["bol_mid"] = mid
+    df["bol_upper"] = upper
+    df["bol_lower"] = lower
+
+    mom_col = f"momentum_{momentum_period}"
+    df[mom_col] = _momentum(df["price"], momentum_period)
 
     rsi_col = f"rsi{rsi_period}"
     df[rsi_col] = _rsi(df["price"], rsi_period)
@@ -68,6 +131,13 @@ def _compute_features_pandas(
     else:
         df[atr_col] = np.nan
 
+    adx_col = f"adx_{adx_period}"
+    if {"high", "low"}.issubset(df.columns):
+        df[adx_col] = _adx(df, adx_period)
+    else:
+        df[adx_col] = np.nan
+
+    df["obv"] = _obv(df) if "volume" in df.columns else np.nan
     # Bollinger Bands (20 period, 2 std dev)
     rolling_mean = df["price"].rolling(window=20, min_periods=20).mean()
     rolling_std = df["price"].rolling(window=20, min_periods=20).std()
@@ -120,6 +190,10 @@ def make_features(
     rsi_period: int = 14,
     volatility_window: int = 20,
     atr_window: int = 3,
+    bollinger_window: int = 20,
+    bollinger_std: float = 2.0,
+    momentum_period: int = 10,
+    adx_period: int = 14,
     use_gpu: bool = False,
     log_time: bool = False,
     return_threshold: float = 0.01,
@@ -141,6 +215,14 @@ def make_features(
         Window for computing the rolling volatility of log returns.
     atr_window : int, optional
         Window for computing the Average True Range.
+    bollinger_window : int, optional
+        Lookback window for Bollinger Band calculations.
+    bollinger_std : float, optional
+        Standard deviation multiplier for Bollinger Bands.
+    momentum_period : int, optional
+        Period for the momentum indicator.
+    adx_period : int, optional
+        Period for the Average Directional Index.
     use_gpu : bool, optional
         If ``True``, perform a round-trip through ``cudf`` to allow GPU acceleration.
     log_time : bool, optional
@@ -153,8 +235,9 @@ def make_features(
     pd.DataFrame
         Data frame sorted by ``ts`` with additional feature columns:
         ``ema_short``, ``ema_long``, ``macd`` and parameterized columns
-        for RSI, volatility and ATR. Missing values are forward-filled and any
-        remaining ``NaN`` rows dropped.
+        for RSI, volatility, ATR, Bollinger Bands, momentum, ADX and OBV.
+        Missing values are forward-filled and any remaining ``NaN`` rows
+        dropped.
     """
 
     start_time = time.time() if log_time else None
@@ -256,6 +339,21 @@ def make_features(
                 gdf["obv"] = np.nan
 
             df = gdf.to_pandas() if hasattr(gdf, "to_pandas") else pd.DataFrame(gdf)
+            mid, upper, lower = _bollinger_bands(df["price"], bollinger_window, bollinger_std)
+            df["bol_mid"] = mid
+            df["bol_upper"] = upper
+            df["bol_lower"] = lower
+
+            mom_col = f"momentum_{momentum_period}"
+            df[mom_col] = _momentum(df["price"], momentum_period)
+
+            adx_col = f"adx_{adx_period}"
+            if {"high", "low"}.issubset(df.columns):
+                df[adx_col] = _adx(df, adx_period)
+            else:
+                df[adx_col] = np.nan
+
+            df["obv"] = _obv(df) if "volume" in df.columns else np.nan
         except Exception:
             pdf = gdf.to_pandas() if hasattr(gdf, "to_pandas") else pd.DataFrame(gdf)
             df, rsi_col, vol_col, atr_col = _compute_features_pandas(
@@ -265,6 +363,10 @@ def make_features(
                 rsi_period,
                 volatility_window,
                 atr_window,
+                bollinger_window,
+                bollinger_std,
+                momentum_period,
+                adx_period,
             )
 
         if df[[f"rsi{rsi_period}", f"volatility{volatility_window}", f"atr{atr_window}"]].isna().all().all():
@@ -298,6 +400,10 @@ def make_features(
         rsi_period,
         volatility_window,
         atr_window,
+        bollinger_window,
+        bollinger_std,
+        momentum_period,
+        adx_period,
     )
 
     if df[[rsi_col, vol_col, atr_col]].isna().all().all():
