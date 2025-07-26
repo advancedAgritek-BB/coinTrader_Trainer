@@ -191,6 +191,29 @@ def insert_to_supabase(
 
     df = df.copy()
     schema_columns = [
+        "unix",
+        "date",
+        "symbol",
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume_xrp",
+        "volume_usdt",
+        "tradecount",
+        "timestamp",
+    ]
+    df = df[[col for col in schema_columns if col in df.columns]]
+
+    # Supabase generates ``timestamp`` from ``unix``. Omit the column to avoid
+    # insertion errors when the database defines it as a generated column.
+    insert_df = df.drop(columns=[c for c in ["timestamp"] if c in df.columns])
+
+    for col in insert_df.columns:
+        if pd.api.types.is_datetime64_any_dtype(insert_df[col]):
+            insert_df[col] = insert_df[col].dt.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
+    records = insert_df.to_dict(orient="records")
         'unix',
         'date',
         'symbol',

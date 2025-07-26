@@ -195,6 +195,7 @@ def test_insert_to_supabase_batches(monkeypatch):
     assert len(fake_client.rpcs) == 1
     assert "historical_prices_btc" in fake_client.rpcs[0][1]["query"]
     assert all(t == "historical_prices_btc" for t in fake_client.tables)
+    assert all("timestamp" not in row for batch in inserted for row in batch)
 
 
 def test_insert_to_supabase_custom_table(monkeypatch):
@@ -240,9 +241,16 @@ def test_insert_to_supabase_custom_table(monkeypatch):
     assert len(fake_client.rpcs) == 1
     assert "historical_prices_btc" in fake_client.rpcs[0][1]["query"]
     assert all(t == "prices" for t in fake_client.tables)
+    assert all("timestamp" not in row for batch in inserted for row in batch)
 
 
 def test_insert_to_supabase_datetime_conversion(monkeypatch):
+    df = pd.DataFrame(
+        {
+            "timestamp": pd.date_range("2021-01-01", periods=2, freq="H", tz="UTC"),
+            "date": pd.date_range("2021-01-01", periods=2, freq="H", tz="UTC"),
+        }
+    )
     df = pd.DataFrame({"timestamp": pd.date_range("2021-01-01", periods=2, freq="H", tz="UTC")})
     captured: list[dict] = []
 
@@ -269,6 +277,8 @@ def test_insert_to_supabase_datetime_conversion(monkeypatch):
 
     hdi.insert_to_supabase(df, "http://localhost", "key", symbol="BTC", batch_size=1)
 
+    assert all("timestamp" not in row for row in captured)
+    assert all(isinstance(row["date"], str) for row in captured)
     assert all(isinstance(row["timestamp"], str) for row in captured)
 
 
