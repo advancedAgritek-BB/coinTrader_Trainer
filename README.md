@@ -321,15 +321,27 @@ python ml_trainer.py import-data \
 
 ### Federated Training
 
-Passing the ``--federated`` flag enables federated learning. Each
-participant trains on its own dataset locally and only model parameters
-are shared for aggregation. Data never leaves the client machine.
-By default the configuration trains ``num_clients`` models over ``num_rounds`` aggregation rounds. These settings start at ``10`` clients and ``20`` rounds under the ``federated_regime`` section of ``cfg.yaml``.
+The trainer exposes two flavours of federated learning.  ``--federated``
+starts a **local simulation** where the dataset is split into several
+partitions on a single machine.  Each partition is trained separately and
+the resulting models are averaged into a ``FederatedEnsemble``.  The number
+of simulated clients and rounds defaults to ``10`` and ``20`` respectively in
+the ``federated_regime`` section of ``cfg.yaml``.
 
-Passing the ``--federated`` flag runs a local simulation where multiple
-models are trained on different data splits and then aggregated.
-To launch a real federated learning session across machines, start the
-trainer with ``--true-federated`` which uses Flower under the hood.
+``--true-federated`` launches a real Flower-based session.  Each Flower
+client loads its own data and only the model weights are exchanged with the
+server.  Use this option when coordinating training across multiple
+machines.
+
+Example local simulation:
+
+```bash
+python ml_trainer.py train regime --federated \
+  --start-ts 2024-01-01T00:00:00Z \
+  --end-ts 2024-01-02T00:00:00Z
+```
+
+Example Flower-based session:
 
 ```bash
 python ml_trainer.py train regime --true-federated \
