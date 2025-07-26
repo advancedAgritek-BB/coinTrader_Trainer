@@ -184,6 +184,10 @@ def train_regime_lgbm(
             best_iterations.append(booster.best_iteration)
             preds = booster.predict(X_valid, num_iteration=booster.best_iteration)
             y_pred = preds.argmax(axis=1)
+            if preds.ndim > 1:
+                y_pred = np.argmax(preds, axis=1)
+            else:
+                y_pred = (preds >= 0.5).astype(int)
 
             acc_scores.append(accuracy_score(y_valid, y_pred))
             f1_scores.append(f1_score(y_valid, y_pred, average="macro"))
