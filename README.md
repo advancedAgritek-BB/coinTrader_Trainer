@@ -163,6 +163,14 @@ technical indicators that are produced:
 * ``volatility_window`` – period used to compute log return volatility (default ``20``)
 * ``ema_short_period`` – window for the short-term EMA (default ``12``)
 * ``ema_long_period`` – window for the long-term EMA (default ``26``)
+* ``bb_window`` – lookback period for Bollinger Bands (default ``20``)
+* ``bb_std`` – standard deviation multiplier for Bollinger Bands (default ``2``)
+* ``mom_window`` – momentum calculation window (default ``10``)
+* ``adx_window`` – lookback window for the Average Directional Index (default ``14``)
+* ``obv_window`` – period used to smooth On‑Balance Volume (default ``20``)
+
+Installing [TA‑Lib](https://ta-lib.org/) is recommended for more accurate
+technical indicator implementations.
 
 GPU acceleration is possible when the `cudf` package is installed.  Pass
 ``use_gpu=True`` to ``make_features`` to switch to GPU-backed DataFrame
@@ -170,6 +178,11 @@ operations.
 
 Set ``log_time=True`` to print the total processing time for feature
 generation.
+
+The ``target`` column produced during training is now a three-class label:
+``1`` for long, ``0`` for flat and ``-1`` for short. These classes are
+derived from the future return over a configurable horizon, with the
+threshold for long/short defined in ``cfg.yaml``.
 
 ### Training Pipeline
 

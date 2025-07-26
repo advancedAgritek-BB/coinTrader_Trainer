@@ -172,6 +172,21 @@ def test_make_features_adds_columns_and_handles_params(capsys):
         assert col in result.columns
 
 
+def test_make_features_creates_multiclass_target():
+    df = pd.DataFrame(
+        {
+            "ts": pd.date_range("2022-01-01", periods=4, freq="D"),
+            "price": [1.0, 1.1, 1.0, 1.2],
+            "high": [1.1, 1.2, 1.1, 1.3],
+            "low": [0.9, 1.0, 0.9, 1.1],
+        }
+    )
+
+    result = make_features(df)
+    assert "target" in result.columns
+    assert set(result["target"].unique()).issubset({-1, 0, 1})
+
+
 def test_make_features_raises_when_too_many_nans():
     df_small = pd.DataFrame(
         {
@@ -181,3 +196,34 @@ def test_make_features_raises_when_too_many_nans():
     )
     with pytest.raises(ValueError):
         make_features(df_small)
+
+
+def test_make_features_generates_target_when_missing():
+    prices = [1, 1.02, 0.98, 1.05, 1.06, 1.07]
+    df = pd.DataFrame(
+        {
+            "ts": pd.date_range("2021-01-01", periods=len(prices), freq="D"),
+            "price": prices,
+            "high": [p * 1.01 for p in prices],
+            "low": [p * 0.99 for p in prices],
+        }
+    )
+
+    result = make_features(
+        df,
+        ema_short_period=1,
+        ema_long_period=1,
+        rsi_period=2,
+        volatility_window=2,
+        atr_window=2,
+    )
+
+    returns = result["price"].pct_change().shift(-1)
+    expected = np.where(
+        returns > 0.01,
+        1,
+        np.where(returns < -0.01, -1, 0),
+    )
+    expected = pd.Series(expected, index=result.index, name="target").fillna(0)
+
+    pd.testing.assert_series_equal(result["target"], expected)

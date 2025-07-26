@@ -23,7 +23,7 @@ import federated_trainer as ft
 
 class FakeBooster:
     def predict(self, X, num_iteration=None):
-        return np.zeros(len(X))
+        return np.zeros((len(X), 3))
 
 
 def test_federated_gpu_training(monkeypatch, tmp_path):

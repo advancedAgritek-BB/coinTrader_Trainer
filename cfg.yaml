@@ -1,13 +1,17 @@
 default_window_days: 7
 features:
-  rsi_period: 14
-  volatility_window: 30
+  bollinger_window: 20
+  bollinger_std: 2.0
+  momentum_period: 10
+  adx_period: 14
+  return_threshold: 0.01
 swarm:
   num_agents: 100
   rounds: 10
 regime_lgbm:
-  objective: binary
-  metric: binary_logloss
+  objective: multiclass
+  metric: multi_logloss
+  num_class: 3
   learning_rate: 0.05
   num_boost_round: 200
   early_stopping_rounds: 20
@@ -24,8 +28,9 @@ regime_lgbm:
   max_bin: 255
 
 federated_regime:
-  objective: binary
-  metric: binary_logloss
+  objective: multiclass
+  metric: multi_logloss
+  num_class: 3
   learning_rate: 0.05
   num_boost_round: 200
   early_stopping_rounds: 20
