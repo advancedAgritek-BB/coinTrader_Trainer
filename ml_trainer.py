@@ -128,11 +128,10 @@ def main() -> None:  # pragma: no cover - CLI entry
     if args.command == "import-data":
         df = download_historical_data(
             args.source_url,
-            args.symbol,
-            args.start_ts,
-            args.end_ts,
-            batch_size=args.batch_size,
             output_file=args.output_file,
+            symbol=args.symbol,
+            start_ts=args.start_ts,
+            end_ts=args.end_ts,
         )
         insert_to_supabase(df, batch_size=args.batch_size)
         return
