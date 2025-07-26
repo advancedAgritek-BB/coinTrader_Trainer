@@ -131,7 +131,6 @@ def train_federated_regime(
     ensemble = FederatedEnsemble(models)
 
     preds = ensemble.predict(X)
-    y_pred = preds.argmax(axis=1)
     if preds.ndim > 1:
         y_pred = np.argmax(preds, axis=1)
     else:
