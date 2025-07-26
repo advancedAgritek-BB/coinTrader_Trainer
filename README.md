@@ -514,6 +514,17 @@ Create an index on `user_id` in `trade_logs` so permission checks remain fast.
 Model uploads still use `SUPABASE_SERVICE_KEY`, but data reads authenticate with
 `SUPABASE_USER_EMAIL` and `SUPABASE_PASSWORD` (or `SUPABASE_JWT`).
 
+### Fetching Kraken OHLC Data
+
+`kraken_fetch.py` downloads recent candles from the Kraken API and writes them to
+Supabase. By default rows are inserted into the `trade_logs` table. Set the
+`KRAKEN_TABLE` environment variable or pass `--table` on the command line to use
+a different destination:
+
+```bash
+python kraken_fetch.py --table ohlc_raw
+```
+
 ## Swarm Scenario Simulation
 
 `swarm_sim.py` explores how multiple trading strategies perform when run in parallel. The simulator uses `networkx` to build a graph of market scenarios and evaluate parameter combinations across the nodes. Invoke it via the command line:
