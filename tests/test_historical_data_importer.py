@@ -86,6 +86,24 @@ def test_download_historical_data_drop_duplicate_ts(tmp_path):
     assert not df.columns.duplicated().any()
 
 
+def test_download_historical_data_symbol_column_case_insensitive(tmp_path):
+    data = pd.DataFrame(
+        {
+            "Timestamp": pd.date_range("2021-01-01", periods=3, freq="D"),
+            "Symbol": ["BTC", "ETH", "BTC"],
+            "Close": [1, 2, 3],
+        }
+    )
+    csv_path = tmp_path / "symbol.csv"
+    data.to_csv(csv_path, index=False)
+
+    df = hdi.download_historical_data(str(csv_path), symbol="ETH")
+
+    assert "Symbol" not in df.columns
+    assert "symbol" not in df.columns
+    assert len(df) == 1
+
+
 def test_insert_to_supabase_batches(monkeypatch):
     df = pd.DataFrame({"a": [1, 2, 3]})
     inserted: list[list[dict]] = []
