@@ -82,6 +82,13 @@ The requirements file now includes [Flower](https://flower.ai) for
 running true federated learning experiments and
 [Backtrader](https://www.backtrader.com/) for offline backtesting.
 
+* Install [Backtrader](https://www.backtrader.com/) to run strategy
+  backtests:
+
+  ```bash
+  pip install backtrader
+  ```
+
 On **Windows**, `pyopencl` requires a C/C++ compiler.  Install
 [Build Tools for Visual Studio](https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2022)
 or another compiler before running the command above.  If you plan to
@@ -314,15 +321,37 @@ python ml_trainer.py import-data \
 
 ### Federated Training
 
-Passing the ``--federated`` flag enables federated learning. Each
-participant trains on its own dataset locally and only model parameters
-are shared for aggregation. Data never leaves the client machine.
-By default the configuration trains ``num_clients`` models over ``num_rounds`` aggregation rounds. These settings start at ``10`` clients and ``20`` rounds under the ``federated_regime`` section of ``cfg.yaml``.
+Passing the ``--federated`` flag runs a local federated **simulation**.  The
+trainer splits the dataset into ``num_clients`` partitions and trains a model on
+each in memory. Only the resulting weights are aggregated, so the individual
+rows never mix. This approach stays entirely within a single process and is
+useful for quick experiments.
 
-Passing the ``--federated`` flag runs a local simulation where multiple
-models are trained on different data splits and then aggregated.
-To launch a real federated learning session across machines, start the
-trainer with ``--true-federated`` which uses Flower under the hood.
+To run a true distributed federated session across machines, pass
+``--true-federated`` instead.  This launches a Flower server and multiple
+Flower clients that exchange parameters over the network while keeping each
+participant's data local.
+The trainer exposes two flavours of federated learning.  ``--federated``
+starts a **local simulation** where the dataset is split into several
+partitions on a single machine.  Each partition is trained separately and
+the resulting models are averaged into a ``FederatedEnsemble``.  The number
+of simulated clients and rounds defaults to ``10`` and ``20`` respectively in
+the ``federated_regime`` section of ``cfg.yaml``.
+
+``--true-federated`` launches a real Flower-based session.  Each Flower
+client loads its own data and only the model weights are exchanged with the
+server.  Use this option when coordinating training across multiple
+machines.
+
+Example local simulation:
+
+```bash
+python ml_trainer.py train regime --federated \
+  --start-ts 2024-01-01T00:00:00Z \
+  --end-ts 2024-01-02T00:00:00Z
+```
+
+Example Flower-based session:
 
 ```bash
 python ml_trainer.py train regime --true-federated \
@@ -340,6 +369,21 @@ Programmatic access is also available via
 from coinTrader_Trainer import federated_trainer
 
 ensemble, metrics = federated_trainer.train_federated_regime(
+    "2023-01-01T00:00:00Z", "2023-01-02T00:00:00Z"
+)
+```
+
+For the Flower-based variant, call ``federated_fl.start_server`` on the
+aggregation host and ``federated_fl.start_client`` on each participant:
+
+```python
+from coinTrader_Trainer import federated_fl
+
+# server side
+federated_fl.start_server(num_rounds=20)
+
+# client side
+federated_fl.start_client(
     "2023-01-01T00:00:00Z", "2023-01-02T00:00:00Z"
 )
 ```
@@ -595,3 +639,25 @@ python ml_trainer.py --swarm
 ```
 
 The script searches for optimal LightGBM parameters during the simulation. Once complete, those values are passed into `train_regime_lgbm` so subsequent training runs start from the tuned configuration.
+
+## Backtesting
+
+The project includes a minimal helper built on
+[Backtrader](https://www.backtrader.com/) for evaluating prediction
+signals. Default options such as starting ``cash`` and ``commission`` are
+defined in ``cfg.yaml`` under the ``backtest`` section.
+
+```python
+from coinTrader_Trainer.evaluation import run_backtest, simulate_signal_pnl
+import pandas as pd
+import numpy as np
+
+df = pd.read_parquet("ohlc.parquet")
+preds = np.load("predictions.npy")
+final_equity = run_backtest(df, preds)
+metrics = simulate_signal_pnl(df, preds)
+```
+
+``run_backtest`` returns the final portfolio value while
+``simulate_signal_pnl`` computes Sharpe and Sortino ratios for the same
+signals.

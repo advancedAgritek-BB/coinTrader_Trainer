@@ -53,6 +53,7 @@ def load_cfg(path: str) -> Dict[str, Any]:
         section = cfg.get(key)
         if isinstance(section, dict):
             section.setdefault("device_type", "gpu")
+    cfg.setdefault("backtest", {"slippage": 0.005, "costs": 0.002})
     return cfg
 
 

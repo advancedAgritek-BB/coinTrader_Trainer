@@ -4,6 +4,7 @@ import types
 
 import numpy as np
 import pandas as pd
+import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
@@ -173,3 +174,22 @@ def test_true_federated_param_merge(monkeypatch):
     assert captured["start"] == "2021-01-01"
     assert captured["end"] == "2021-01-02"
     assert captured["params"].get("device_type") == "gpu"
+
+
+def test_true_federated_requires_range(monkeypatch):
+    module = types.SimpleNamespace(launch=lambda *a, **k: None)
+    monkeypatch.setitem(sys.modules, "federated_fl", module)
+    monkeypatch.setattr(ml_trainer, "federated_fl", module, raising=False)
+
+    def fake_train(X, y, params, use_gpu=False, profile_gpu=False):
+        return object(), {}
+
+    monkeypatch.setitem(ml_trainer.TRAINERS, "regime", (fake_train, "regime_lgbm"))
+    monkeypatch.setattr(ml_trainer, "load_cfg", lambda p: {"federated_regime": {"objective": "binary"}})
+
+    argv = ["prog", "train", "regime", "--true-federated"]
+    monkeypatch.setattr(sys, "argv", argv)
+
+    with pytest.raises(SystemExit, match="--true-federated requires --start-ts and --end-ts"):
+        ml_trainer.main()
+

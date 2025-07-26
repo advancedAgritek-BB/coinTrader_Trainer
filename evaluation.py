@@ -7,7 +7,10 @@ import pandas as pd
 
 
 def simulate_signal_pnl(
-    df: pd.DataFrame, preds: np.ndarray, costs: float = 0.001
+    df: pd.DataFrame,
+    preds: np.ndarray,
+    costs: float = 0.002,
+    slippage: float = 0.005,
 ) -> dict:
     """Simulate PnL for long/short/flat predictions.
 
@@ -20,7 +23,10 @@ def simulate_signal_pnl(
         Array of predictions of the same length as ``df``. ``1`` denotes a
         long position, ``-1`` a short position and ``0`` a flat position.
     costs : float, optional
-        Transaction cost applied when positions change. Defaults to ``0.001``.
+        Transaction cost applied when positions change. Defaults to ``0.002``.
+    slippage : float, optional
+        Price slippage incurred when positions change. The deduction is
+        proportional to the absolute change in signal. Defaults to ``0.005``.
 
     Returns
     -------
@@ -47,6 +53,7 @@ def simulate_signal_pnl(
     strategy_returns = asset_returns * signals
 
     signal_diff = np.diff(signals, prepend=0)
+    strategy_returns -= slippage * np.abs(signal_diff)
     strategy_returns -= costs * np.abs(signal_diff)
 
     strategy_std = strategy_returns.std(ddof=0)
@@ -66,3 +73,65 @@ def simulate_signal_pnl(
         "sharpe": float(sharpe),
         "sortino": float(sortino),
     }
+
+
+def run_backtest(
+    df: pd.DataFrame,
+    preds: np.ndarray,
+    *,
+    cash: float = 10000.0,
+    commission: float = 0.001,
+) -> float:
+    """Execute a simple Backtrader backtest using prediction signals.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame with OHLC columns consumed by ``backtrader``.
+    preds : np.ndarray
+        Array of trading signals with 1 for long, -1 for short and 0 for flat.
+    cash : float, optional
+        Starting portfolio value. Defaults to ``10000.0``.
+    commission : float, optional
+        Commission rate per trade. Defaults to ``0.001``.
+
+    Returns
+    -------
+    float
+        Final broker value after running the backtest.
+    """
+
+    import backtrader as bt
+
+    class _SignalStrategy(bt.Strategy):
+        params = dict(signals=None)
+
+        def __init__(self):
+            self._idx = 0
+
+        def next(self):
+            if self._idx >= len(self.p.signals):
+                return
+            sig = self.p.signals[self._idx]
+            self._idx += 1
+
+            pos = self.position.size
+            if sig == 1 and pos <= 0:
+                if pos < 0:
+                    self.close()
+                self.buy()
+            elif sig == -1 and pos >= 0:
+                if pos > 0:
+                    self.close()
+                self.sell()
+            elif sig == 0 and pos != 0:
+                self.close()
+
+    data = bt.feeds.PandasData(dataname=df)
+    cerebro = bt.Cerebro()
+    cerebro.adddata(data)
+    cerebro.addstrategy(_SignalStrategy, signals=list(preds))
+    cerebro.broker.setcash(cash)
+    cerebro.broker.setcommission(commission=commission)
+    cerebro.run()
+    return float(cerebro.broker.getvalue())
