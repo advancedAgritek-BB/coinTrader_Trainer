@@ -16,6 +16,7 @@ import pandas as pd
 import requests
 from dotenv import load_dotenv
 from supabase import Client, create_client
+import argparse
 
 load_dotenv()
 
@@ -26,7 +27,9 @@ if not SUPABASE_URL or not SUPABASE_KEY:
     raise ValueError("SUPABASE_URL and SUPABASE_KEY must be set")
 
 client: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-TABLE = "trade_logs"
+
+# Destination table for new rows (override with KRAKEN_TABLE or --table)
+DEFAULT_TABLE = os.environ.get("KRAKEN_TABLE", "trade_logs")
 
 def get_tradable_pairs() -> list[str]:
     """Fetch list of all tradable asset pairs from Kraken."""
@@ -37,10 +40,10 @@ def get_tradable_pairs() -> list[str]:
         raise ValueError(data["error"])
     return list(data["result"].keys())  # e.g., ['XBTUSD', 'ETHUSD']
 
-def get_last_ts(client: Client, symbol: str) -> Optional[int]:
+def get_last_ts(client: Client, symbol: str, table: str) -> Optional[int]:
     """Get the Unix timestamp of the latest entry for a symbol (or None if empty)."""
     resp = (
-        client.table(TABLE)
+        client.table(table)
         .select("ts")
         .eq("symbol", symbol)
         .order("ts", desc=True)
@@ -73,26 +76,44 @@ def fetch_kraken_ohlc(pair: str, interval: int = 1) -> pd.DataFrame:
     df["trades"] = df["trades"].astype(int)
     return df
 
-def insert_to_supabase(client: Client, df: pd.DataFrame, batch_size: int = 1000) -> None:
+def insert_to_supabase(
+    client: Client, df: pd.DataFrame, *, table: str, batch_size: int = 1000
+) -> None:
     """Insert DataFrame rows to Supabase (batches for efficiency)."""
     records = df.to_dict(orient="records")
     for i in range(0, len(records), batch_size):
         chunk = records[i : i + batch_size]
-        client.table(TABLE).insert(chunk).execute()  # UNIQUE constraint prevents duplicates
+        client.table(table).insert(chunk).execute()  # UNIQUE constraint prevents duplicates
 
-def append_kraken_data(interval: int = 1, delay_sec: float = 1.0):
+def append_kraken_data(
+    interval: int = 1, delay_sec: float = 1.0, *, table: str = DEFAULT_TABLE
+) -> None:
     """Fetch and append recent OHLC for all pairs (filter to new data only)."""
     pairs = get_tradable_pairs()
     for pair in pairs:
-        last_ts = get_last_ts(client, pair)
+        last_ts = get_last_ts(client, pair, table)
         df = fetch_kraken_ohlc(pair, interval)
         if last_ts is not None:
             last_dt = pd.to_datetime(last_ts, unit="s", utc=True)
             df = df[df["ts"] > last_dt]
         if not df.empty:
-            insert_to_supabase(client, df)
+            insert_to_supabase(client, df, table=table)
             print(f"Appended {len(df)} rows for {pair}")
         time.sleep(delay_sec)
 
+def main(argv: Optional[list[str]] = None) -> None:
+    parser = argparse.ArgumentParser(description="Fetch OHLC data from Kraken")
+    parser.add_argument(
+        "--table",
+        default=os.environ.get("KRAKEN_TABLE", "trade_logs"),
+        help="Supabase table for inserted rows",
+    )
+    parser.add_argument("--interval", type=int, default=1)
+    parser.add_argument("--delay-sec", type=float, default=1.0)
+
+    args = parser.parse_args(argv)
+    append_kraken_data(interval=args.interval, delay_sec=args.delay_sec, table=args.table)
+
+
 if __name__ == "__main__":
-    append_kraken_data()
+    main()
