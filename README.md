@@ -332,6 +332,9 @@ Files downloaded from CryptoDataDownload include a banner line at the top of the
 CSV. ``import-data`` now detects and skips this line automatically even when
 reading from a local path.
 
+Columns like ``Volume USDT`` from CryptoDataDownload are automatically renamed to
+``volume`` when using ``import-csv``.
+
 ``import-data`` expects trade log entries with the same columns that the live
 system stores in ``trade_logs``.  For importing OHLCV datasets use the
 ``import-csv`` command instead.  It reads a CSV of candle data and inserts the
