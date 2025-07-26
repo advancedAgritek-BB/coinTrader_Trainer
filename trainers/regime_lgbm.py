@@ -122,27 +122,15 @@ def train_regime_lgbm(
     label_map = {-1: 0, 0: 1, 1: 2}
     y_enc = y.replace(label_map).astype(int)
 
-    # compute class weight for the positive class if not provided
-    # class balancing for the long vs neutral classes
+    # compute scale_pos_weight once for class imbalance
     pos = int((y == 1).sum())
     neg = int((y == 0).sum())
-    if pos and "scale_pos_weight" not in params:
-        params["scale_pos_weight"] = neg / pos
-    # set scale_pos_weight for class imbalance if not provided
-    if "scale_pos_weight" not in params:
-        pos = (y == 1).sum()
-        neg = (y == 0).sum()
-        if pos > 0:
-            params["scale_pos_weight"] = neg / pos
+    if pos > 0:
+        params.setdefault("scale_pos_weight", neg / pos)
 
     # ensure multiclass objective
     params.setdefault("objective", "multiclass")
     params.setdefault("num_class", 3)
-
-    pos = (y == 1).sum()
-    neg = (y == 0).sum()
-    if pos > 0:
-        params.setdefault("scale_pos_weight", neg / pos)
 
     skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 
