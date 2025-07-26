@@ -6,6 +6,7 @@ from typing import Optional, Tuple, List
 
 try:  # pragma: no cover - optional dependency
     import flwr as fl
+    from flwr.server import ServerConfig
 except Exception as exc:  # pragma: no cover - missing dependency
     raise SystemExit(
         "True federated training requires the 'flwr' package."
@@ -113,7 +114,7 @@ def launch(
     fl.simulation.start_simulation(
         client_fn=client_fn,
         num_clients=num_clients,
-        config=fl.server.ServerConfig(num_rounds=num_rounds),
+        config=ServerConfig(num_rounds=num_rounds),
         strategy=strategy,
     )
 
@@ -163,7 +164,7 @@ def start_server(
     strategy = _SaveModelStrategy()
     fl.server.start_server(
         server_address,
-        config=fl.server.ServerConfig(num_rounds=num_rounds),
+        config=ServerConfig(num_rounds=num_rounds),
         strategy=strategy,
     )
 
