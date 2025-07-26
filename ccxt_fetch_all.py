@@ -1,24 +1,37 @@
 from __future__ import annotations
 
+"""Fetch OHLC data from a CCXT exchange and append it to Supabase."""
+
 import argparse
 import os
 import time
 from typing import Optional
 
+import ccxt
 import pandas as pd
 from dotenv import load_dotenv
 from supabase import Client, create_client
-import ccxt
 
 load_dotenv()
 
-# Supabase credentials
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABASE_KEY")
 if not SUPABASE_URL or not SUPABASE_KEY:
     raise ValueError("SUPABASE_URL and SUPABASE_SERVICE_KEY must be set")
 
 client: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+DEFAULT_TABLE = os.environ.get("CCXT_TABLE", "ohlc_data")
+
+
+def get_exchange(name: str) -> ccxt.Exchange:
+    """Instantiate a CCXT exchange by name."""
+    if not hasattr(ccxt, name):
+        raise ValueError(f"Exchange '{name}' not found in ccxt")
+    return getattr(ccxt, name)()
+
+
+def get_markets(exchange: ccxt.Exchange) -> list[str]:
+    """Return list of available market symbols for ``exchange``."""
 
 # Default table for inserted rows
 DEFAULT_TABLE = os.environ.get("CCXT_TABLE", "trade_logs")
@@ -37,6 +50,7 @@ def get_markets(exchange) -> list[str]:
 
 
 def get_last_ts(client: Client, symbol: str, table: str) -> Optional[int]:
+    """Get the Unix timestamp of the latest entry for ``symbol`` in ``table``."""
     """Return last timestamp for ``symbol`` in ``table`` or ``None``."""
     resp = (
         client.table(table)
@@ -51,6 +65,21 @@ def get_last_ts(client: Client, symbol: str, table: str) -> Optional[int]:
     return None
 
 
+def fetch_ccxt_ohlc(exchange: ccxt.Exchange, symbol: str, timeframe: str = "1m") -> pd.DataFrame:
+    """Fetch recent OHLCV data for ``symbol`` from ``exchange``."""
+    data = exchange.fetch_ohlcv(symbol, timeframe=timeframe, limit=720)
+    df = pd.DataFrame(data, columns=["ts", "open", "high", "low", "close", "volume"])
+    df["ts"] = pd.to_datetime(df["ts"], unit="ms", utc=True)
+    df["symbol"] = symbol
+    df["exchange"] = exchange.id
+    df["price"] = df["close"]
+    numeric_cols = ["open", "high", "low", "close", "price", "volume"]
+    df[numeric_cols] = df[numeric_cols].apply(pd.to_numeric)
+    return df
+
+
+def insert_to_supabase(client: Client, df: pd.DataFrame, *, table: str, batch_size: int = 1000) -> None:
+    """Insert DataFrame rows to Supabase in batches."""
 def fetch_ccxt_ohlc(exchange, symbol: str, timeframe: str = "1m") -> pd.DataFrame:
     """Fetch OHLCV data for ``symbol`` using ``exchange``."""
     ohlc = exchange.fetch_ohlcv(symbol, timeframe=timeframe)
@@ -80,9 +109,10 @@ def append_ccxt_data_all(
     *,
     table: str = DEFAULT_TABLE,
 ) -> None:
-    """Fetch and append OHLCV data for all markets using CCXT."""
+    """Fetch and append OHLC data for all markets on an exchange."""
     exchange = get_exchange(exchange_name)
     markets = get_markets(exchange)
+    ex_id = getattr(exchange, "id", exchange_name)
     for symbol in markets:
         last_ts = get_last_ts(client, symbol, table)
         df = fetch_ccxt_ohlc(exchange, symbol, timeframe)
@@ -91,11 +121,21 @@ def append_ccxt_data_all(
             df = df[df["ts"] > last_dt]
         if not df.empty:
             insert_to_supabase(client, df, table=table)
+            print(f"Appended {len(df)} rows for {ex_id}:{symbol}")
             print(f"Appended {len(df)} rows for {symbol}")
         time.sleep(delay_sec)
 
 
 def main(argv: Optional[list[str]] = None) -> None:
+    parser = argparse.ArgumentParser(description="Fetch OHLC data from a CCXT exchange")
+    parser.add_argument(
+        "--exchange",
+        default=os.environ.get("CCXT_EXCHANGE", "binance"),
+        help="Exchange id, e.g. binance",
+    )
+    parser.add_argument(
+        "--table",
+        default=os.environ.get("CCXT_TABLE", "ohlc_data"),
     parser = argparse.ArgumentParser(description="Fetch OHLC data using CCXT")
     parser.add_argument("--exchange", default=os.environ.get("CCXT_EXCHANGE", "binance"))
     parser.add_argument(
