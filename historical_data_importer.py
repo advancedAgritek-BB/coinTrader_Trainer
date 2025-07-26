@@ -66,6 +66,10 @@ def download_historical_data(
 
     symbol_cols = [c for c in df.columns if c.lower() == "symbol"]
     if symbol_cols:
+        sym_col = symbol_cols[0]
+        if symbol is not None:
+            df = df[df[sym_col] == symbol]
+        df = df.drop(columns=sym_col)
         symbol_col = symbol_cols[0]
         if symbol is not None:
             df = df[df[symbol_col] == symbol]
