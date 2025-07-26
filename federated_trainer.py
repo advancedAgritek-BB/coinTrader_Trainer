@@ -45,6 +45,8 @@ def _load_params(cfg_path: str) -> dict:
     # behaviour where ``device`` was forced to ``gpu`` regardless of the
     # configuration value.
     params["device_type"] = "gpu"
+    params.setdefault("objective", "multiclass")
+    params.setdefault("num_class", 3)
     return params
 
 
@@ -80,12 +82,16 @@ class FederatedEnsemble:
     models: List[lgb.Booster]
 
     def predict(self, X: pd.DataFrame) -> np.ndarray:
-        preds = np.column_stack([m.predict(X) for m in self.models])
-        return preds.mean(axis=1)
+        preds = [m.predict(X) for m in self.models]
+        preds = [p if p.ndim == 2 else p.reshape(len(p), -1) for p in preds]
+        stacked = np.stack(preds, axis=0)
+        return stacked.mean(axis=0)
 
 
 def _train_client(X: pd.DataFrame, y: pd.Series, params: dict) -> lgb.Booster:
-    dataset = lgb.Dataset(X, label=y)
+    label_map = {-1: 0, 0: 1, 1: 2}
+    y_enc = y.replace(label_map).astype(int)
+    dataset = lgb.Dataset(X, label=y_enc)
     num_round = params.get("num_boost_round", 100)
     booster = lgb.train(params, dataset, num_boost_round=num_round)
     return booster
@@ -113,6 +119,8 @@ def train_federated_regime(
         pass
 
     X, y = _prepare_data(start_ts, end_ts, table=table)
+    label_map = {-1: 0, 0: 1, 1: 2}
+    y_enc = y.replace(label_map).astype(int)
 
     indices = np.array_split(np.arange(len(X)), num_clients)
     models: List[lgb.Booster] = []
@@ -123,12 +131,12 @@ def train_federated_regime(
     ensemble = FederatedEnsemble(models)
 
     preds = ensemble.predict(X)
-    y_pred = (preds >= 0.5).astype(int)
+    y_pred = preds.argmax(axis=1)
     metrics = {
-        "accuracy": float(accuracy_score(y, y_pred)),
-        "f1": float(f1_score(y, y_pred)),
-        "precision_long": float(precision_score(y, y_pred)),
-        "recall_long": float(recall_score(y, y_pred)),
+        "accuracy": float(accuracy_score(y_enc, y_pred)),
+        "f1": float(f1_score(y_enc, y_pred, average="macro")),
+        "precision_long": float(precision_score(y_enc, y_pred, average="macro")),
+        "recall_long": float(recall_score(y_enc, y_pred, average="macro")),
         "n_models": len(models),
     }
 

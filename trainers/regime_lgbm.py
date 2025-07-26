@@ -115,12 +115,13 @@ def train_regime_lgbm(
         ``precision_long`` and ``recall_long``.
     """
 
-    # compute class weighting for unbalanced datasets if not supplied
-    pos_count = int((y == 1).sum())
-    neg_count = int((y == 0).sum())
-    scale_pos_weight = neg_count / pos_count if pos_count > 0 else 1.0
+    # encode labels for multiclass classification
+    label_map = {-1: 0, 0: 1, 1: 2}
+    y_enc = y.replace(label_map).astype(int)
 
-    params.setdefault("scale_pos_weight", scale_pos_weight)
+    # ensure multiclass objective
+    params.setdefault("objective", "multiclass")
+    params.setdefault("num_class", 3)
 
     skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 
@@ -159,9 +160,9 @@ def train_regime_lgbm(
         recall_scores = []
         best_iterations = []
 
-        for train_idx, valid_idx in skf.split(X, y):
+        for train_idx, valid_idx in skf.split(X, y_enc):
             X_train, X_valid = X.iloc[train_idx], X.iloc[valid_idx]
-            y_train, y_valid = y.iloc[train_idx], y.iloc[valid_idx]
+            y_train, y_valid = y_enc.iloc[train_idx], y_enc.iloc[valid_idx]
 
             train_set = lgb.Dataset(X_train, label=y_train)
             valid_set = lgb.Dataset(X_valid, label=y_valid)
@@ -182,12 +183,12 @@ def train_regime_lgbm(
 
             best_iterations.append(booster.best_iteration)
             preds = booster.predict(X_valid, num_iteration=booster.best_iteration)
-            y_pred = (preds >= 0.5).astype(int)
+            y_pred = preds.argmax(axis=1)
 
             acc_scores.append(accuracy_score(y_valid, y_pred))
-            f1_scores.append(f1_score(y_valid, y_pred))
-            precision_scores.append(precision_score(y_valid, y_pred))
-            recall_scores.append(recall_score(y_valid, y_pred))
+            f1_scores.append(f1_score(y_valid, y_pred, average="macro"))
+            precision_scores.append(precision_score(y_valid, y_pred, average="macro"))
+            recall_scores.append(recall_score(y_valid, y_pred, average="macro"))
 
         metrics = {
             "accuracy": float(np.mean(acc_scores)),
@@ -236,7 +237,7 @@ def train_regime_lgbm(
 
     metrics, final_num_boost_round = _cross_validate(train_params)
 
-    final_set = lgb.Dataset(X, label=y)
+    final_set = lgb.Dataset(X, label=y_enc)
     final_params = dict(train_params)
     final_params.pop("early_stopping_rounds", None)
 
