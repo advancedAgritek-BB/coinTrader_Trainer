@@ -3,6 +3,7 @@ import os
 import sys
 
 import pandas as pd
+import numpy as np
 import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
@@ -12,7 +13,7 @@ import train_pipeline
 
 class DummyModel:
     def predict(self, X):
-        return pd.Series([0 for _ in range(len(X))])
+        return np.zeros((len(X), 3))
 
 
 class DummyRegistry:

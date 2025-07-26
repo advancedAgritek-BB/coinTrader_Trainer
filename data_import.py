@@ -5,6 +5,7 @@ import os
 from typing import Optional
 
 import pandas as pd
+import numpy as np
 import requests
 from dotenv import load_dotenv
 from supabase import Client, create_client
@@ -21,6 +22,7 @@ def download_historical_data(
     *,
     batch_size: int = 1000,  # kept for backwards compatibility
     output_file: Optional[str] = None,
+    return_threshold: float = 0.01,
 ) -> pd.DataFrame:
     """Download historical trade data from ``source_url``.
 
@@ -28,7 +30,7 @@ def download_historical_data(
     but do not affect the download.  Columns are normalised according to the
     rename map and timestamps are converted to ISO format in a ``ts`` column.
     If ``target`` is missing and a ``price`` column is present, it will be
-    generated.
+    generated using ``return_threshold`` to classify price changes.
     """
 
     is_local = os.path.isfile(source_url) or source_url.startswith("file://")
@@ -91,7 +93,15 @@ def download_historical_data(
         df = df.sort_values("ts").reset_index(drop=True)
 
     if "target" not in df.columns and "price" in df.columns:
-        df["target"] = (df["price"].shift(-1) > df["price"]).fillna(0).astype(int)
+        returns = df["price"].pct_change().shift(-1)
+        df["target"] = pd.Series(
+            np.where(
+                returns > return_threshold,
+                1,
+                np.where(returns < -return_threshold, -1, 0),
+            ),
+            index=df.index,
+        ).fillna(0)
 
     return df
 
