@@ -351,13 +351,18 @@ The import tools expect a table named `historical_prices` to exist in your Supab
 
 ```sql
 CREATE TABLE historical_prices (
-    ts TIMESTAMPTZ PRIMARY KEY,
-    open DOUBLE PRECISION NOT NULL,
-    high DOUBLE PRECISION NOT NULL,
-    low DOUBLE PRECISION NOT NULL,
-    price DOUBLE PRECISION NOT NULL,
-    volume DOUBLE PRECISION,
-    target INTEGER DEFAULT 0
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    unix BIGINT,
+    date TEXT,
+    symbol TEXT,
+    open DOUBLE PRECISION,
+    high DOUBLE PRECISION,
+    low DOUBLE PRECISION,
+    close DOUBLE PRECISION,
+    volume_xrp DOUBLE PRECISION,
+    volume_usdt DOUBLE PRECISION,
+    tradecount BIGINT,
+    timestamp TIMESTAMPTZ GENERATED ALWAYS AS (to_timestamp(unix / 1000)) STORED
 );
 ```
 

@@ -35,27 +35,34 @@ def download_historical_data(
 
     df = pd.read_csv(path, skiprows=skiprows)
 
-    # Normalize column names to a standard schema
+    # Normalize column names to match the Supabase schema exactly
     rename_map = {
-        "timestamp": "ts",
-        "close": "price",
+        "Unix": "unix",
+        "unix": "unix",
+        "Date": "date",
+        "date": "date",
+        "Symbol": "symbol",
+        "symbol": "symbol",
+        "Open": "open",
         "open": "open",
+        "High": "high",
         "high": "high",
+        "Low": "low",
         "low": "low",
-        "volume usdt": "volume",  # Use USDT volume as standard 'volume'
-        "Unix": "timestamp",
-        "unix": "ts",
-        "date": "ts",
-        "volume xrp": "volume_base",  # Temporarily rename extras for dropping later
+        "Close": "close",
+        "close": "close",
+        "Volume XRP": "volume_xrp",
+        "volume xrp": "volume_xrp",
+        "Volume USDT": "volume_usdt",
+        "volume usdt": "volume_usdt",
         "tradecount": "tradecount",
+        "Trade Count": "tradecount",
     }
 
-    rename_map_lower = {k.lower(): v for k, v in rename_map.items()}
     df = df.rename(
         columns={
-            col: rename_map_lower[col.lower()]
+            col: rename_map.get(col, rename_map.get(col.lower(), col))
             for col in df.columns
-            if col.lower() in rename_map_lower
         }
     )
 
@@ -63,39 +70,45 @@ def download_historical_data(
     if df.columns.duplicated().any():
         df = df.loc[:, ~df.columns.duplicated()]
 
-    # Normalize any "Volume <asset>" style columns
-    volume_like = [c for c in df.columns if c.lower().startswith("volume ")]
-    if volume_like:
-        if "volume" not in df.columns:
-            df = df.rename(columns={volume_like[0]: "volume"})
-            volume_like = volume_like[1:]
-        df = df.drop(columns=volume_like)
+    if ("unix" not in df.columns and "date" not in df.columns) or "close" not in df.columns:
+        raise ValueError("CSV must contain unix/date timestamp and close columns")
 
-    if "ts" not in df.columns or "price" not in df.columns:
-        raise ValueError("CSV must contain timestamp and close/price columns")
+    # Create 'timestamp' column from 'date' or 'unix' if not present
+    if "timestamp" not in df.columns:
+        if "unix" in df.columns:
+            df["timestamp"] = pd.to_datetime(df["unix"], unit="ms", utc=True)
+        else:
+            df["timestamp"] = pd.to_datetime(df["date"], utc=True)
 
-    df["ts"] = pd.to_datetime(df["ts"], utc=True)
-
-    symbol_cols = [c for c in df.columns if c.lower() == "symbol"]
-    if symbol_cols:
-        symbol_col = symbol_cols[0]
-        if symbol is not None:
-            df = df[df[symbol_col] == symbol]
-        df = df.drop(columns=symbol_col)
+    # Filter by symbol and date range
+    if symbol is not None and "symbol" in df.columns:
+        df = df[df["symbol"] == symbol]
     if start_ts is not None:
-        start_ts = pd.to_datetime(start_ts)
-        if start_ts.tzinfo is None:
-            start_ts = start_ts.tz_localize("UTC")
-        df = df[df["ts"] >= start_ts]
+        start_ts = pd.to_datetime(start_ts, utc=True)
+        df = df[df["timestamp"] >= start_ts]
     if end_ts is not None:
-        end_ts = pd.to_datetime(end_ts)
-        if end_ts.tzinfo is None:
-            end_ts = end_ts.tz_localize("UTC")
-        df = df[df["ts"] < end_ts]
+        end_ts = pd.to_datetime(end_ts, utc=True)
+        df = df[df["timestamp"] < end_ts]
 
-    df = df.sort_values("ts").drop_duplicates("ts").reset_index(drop=True)
+    df = df.sort_values("timestamp").drop_duplicates("timestamp").reset_index(drop=True)
     if "target" not in df.columns:
-        df["target"] = (df["price"].shift(-1) > df["price"]).fillna(0).astype(int)
+        df["target"] = (df["close"].shift(-1) > df["close"]).fillna(0).astype(int)
+
+    # Select only columns that match the Supabase schema (exclude 'id' as it's auto-generated)
+    schema_columns = [
+        "unix",
+        "date",
+        "symbol",
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume_xrp",
+        "volume_usdt",
+        "tradecount",
+        "timestamp",
+    ]
+    df = df[[col for col in schema_columns if col in df.columns]]
 
     if output_path:
         if output_path.endswith(".parquet"):
@@ -177,15 +190,30 @@ def insert_to_supabase(
         table = "historical_prices"
 
     df = df.copy()
-    # Drop extra columns to match schema (keep only standard ones)
-    standard_columns = ['ts', 'open', 'high', 'low', 'price', 'volume', 'target']
-    df = df[[col for col in standard_columns if col in df.columns]]
+    schema_columns = [
+        "unix",
+        "date",
+        "symbol",
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume_xrp",
+        "volume_usdt",
+        "tradecount",
+        "timestamp",
+    ]
+    df = df[[col for col in schema_columns if col in df.columns]]
 
-    for col in df.columns:
-        if pd.api.types.is_datetime64_any_dtype(df[col]):
-            df[col] = df[col].dt.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+    # Supabase generates ``timestamp`` from ``unix``. Omit the column to avoid
+    # insertion errors when the database defines it as a generated column.
+    insert_df = df.drop(columns=[c for c in ["timestamp"] if c in df.columns])
 
-    records = df.to_dict(orient="records")
+    for col in insert_df.columns:
+        if pd.api.types.is_datetime64_any_dtype(insert_df[col]):
+            insert_df[col] = insert_df[col].dt.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
+    records = insert_df.to_dict(orient="records")
     for i in range(0, len(records), batch_size):
         batch = records[i : i + batch_size]
         _insert_batch(client, table, batch)
