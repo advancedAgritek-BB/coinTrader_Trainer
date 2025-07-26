@@ -90,10 +90,11 @@ def download_historical_data(
         end_ts = pd.to_datetime(end_ts, utc=True)
         df = df[df["timestamp"] < end_ts]
 
-    df = df.sort_values("timestamp").drop_duplicates("timestamp").reset_index(drop=True)
-    if "target" not in df.columns:
-        df["target"] = (df["close"].shift(-1) > df["close"]).fillna(0).astype(int)
-
+    df = (
+        df.sort_values("timestamp")
+        .drop_duplicates("timestamp")
+        .reset_index(drop=True)
+    )
     # Select only columns that match the Supabase schema (exclude 'id' as it's auto-generated)
     schema_columns = [
         "unix",
