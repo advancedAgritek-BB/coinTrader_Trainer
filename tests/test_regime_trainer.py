@@ -80,7 +80,6 @@ def test_label_encoding(monkeypatch):
     def fake_train(params, train_set, *args, **kwargs):
         captured[0] = params
         captured["labels"] = train_set.get_label()
-        captured[0] = params
         return _fake_booster()
 
     monkeypatch.setattr(lgb, "train", fake_train)
