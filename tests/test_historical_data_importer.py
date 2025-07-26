@@ -40,7 +40,7 @@ def test_download_historical_data(tmp_path):
     pd.testing.assert_series_equal(df["target"], expected_target, check_names=False)
 
 
-@pytest.mark.parametrize("time_col", ["unix", "date", "UNIX", "Date"])
+@pytest.mark.parametrize("time_col", ["unix", "date", "UNIX", "Date", "Unix"])
 def test_download_historical_data_alt_timestamp(tmp_path, time_col):
     data = pd.DataFrame({
         time_col: pd.date_range("2021-01-01", periods=3, freq="D"),
