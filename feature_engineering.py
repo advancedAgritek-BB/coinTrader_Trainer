@@ -68,6 +68,47 @@ def _compute_features_pandas(
     else:
         df[atr_col] = np.nan
 
+    # Bollinger Bands (20 period, 2 std dev)
+    rolling_mean = df["price"].rolling(window=20, min_periods=20).mean()
+    rolling_std = df["price"].rolling(window=20, min_periods=20).std()
+    df["bol_mid"] = rolling_mean
+    df["bol_upper"] = rolling_mean + 2 * rolling_std
+    df["bol_lower"] = rolling_mean - 2 * rolling_std
+
+    # Momentum over 10 periods
+    df["momentum_10"] = df["price"] - df["price"].shift(10)
+
+    # ADX indicator
+    if {"high", "low"}.issubset(df.columns):
+        high = df["high"]
+        low = df["low"]
+        close = df["price"]
+        plus_dm = high.diff().clip(lower=0)
+        minus_dm = (-low.diff()).clip(lower=0)
+        tr1 = high - low
+        tr2 = (high - close.shift()).abs()
+        tr3 = (low - close.shift()).abs()
+        tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+        atr = tr.rolling(window=14, min_periods=14).mean()
+        plus_di = 100 * plus_dm.rolling(window=14, min_periods=14).sum() / atr
+        minus_di = 100 * minus_dm.rolling(window=14, min_periods=14).sum() / atr
+        dx = 100 * (plus_di.subtract(minus_di).abs() / (plus_di + minus_di))
+        df["adx_14"] = dx.rolling(window=14, min_periods=14).mean()
+    else:
+        df["adx_14"] = np.nan
+
+    # On Balance Volume
+    vol_col_name = None
+    for c in df.columns:
+        if c.lower() == "volume" or c.lower().startswith("volume_"):
+            vol_col_name = c
+            break
+    if vol_col_name:
+        direction = np.sign(df["price"].diff().fillna(0))
+        df["obv"] = (direction * df[vol_col_name]).fillna(0).cumsum()
+    else:
+        df["obv"] = np.nan
+
     return df, rsi_col, vol_col, atr_col
 
 
@@ -179,6 +220,41 @@ def make_features(
             else:
                 gdf[atr_col] = np.nan
 
+            # Bollinger Bands
+            rolling_mean = gdf["price"].rolling(window=20, min_periods=20).mean()
+            rolling_std = gdf["price"].rolling(window=20, min_periods=20).std()
+            gdf["bol_mid"] = rolling_mean
+            gdf["bol_upper"] = rolling_mean + 2 * rolling_std
+            gdf["bol_lower"] = rolling_mean - 2 * rolling_std
+
+            gdf["momentum_10"] = gdf["price"] - gdf["price"].shift(10)
+
+            if {"high", "low"}.issubset(gdf.columns):
+                plus_dm = high.diff().clip(lower=0)
+                minus_dm = (-low.diff()).clip(lower=0)
+                tr1 = high - low
+                tr2 = (high - close).abs()
+                tr3 = (low - close).abs()
+                tr = _cudf.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+                atr = tr.rolling(window=14, min_periods=14).mean()
+                plus_di = 100 * plus_dm.rolling(window=14, min_periods=14).sum() / atr
+                minus_di = 100 * minus_dm.rolling(window=14, min_periods=14).sum() / atr
+                dx = 100 * ((plus_di - minus_di).abs() / (plus_di + minus_di))
+                gdf["adx_14"] = dx.rolling(window=14, min_periods=14).mean()
+            else:
+                gdf["adx_14"] = np.nan
+
+            vol_col_name = None
+            for c in gdf.columns:
+                if c.lower() == "volume" or c.lower().startswith("volume_"):
+                    vol_col_name = c
+                    break
+            if vol_col_name is not None:
+                direction = _cudf.Series(np.sign(gdf["price"].diff().fillna(0)))
+                gdf["obv"] = (direction * gdf[vol_col_name]).fillna(0).cumsum()
+            else:
+                gdf["obv"] = np.nan
+
             df = gdf.to_pandas() if hasattr(gdf, "to_pandas") else pd.DataFrame(gdf)
         except Exception:
             pdf = gdf.to_pandas() if hasattr(gdf, "to_pandas") else pd.DataFrame(gdf)
@@ -195,6 +271,8 @@ def make_features(
             raise ValueError("Too many NaN values after interpolation")
 
         df = df.bfill().ffill()
+        if "target" not in df.columns:
+            df["target"] = np.sign(df["log_ret"].shift(-1)).fillna(0).astype(int)
         result = df.dropna()
         if "target" not in result.columns and "price" in result.columns:
             returns = result["price"].pct_change().shift(-1)
@@ -226,6 +304,8 @@ def make_features(
         raise ValueError("Too many NaN values after interpolation")
 
     df = df.bfill().ffill()
+    if "target" not in df.columns:
+        df["target"] = np.sign(df["log_ret"].shift(-1)).fillna(0).astype(int)
     result = df.dropna()
     if "target" not in result.columns and "price" in result.columns:
         returns = result["price"].pct_change().shift(-1)

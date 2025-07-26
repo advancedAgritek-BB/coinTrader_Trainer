@@ -233,6 +233,11 @@ def main() -> None:  # pragma: no cover - CLI entry
             else:
                 result = fn(window, table=args.table, **defaults)
         except TypeError:
+        fn = optuna_optimizer.run_optuna_search
+        sig = inspect.signature(fn)
+        param_names = set(sig.parameters.keys())
+
+        if {"start", "end"}.issubset(param_names):
             end_ts = datetime.utcnow()
             start_ts = end_ts - timedelta(days=window)
             if inspect.iscoroutinefunction(fn):
@@ -267,6 +272,17 @@ def main() -> None:  # pragma: no cover - CLI entry
 
         if isinstance(result, dict):
             params.update(result)
+                optuna_params = fn(start_ts, end_ts, table=args.table, **defaults)
+        else:
+            if inspect.iscoroutinefunction(fn):
+                optuna_params = asyncio.run(
+                    fn(window, table=args.table, **defaults)
+                )
+            else:
+                optuna_params = fn(window, table=args.table, **defaults)
+
+        if isinstance(optuna_params, dict):
+            params.update(optuna_params)
 
     # Training dispatch
     if args.profile_gpu:
