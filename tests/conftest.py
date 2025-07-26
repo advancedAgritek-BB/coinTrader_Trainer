@@ -77,7 +77,11 @@ class DummyStorageBucket:
         self.download_data = b"model-bytes"
 
     def upload(self, path, file_obj):
-        self.uploads.append((path, file_obj.read()))
+        if hasattr(file_obj, "read"):
+            data = file_obj.read()
+        else:
+            data = file_obj
+        self.uploads.append((path, data))
 
     def download(self, path):
         return self.download_data
