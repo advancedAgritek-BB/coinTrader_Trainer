@@ -45,6 +45,8 @@ def download_historical_data(
         "volume": "volume",
         # CryptoDataDownload uses a "Volume USDT" column
         "volume usdt": "volume",
+        # Normalize CryptoDataDownload's 'Unix' column
+        "Unix": "timestamp",
     }
     # Handle common alternative timestamp column names
     rename_map.update({"unix": "ts", "date": "ts"})
