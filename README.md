@@ -525,6 +525,21 @@ a different destination:
 python kraken_fetch.py --table ohlc_raw
 ```
 
+### CCXT OHLC Imports
+
+Another helper script relies on the [ccxt](https://github.com/ccxt/ccxt)
+library to pull daily candles from other exchanges. It is usually scheduled with
+cron so new rows are inserted every day:
+
+```cron
+0 4 * * * python ccxt_fetch.py --exchange binance --symbol BTC/USDT
+```
+
+The destination table defaults to the value of the `CCXT_TABLE` environment
+variable (`ohlc_data` if unset). The CLI accepts `--exchange`, `--symbol`,
+`--days` and `--table` arguments to control what data is fetched and where it is
+stored.
+
 ## Swarm Scenario Simulation
 
 `swarm_sim.py` explores how multiple trading strategies perform when run in parallel. The simulator uses `networkx` to build a graph of market scenarios and evaluate parameter combinations across the nodes. Invoke it via the command line:
