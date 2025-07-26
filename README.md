@@ -175,6 +175,12 @@ generation.
 
 The training pipeline reads options from ``cfg.yaml``. The new
 ``default_window_days`` key determines how many days of data are loaded when
+``--start-ts`` is not specified on the command line. Other defaults such as
+``learning_rate`` and ``num_boost_round`` for the LightGBM trainer live under
+the ``regime_lgbm`` section, while feature engineering parameters like
+``rsi_period`` and ``volatility_window`` reside under ``features``. Swarm search
+settings are grouped beneath ``swarm``. Adjust these values to customise the
+standard training behaviour.
 ``--start-ts`` is not specified on the command line. Configuration now also
 includes an ``optuna`` section controlling hyperparameter tuning. By default
 ``n_trials`` is ``100`` and ``direction`` is ``minimize``.
@@ -312,6 +318,16 @@ ensemble, metrics = federated_trainer.train_federated_regime(
 
 When ``SUPABASE_URL`` and credentials are present, the resulting ensemble is
 uploaded to the ``models`` bucket automatically.
+
+### Optuna Hyperparameter Tuning
+
+``ml_trainer.py`` also integrates [Optuna](https://optuna.org) for automated
+learning rate search. Enable tuning with the ``--optuna`` flag. The optimiser
+performs 50 trials by default before training the final model.
+
+```bash
+python ml_trainer.py train regime --optuna
+```
 
 ### Importing Historical Data
 
