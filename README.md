@@ -311,6 +311,11 @@ python ml_trainer.py import-data \
 
 ### Federated Training
 
+Passing the ``--federated`` flag enables federated learning. Each
+participant trains on its own dataset locally and only model parameters
+are shared for aggregation. Data never leaves the client machine.
+By default the configuration trains ``num_clients`` models over ``num_rounds`` aggregation rounds. These settings start at ``10`` clients and ``20`` rounds under the ``federated_regime`` section of ``cfg.yaml``.
+
 Passing the ``--federated`` flag runs a local simulation where multiple
 models are trained on different data splits and then aggregated.
 To launch a real federated learning session across machines, start the
