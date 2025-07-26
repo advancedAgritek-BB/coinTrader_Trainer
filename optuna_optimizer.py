@@ -27,7 +27,7 @@ DEFAULT_PARAMS: Dict[str, Any] = {
 }
 
 
-def load_data(start_ts: datetime | str, end_ts: datetime | str, table: str = "ohlc_data") -> Tuple[pd.DataFrame, pd.Series]:
+async def load_data(start_ts: datetime | str, end_ts: datetime | str, table: str = "ohlc_data") -> Tuple[pd.DataFrame, pd.Series]:
     """Fetch data between ``start_ts`` and ``end_ts`` and return ``(X, y)``."""
 
     if isinstance(start_ts, datetime):
@@ -35,7 +35,7 @@ def load_data(start_ts: datetime | str, end_ts: datetime | str, table: str = "oh
     if isinstance(end_ts, datetime):
         end_ts = end_ts.isoformat()
 
-    df = asyncio.run(fetch_data_range_async(table, str(start_ts), str(end_ts)))
+    df = await fetch_data_range_async(table, str(start_ts), str(end_ts))
     if "timestamp" in df.columns and "ts" not in df.columns:
         df = df.rename(columns={"timestamp": "ts"})
     df = make_features(df)
@@ -91,7 +91,7 @@ async def run_optuna_search(
 ) -> Dict[str, Any]:
     """Run an Optuna hyperparameter search and return the best parameters."""
 
-    X, y = load_data(start_ts, end_ts, table)
+    X, y = await load_data(start_ts, end_ts, table)
     study = optuna.create_study(direction=direction)
     study.optimize(objective_factory(X, y), n_trials=n_trials)
     return study.best_params
