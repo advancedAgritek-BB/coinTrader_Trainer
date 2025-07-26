@@ -10,6 +10,8 @@ import subprocess
 from datetime import datetime, timedelta
 from typing import Any, Dict, Tuple
 
+from prometheus_client import Gauge, start_http_server
+
 import numpy as np
 import pandas as pd
 import yaml
@@ -19,6 +21,11 @@ import historical_data_importer
 from data_import import download_historical_data, insert_to_supabase
 
 load_dotenv()
+
+# expose model accuracy metrics via Prometheus
+accuracy_gauge = Gauge("model_accuracy", "Model accuracy")
+if __name__ == "__main__":
+    start_http_server(8000)
 
 try:
     from trainers.regime_lgbm import train_regime_lgbm
@@ -299,6 +306,7 @@ def main() -> None:  # pragma: no cover - CLI entry
     print("Training completed. Metrics:")
     for k, v in metrics.items():
         print(f"{k}: {v}")
+    accuracy_gauge.set(metrics.get("accuracy", 0))
 
 
 if __name__ == "__main__":  # pragma: no cover - manual execution
