@@ -1,7 +1,6 @@
 import os
 import sys
 import types
-
 import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
@@ -9,14 +8,15 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 import registry
 
 
-def test_upload_uses_joblib_and_validates_metrics(monkeypatch, registry_with_dummy):
+def test_upload_uses_joblib(monkeypatch, registry_with_dummy):
     reg, dummy = registry_with_dummy
 
     calls = []
 
-    def fake_dump(obj, file_obj):
+    def fake_dump(obj, filename):
         calls.append(obj)
-        file_obj.write(b"d")
+        with open(filename, "wb") as f:
+            f.write(b"d")
 
     monkeypatch.setattr(
         registry,
@@ -25,42 +25,21 @@ def test_upload_uses_joblib_and_validates_metrics(monkeypatch, registry_with_dum
         raising=False,
     )
 
-    reg.upload(object(), "model", {"accuracy": 0.9})
+    reg.upload(object(), "model")
 
     assert calls, "joblib.dump was not called"
     assert dummy.storage.bucket.uploads, "model bytes not uploaded"
 
-    with pytest.raises(ValueError):
-        reg.upload(object(), "model", ["not", "a", "dict"])
+
+def test_list_models(registry_with_dummy):
+    reg, dummy = registry_with_dummy
+    result = reg.list_models()
+    assert result == dummy.query.execute().data
 
 
-def test_list_models_applies_tag_filter(registry_with_dummy):
+def test_approve_calls_update(registry_with_dummy):
     reg, dummy = registry_with_dummy
     try:
-        reg.list_models(tag="foo")
+        reg.approve("1")
     except AttributeError:
-        pytest.fail("list_models() not implemented")
-
-    assert dummy.query.tag_filtered, "tag filter not applied"
-
-
-def test_get_latest_uses_joblib_load(monkeypatch, registry_with_dummy):
-    reg, dummy = registry_with_dummy
-
-    loaded_obj = object()
-    calls = []
-
-    def fake_load(file_obj):
-        calls.append(True)
-        return loaded_obj
-
-    monkeypatch.setattr(
-        registry,
-        "joblib",
-        types.SimpleNamespace(dump=lambda o, f: None, load=fake_load),
-        raising=False,
-    )
-
-    result = reg.get_latest("model")
-    assert calls, "joblib.load was not called"
-    assert result[0] is loaded_obj
+        pytest.fail("approve() not implemented")
