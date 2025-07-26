@@ -202,7 +202,6 @@ def insert_to_supabase(
         'volume_xrp',
         'volume_usdt',
         'tradecount',
-        'timestamp',
     ]
     df = df[[col for col in schema_columns if col in df.columns]]
 
