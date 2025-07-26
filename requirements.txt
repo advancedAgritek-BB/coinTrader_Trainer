@@ -20,6 +20,7 @@ pyyaml
 redis  # optional, used for caching
 requests
 scikit-learn
+prometheus_client
 supabase
 tenacity
 flwr
