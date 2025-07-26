@@ -1,21 +1,22 @@
+ccxt
+fakeredis
 httpx
+joblib
+jsonschema
 lightgbm
+networkx
 numpy
+optuna
 pandas
+pyarrow
+pyopencl  # optional for GPU; needs Visual Studio Build Tools on Windows
 pytest
 pytest-asyncio
-fakeredis
+python-dotenv
+pytz
+pyyaml
+redis  # optional, used for caching
+requests
 scikit-learn
 supabase
 tenacity
-jsonschema
-joblib
-optuna
-pyyaml
-pyarrow
-pytz
-networkx
-pyopencl  # optional for GPU; needs Visual Studio Build Tools on Windows
-redis  # optional, used for caching
-requests
-python-dotenv
