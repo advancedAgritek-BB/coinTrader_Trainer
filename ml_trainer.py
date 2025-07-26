@@ -34,6 +34,11 @@ except Exception:  # pragma: no cover - missing during testing
     except Exception:  # pragma: no cover - trainer not available
         train_federated_regime = None  # type: ignore
 
+try:  # pragma: no cover - optional dependency
+    import federated_fl
+except Exception:  # pragma: no cover - module may be missing
+    federated_fl = None  # type: ignore
+
 TRAINERS = {
     "regime": (train_regime_lgbm, "regime_lgbm"),
 }
@@ -92,6 +97,11 @@ def main() -> None:  # pragma: no cover - CLI entry
         "--federated",
         action="store_true",
         help="Use federated learning (regime task only)",
+    )
+    train_p.add_argument(
+        "--true-federated",
+        action="store_true",
+        help="Use Flower-based federated learning",
     )
     train_p.add_argument("--start-ts", help="Data start timestamp (ISO format)")
     train_p.add_argument("--end-ts", help="Data end timestamp (ISO format)")
@@ -239,87 +249,9 @@ def main() -> None:  # pragma: no cover - CLI entry
 
         if inspect.iscoroutine(result):
             result = asyncio.run(result)
-        try:
-            fn = optuna_optimizer.run_optuna_search
-            if inspect.iscoroutinefunction(fn):
-                result = asyncio.run(fn(window, table=args.table, **defaults))
-            else:
-                result = fn(window, table=args.table, **defaults)
-        except TypeError:
-        fn = optuna_optimizer.run_optuna_search
-        sig = inspect.signature(fn)
-        param_names = set(sig.parameters.keys())
-
-        if {"start", "end"}.issubset(param_names):
-            end_ts = datetime.utcnow()
-            start_ts = end_ts - timedelta(days=window)
-            if inspect.iscoroutinefunction(fn):
-                result = asyncio.run(
-                    fn(start_ts, end_ts, table=args.table, **defaults)
-                )
-            else:
-                optuna_params = fn(start_ts, end_ts, table=args.table, **defaults)
-        if isinstance(optuna_params, dict):
-            params.update(optuna_params)
-                result = fn(start_ts, end_ts, table=args.table, **defaults)
-        except Exception as exc:  # pragma: no cover - optional dependency
-            raise SystemExit(
-                "--optuna requires the 'optuna_optimizer' module to be installed"
-            ) from exc
-        else:
-            if isinstance(optuna_params, dict):
-                params.update(optuna_params)
-                try:
-                    import optuna_search as optuna_mod
-                except Exception:  # pragma: no cover - fallback name
-                    import optuna_optimizer as optuna_mod
-        window = cfg.get("default_window_days", 7)
-        defaults = cfg.get("optuna", {})
-        run_func = optuna_mod.run_optuna_search
-        sig = inspect.signature(run_func)
-        param_names = set(sig.parameters.keys())
-        if {"start", "end"}.issubset(param_names):
-            start = datetime.utcnow() - timedelta(days=window)
-            end = datetime.utcnow()
-            result = run_func(start, end, table=args.table, **defaults)
-        else:
-            result = run_func(window, table=args.table, **defaults)
-        if inspect.iscoroutine(result):
-            result = asyncio.run(result)
-
-        if not isinstance(result, dict):
-            try:
-                import optuna_search as optuna_mod
-            except Exception:  # pragma: no cover - fallback name
-                import optuna_optimizer as optuna_mod
-
-            run_func = optuna_mod.run_optuna_search
-            sig = inspect.signature(run_func)
-            param_names = set(sig.parameters.keys())
-            window = cfg.get("default_window_days", 7)
-            defaults = cfg.get("optuna", {})
-            if {"start", "end"}.issubset(param_names):
-                start = datetime.utcnow() - timedelta(days=window)
-                end = datetime.utcnow()
-                result = run_func(start, end, table=args.table, **defaults)
-            else:
-                result = run_func(window, table=args.table, **defaults)
-            if inspect.iscoroutine(result):
-                result = asyncio.run(result)
 
         if isinstance(result, dict):
             params.update(result)
-                optuna_params = fn(start_ts, end_ts, table=args.table, **defaults)
-        else:
-            if inspect.iscoroutinefunction(fn):
-                optuna_params = asyncio.run(
-                    fn(window, table=args.table, **defaults)
-                )
-            else:
-                optuna_params = fn(window, table=args.table, **defaults)
-
-        if isinstance(optuna_params, dict):
-            params.update(optuna_params)
 
     # Training dispatch
     if args.profile_gpu:
@@ -330,6 +262,19 @@ def main() -> None:  # pragma: no cover - CLI entry
         except Exception:
             print("GPU profiling enabled. Run: {}".format(" ".join(cmd)))
 
+    if args.true_federated:
+        if federated_fl is None:
+            raise SystemExit("True federated training not supported")
+        if not args.start_ts or not args.end_ts:
+            raise SystemExit("--true-federated requires --start-ts and --end-ts")
+        federated_fl.launch(
+            args.start_ts,
+            args.end_ts,
+            config_path=args.cfg,
+            params_override=params,
+            table=args.table,
+        )
+        return
     if args.federated:
         if not args.start_ts or not args.end_ts:
             raise SystemExit("--federated requires --start-ts and --end-ts")
