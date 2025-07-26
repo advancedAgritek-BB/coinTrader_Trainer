@@ -52,3 +52,6 @@ federated_regime:
 optuna:
   n_trials: 100
   direction: minimize
+backtest:
+  slippage: 0.005
+  costs: 0.002
