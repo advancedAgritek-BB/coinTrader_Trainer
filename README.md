@@ -173,17 +173,15 @@ generation.
 
 ### Training Pipeline
 
-The training pipeline reads options from ``cfg.yaml``. The new
-``default_window_days`` key determines how many days of data are loaded when
-``--start-ts`` is not specified on the command line. Other defaults such as
-``learning_rate`` and ``num_boost_round`` for the LightGBM trainer live under
-the ``regime_lgbm`` section, while feature engineering parameters like
-``rsi_period`` and ``volatility_window`` reside under ``features``. Swarm search
-settings are grouped beneath ``swarm``. Adjust these values to customise the
-standard training behaviour.
-``--start-ts`` is not specified on the command line. Configuration now also
-includes an ``optuna`` section controlling hyperparameter tuning. By default
-``n_trials`` is ``100`` and ``direction`` is ``minimize``.
+The training pipeline reads options from ``cfg.yaml``. The ``default_window_days``
+setting determines how many days of data to load when ``--start-ts`` is omitted.
+Other defaults such as ``learning_rate`` and ``num_boost_round`` for the
+LightGBM trainer live under the ``regime_lgbm`` section, while feature
+engineering parameters like ``rsi_period`` and ``volatility_window`` reside under
+``features``. Swarm search settings are grouped beneath ``swarm``.
+Configuration also includes an ``optuna`` section controlling hyperparameter
+tuning—``n_trials`` defaults to ``100`` and ``direction`` is ``minimize``.
+Adjust these values to customise the standard training behaviour.
 
 ## GPU Setup
 
@@ -550,13 +548,13 @@ library to pull daily candles from other exchanges. It is usually scheduled with
 cron so new rows are inserted every day:
 
 ```cron
-0 4 * * * python ccxt_fetch.py --exchange binance --symbol BTC/USDT
+0 4 * * * python ccxt_fetch_all.py --exchange binance --timeframe 1d --delay-sec 1 --table ohlc_data
 ```
 
 The destination table defaults to the value of the `CCXT_TABLE` environment
-variable (`ohlc_data` if unset). The CLI accepts `--exchange`, `--symbol`,
-`--days` and `--table` arguments to control what data is fetched and where it is
-stored.
+variable (`ohlc_data` if unset). The CLI accepts `--exchange`, `--timeframe`,
+`--delay-sec` and `--table` arguments to control what data is fetched and where
+it is stored.
 
 ## Swarm Scenario Simulation
 
