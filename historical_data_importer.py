@@ -70,6 +70,10 @@ def download_historical_data(
         if symbol is not None:
             df = df[df[sym_col] == symbol]
         df = df.drop(columns=sym_col)
+        symbol_col = symbol_cols[0]
+        if symbol is not None:
+            df = df[df[symbol_col] == symbol]
+        df = df.drop(columns=symbol_col)
     if start_ts is not None:
         start_ts = pd.to_datetime(start_ts)
         if start_ts.tzinfo is None:
