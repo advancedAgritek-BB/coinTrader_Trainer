@@ -214,6 +214,25 @@ def insert_to_supabase(
             insert_df[col] = insert_df[col].dt.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
 
     records = insert_df.to_dict(orient="records")
+        'unix',
+        'date',
+        'symbol',
+        'open',
+        'high',
+        'low',
+        'close',
+        'volume_xrp',
+        'volume_usdt',
+        'tradecount',
+        'timestamp',
+    ]
+    df = df[[col for col in schema_columns if col in df.columns]]
+
+    for col in df.columns:
+        if pd.api.types.is_datetime64_any_dtype(df[col]):
+            df[col] = df[col].dt.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
+    records = df.to_dict(orient="records")
     for i in range(0, len(records), batch_size):
         batch = records[i : i + batch_size]
         _insert_batch(client, table, batch)

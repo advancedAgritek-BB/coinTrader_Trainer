@@ -251,6 +251,7 @@ def test_insert_to_supabase_datetime_conversion(monkeypatch):
             "date": pd.date_range("2021-01-01", periods=2, freq="H", tz="UTC"),
         }
     )
+    df = pd.DataFrame({"timestamp": pd.date_range("2021-01-01", periods=2, freq="H", tz="UTC")})
     captured: list[dict] = []
 
     class FakeTable:
@@ -278,6 +279,7 @@ def test_insert_to_supabase_datetime_conversion(monkeypatch):
 
     assert all("timestamp" not in row for row in captured)
     assert all(isinstance(row["date"], str) for row in captured)
+    assert all(isinstance(row["timestamp"], str) for row in captured)
 
 
 def test_cli_import_data(monkeypatch):
