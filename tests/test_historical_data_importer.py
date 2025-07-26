@@ -122,6 +122,25 @@ def test_download_historical_data_renames_volume_column(tmp_path):
     assert list(df["volume"]) == [10, 20]
 
 
+def test_download_historical_data_handles_multiple_volume_columns(tmp_path):
+    data = pd.DataFrame(
+        {
+            "Timestamp": pd.date_range("2021-01-01", periods=2, freq="D"),
+            "Close": [1, 2],
+            "Volume XRP": [5, 6],
+            "Volume USDT": [10, 20],
+        }
+    )
+    csv_path = tmp_path / "vol_multi.csv"
+    data.to_csv(csv_path, index=False)
+
+    df = hdi.download_historical_data(str(csv_path))
+
+    assert "volume" in df.columns
+    remaining_volume_like = [c for c in df.columns if c.lower().startswith("volume ") and c.lower() != "volume"]
+    assert not remaining_volume_like
+
+
 def test_insert_to_supabase_batches(monkeypatch):
     df = pd.DataFrame({"a": [1, 2, 3]})
     inserted: list[list[dict]] = []

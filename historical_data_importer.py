@@ -63,6 +63,14 @@ def download_historical_data(
     if df.columns.duplicated().any():
         df = df.loc[:, ~df.columns.duplicated()]
 
+    # Normalize any "Volume <asset>" style columns
+    volume_like = [c for c in df.columns if c.lower().startswith("volume ")]
+    if volume_like:
+        if "volume" not in df.columns:
+            df = df.rename(columns={volume_like[0]: "volume"})
+            volume_like = volume_like[1:]
+        df = df.drop(columns=volume_like)
+
     if "ts" not in df.columns or "price" not in df.columns:
         raise ValueError("CSV must contain timestamp and close/price columns")
 
