@@ -9,7 +9,6 @@ import os
 import subprocess
 from datetime import datetime, timedelta
 from typing import Any, Dict, Tuple
-import inspect
 
 import numpy as np
 import pandas as pd
@@ -243,16 +242,17 @@ def main() -> None:  # pragma: no cover - CLI entry
                 )
             else:
                 optuna_params = fn(start_ts, end_ts, table=args.table, **defaults)
-        if isinstance(optuna_params, dict):
-            params.update(optuna_params)
-            try:
-                import optuna_search as optuna_mod
-            except Exception:  # pragma: no cover - fallback name
-                import optuna_optimizer as optuna_mod
         except Exception as exc:  # pragma: no cover - optional dependency
             raise SystemExit(
                 "--optuna requires the 'optuna_optimizer' module to be installed"
             ) from exc
+        else:
+            if isinstance(optuna_params, dict):
+                params.update(optuna_params)
+                try:
+                    import optuna_search as optuna_mod
+                except Exception:  # pragma: no cover - fallback name
+                    import optuna_optimizer as optuna_mod
         window = cfg.get("default_window_days", 7)
         defaults = cfg.get("optuna", {})
         run_func = optuna_mod.run_optuna_search
