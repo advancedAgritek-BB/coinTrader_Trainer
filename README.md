@@ -372,6 +372,45 @@ CREATE TABLE historical_prices (
 );
 ```
 
+### Maintaining the `ohlc_data` partitions
+
+The `ohlc_data` table is range partitioned on the `ts` column. Ingestion scripts
+such as `kraken_fetch.py` depend on each partition enforcing uniqueness so that
+`(symbol, ts)` is globally unique. When preparing future months create the next
+partition and add the constraint:
+
+```sql
+CREATE TABLE IF NOT EXISTS ohlc_data_2025_01
+    PARTITION OF ohlc_data
+    FOR VALUES FROM ('2025-01-01') TO ('2025-02-01');
+ALTER TABLE ohlc_data_2025_01 ADD UNIQUE (symbol, ts);
+```
+
+An automated job can handle this step. With `pg_cron` installed you might
+schedule a function each month to create the upcoming partition:
+
+```sql
+SELECT cron.schedule(
+    'create_ohlc_partition',
+    '0 0 25 * *',
+    $$
+    DO $$
+    DECLARE
+        start_ts date := date_trunc('month', now()) + interval '1 month';
+        end_ts   date := start_ts + interval '1 month';
+        name     text := format('ohlc_data_%s', to_char(start_ts, 'YYYY_MM'));
+    BEGIN
+        EXECUTE format(
+            'CREATE TABLE IF NOT EXISTS %I PARTITION OF ohlc_data FOR VALUES FROM (%L) TO (%L);',
+            name, start_ts, end_ts
+        );
+        EXECUTE format('ALTER TABLE %I ADD UNIQUE (symbol, ts);', name);
+    END;
+    $$;
+    $$
+);
+```
+
 
 ## GPU Training
 
