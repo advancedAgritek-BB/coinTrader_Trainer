@@ -50,6 +50,9 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
+This installs all required packages including the
+[Flower](https://flower.ai) library used for federated learning.
+
 Windows users should activate the environment with:
 
 ```powershell
@@ -72,6 +75,9 @@ After activation run:
 ```bash
 pip install -r requirements.txt
 ```
+
+The requirements file now includes [Flower](https://flower.ai) for
+running true federated learning experiments.
 
 On **Windows**, `pyopencl` requires a C/C++ compiler.  Install
 [Build Tools for Visual Studio](https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2022)
@@ -308,9 +314,17 @@ python ml_trainer.py import-data \
 Passing the ``--federated`` flag enables federated learning. Each
 participant trains on its own dataset locally and only model parameters
 are shared for aggregation. Data never leaves the client machine.
+By default the configuration trains ``num_clients`` models over ``num_rounds`` aggregation rounds. These settings start at ``10`` clients and ``20`` rounds under the ``federated_regime`` section of ``cfg.yaml``.
+
+Passing the ``--federated`` flag runs a local simulation where multiple
+models are trained on different data splits and then aggregated.
+To launch a real federated learning session across machines, start the
+trainer with ``--true-federated`` which uses Flower under the hood.
 
 ```bash
-python ml_trainer.py train regime --federated
+python ml_trainer.py train regime --true-federated \
+  --start-ts 2024-01-01T00:00:00Z \
+  --end-ts 2024-01-02T00:00:00Z
 ```
 
 The aggregated model is written to ``federated_model.pkl`` and uploaded

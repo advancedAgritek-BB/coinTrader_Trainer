@@ -1,5 +1,6 @@
 ccxt
 fakeredis
+flwr
 httpx
 joblib
 jsonschema
@@ -20,3 +21,4 @@ requests
 scikit-learn
 supabase
 tenacity
+flwr
