@@ -20,3 +20,4 @@ requests
 scikit-learn
 supabase
 tenacity
+flwr
