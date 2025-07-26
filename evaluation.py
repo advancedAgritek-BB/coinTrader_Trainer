@@ -66,3 +66,65 @@ def simulate_signal_pnl(
         "sharpe": float(sharpe),
         "sortino": float(sortino),
     }
+
+
+def run_backtest(
+    df: pd.DataFrame,
+    preds: np.ndarray,
+    *,
+    cash: float = 10000.0,
+    commission: float = 0.001,
+) -> float:
+    """Execute a simple Backtrader backtest using prediction signals.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame with OHLC columns consumed by ``backtrader``.
+    preds : np.ndarray
+        Array of trading signals with 1 for long, -1 for short and 0 for flat.
+    cash : float, optional
+        Starting portfolio value. Defaults to ``10000.0``.
+    commission : float, optional
+        Commission rate per trade. Defaults to ``0.001``.
+
+    Returns
+    -------
+    float
+        Final broker value after running the backtest.
+    """
+
+    import backtrader as bt
+
+    class _SignalStrategy(bt.Strategy):
+        params = dict(signals=None)
+
+        def __init__(self):
+            self._idx = 0
+
+        def next(self):
+            if self._idx >= len(self.p.signals):
+                return
+            sig = self.p.signals[self._idx]
+            self._idx += 1
+
+            pos = self.position.size
+            if sig == 1 and pos <= 0:
+                if pos < 0:
+                    self.close()
+                self.buy()
+            elif sig == -1 and pos >= 0:
+                if pos > 0:
+                    self.close()
+                self.sell()
+            elif sig == 0 and pos != 0:
+                self.close()
+
+    data = bt.feeds.PandasData(dataname=df)
+    cerebro = bt.Cerebro()
+    cerebro.adddata(data)
+    cerebro.addstrategy(_SignalStrategy, signals=list(preds))
+    cerebro.broker.setcash(cash)
+    cerebro.broker.setcommission(commission=commission)
+    cerebro.run()
+    return float(cerebro.broker.getvalue())

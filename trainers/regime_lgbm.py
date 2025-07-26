@@ -123,6 +123,11 @@ def train_regime_lgbm(
     params.setdefault("objective", "multiclass")
     params.setdefault("num_class", 3)
 
+    pos = (y == 1).sum()
+    neg = (y == 0).sum()
+    if pos > 0:
+        params.setdefault("scale_pos_weight", neg / pos)
+
     skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 
     gpu_defaults = {

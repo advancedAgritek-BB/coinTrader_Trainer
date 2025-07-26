@@ -79,6 +79,13 @@ pip install -r requirements.txt
 The requirements file now includes [Flower](https://flower.ai) for
 running true federated learning experiments.
 
+* Install [Backtrader](https://www.backtrader.com/) to run strategy
+  backtests:
+
+  ```bash
+  pip install backtrader
+  ```
+
 On **Windows**, `pyopencl` requires a C/C++ compiler.  Install
 [Build Tools for Visual Studio](https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2022)
 or another compiler before running the command above.  If you plan to
@@ -592,3 +599,25 @@ python ml_trainer.py --swarm
 ```
 
 The script searches for optimal LightGBM parameters during the simulation. Once complete, those values are passed into `train_regime_lgbm` so subsequent training runs start from the tuned configuration.
+
+## Backtesting
+
+The project includes a minimal helper built on
+[Backtrader](https://www.backtrader.com/) for evaluating prediction
+signals. Default options such as starting ``cash`` and ``commission`` are
+defined in ``cfg.yaml`` under the ``backtest`` section.
+
+```python
+from coinTrader_Trainer.evaluation import run_backtest, simulate_signal_pnl
+import pandas as pd
+import numpy as np
+
+df = pd.read_parquet("ohlc.parquet")
+preds = np.load("predictions.npy")
+final_equity = run_backtest(df, preds)
+metrics = simulate_signal_pnl(df, preds)
+```
+
+``run_backtest`` returns the final portfolio value while
+``simulate_signal_pnl`` computes Sharpe and Sortino ratios for the same
+signals.

@@ -52,3 +52,7 @@ federated_regime:
 optuna:
   n_trials: 100
   direction: minimize
+
+backtest:
+  cash: 10000
+  commission: 0.001
