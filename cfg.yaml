@@ -56,3 +56,5 @@ optuna:
 backtest:
   cash: 10000
   commission: 0.001
+  slippage: 0.005
+  costs: 0.002

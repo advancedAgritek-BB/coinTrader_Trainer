@@ -17,6 +17,7 @@ optionally persisted to Supabase Storage and the ``models`` table.
 
 * Python 3.9 or newer
 * networkx for the swarm simulation
+* backtrader for backtesting strategies
 * ``SUPABASE_URL`` and credentials for the Supabase project. Data reads
   use ``SUPABASE_USER_EMAIL`` with ``SUPABASE_PASSWORD`` (or ``SUPABASE_JWT``),
   while uploads continue to rely on ``SUPABASE_SERVICE_KEY`` (or
@@ -51,7 +52,8 @@ pip install -r requirements.txt
 ```
 
 This installs all required packages including the
-[Flower](https://flower.ai) library used for federated learning.
+[Flower](https://flower.ai) library used for federated learning and
+[Backtrader](https://www.backtrader.com/) for running strategy backtests.
 
 Windows users should activate the environment with:
 
@@ -77,7 +79,8 @@ pip install -r requirements.txt
 ```
 
 The requirements file now includes [Flower](https://flower.ai) for
-running true federated learning experiments.
+running true federated learning experiments and
+[Backtrader](https://www.backtrader.com/) for offline backtesting.
 
 * Install [Backtrader](https://www.backtrader.com/) to run strategy
   backtests:
@@ -92,7 +95,7 @@ or another compiler before running the command above.  If you plan to
 train only on the CPU you can remove `pyopencl` from `requirements.txt`.
 
 If you update the repository at a later date, run the installation
-command again so new dependencies such as ``pyyaml``, ``networkx`` or ``requests`` are installed.
+command again so new dependencies such as ``pyyaml``, ``networkx``, ``backtrader`` or ``requests`` are installed.
 For GPU-accelerated feature engineering install
 [`cudf`](https://rapids.ai/). The package requires CUDA
 and is not included in ``requirements.txt`` by default:
@@ -104,7 +107,7 @@ pip install cudf-cu12 --extra-index-url=https://pypi.nvidia.com
 If you prefer to install packages individually:
 
 ```bash
-pip install pandas numpy lightgbm scikit-learn supabase tenacity pyarrow pytz networkx requests
+pip install pandas numpy lightgbm scikit-learn supabase tenacity pyarrow pytz networkx requests backtrader
 ```
 
 ## Configuration

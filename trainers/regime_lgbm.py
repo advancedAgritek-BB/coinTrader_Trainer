@@ -19,6 +19,9 @@ from sklearn.model_selection import StratifiedKFold
 
 from registry import ModelRegistry
 
+# Optional container for capturing training parameters in unit tests
+captured: dict | None = None
+
 load_dotenv()
 
 # Compatibility shim for pytest monkeypatch on dict globals
@@ -119,6 +122,18 @@ def train_regime_lgbm(
     label_map = {-1: 0, 0: 1, 1: 2}
     y_enc = y.replace(label_map).astype(int)
 
+    # class balancing for the long vs neutral classes
+    pos = int((y == 1).sum())
+    neg = int((y == 0).sum())
+    if pos and "scale_pos_weight" not in params:
+        params["scale_pos_weight"] = neg / pos
+    # set scale_pos_weight for class imbalance if not provided
+    if "scale_pos_weight" not in params:
+        pos = (y == 1).sum()
+        neg = (y == 0).sum()
+        if pos > 0:
+            params["scale_pos_weight"] = neg / pos
+
     # ensure multiclass objective
     params.setdefault("objective", "multiclass")
     params.setdefault("num_class", 3)
@@ -164,6 +179,9 @@ def train_regime_lgbm(
         precision_scores = []
         recall_scores = []
         best_iterations = []
+
+        if isinstance(captured, dict):
+            captured[len(captured)] = train_params
 
         for train_idx, valid_idx in skf.split(X, y_enc):
             X_train, X_valid = X.iloc[train_idx], X.iloc[valid_idx]
@@ -249,6 +267,8 @@ def train_regime_lgbm(
     final_set = lgb.Dataset(X, label=y_enc)
     final_params = dict(train_params)
     final_params.pop("early_stopping_rounds", None)
+    if isinstance(captured, dict):
+        captured[len(captured)] = final_params
 
     final_model = lgb.train(
         final_params,

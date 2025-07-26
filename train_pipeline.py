@@ -42,6 +42,7 @@ def load_cfg(path: str) -> dict:
         cfg = yaml.safe_load(f) or {}
 
     cfg.setdefault("default_window_days", 7)
+    cfg.setdefault("backtest", {"slippage": 0.005, "costs": 0.002})
     return cfg
 
 
