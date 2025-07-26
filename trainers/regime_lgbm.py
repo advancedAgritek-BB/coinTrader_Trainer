@@ -96,6 +96,9 @@ def train_regime_lgbm(
         ``learning_rate`` before training. Defaults to ``False``.
     n_trials : int, optional
         Number of Optuna trials when ``tune`` is enabled. Defaults to ``50``.
+        Global defaults can also be specified in ``cfg.yaml`` under the
+        ``optuna`` section, which sets ``n_trials`` to ``100`` and ``direction``
+        to ``minimize``.
     registry : ModelRegistry, optional
         If provided, the trained model will be uploaded using this registry.
     model_name : str, optional

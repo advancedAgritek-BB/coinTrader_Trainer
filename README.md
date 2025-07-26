@@ -175,7 +175,9 @@ generation.
 
 The training pipeline reads options from ``cfg.yaml``. The new
 ``default_window_days`` key determines how many days of data are loaded when
-``--start-ts`` is not specified on the command line.
+``--start-ts`` is not specified on the command line. Configuration now also
+includes an ``optuna`` section controlling hyperparameter tuning. By default
+``n_trials`` is ``100`` and ``direction`` is ``minimize``.
 
 ## GPU Setup
 
