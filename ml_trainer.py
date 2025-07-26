@@ -83,6 +83,11 @@ def main() -> None:  # pragma: no cover - CLI entry
         help="Run hyperparameter swarm search before training",
     )
     train_p.add_argument(
+        "--optuna",
+        action="store_true",
+        help="Run Optuna hyperparameter search before training",
+    )
+    train_p.add_argument(
         "--federated",
         action="store_true",
         help="Use federated learning (regime task only)",
@@ -179,6 +184,9 @@ def main() -> None:  # pragma: no cover - CLI entry
 
     params = cfg.get(cfg_key, {}).copy()
 
+    if args.swarm and args.optuna:
+        raise SystemExit("--optuna and --swarm cannot be used together")
+
     # GPU parameter overrides
     if args.use_gpu:
         params["device_type"] = "gpu"
@@ -202,6 +210,22 @@ def main() -> None:  # pragma: no cover - CLI entry
         )
         if isinstance(swarm_params, dict):
             params.update(swarm_params)
+
+    # Optuna optimisation
+    if args.optuna:
+        try:
+            import optuna_optimizer
+        except Exception as exc:  # pragma: no cover - optional dependency
+            raise SystemExit(
+                "--optuna requires the 'optuna_optimizer' module to be installed"
+            ) from exc
+        window = cfg.get("default_window_days", 7)
+        defaults = cfg.get("optuna", {})
+        optuna_params = optuna_optimizer.run_optuna_search(
+            window, table=args.table, **defaults
+        )
+        if isinstance(optuna_params, dict):
+            params.update(optuna_params)
 
     # Training dispatch
     if args.profile_gpu:
