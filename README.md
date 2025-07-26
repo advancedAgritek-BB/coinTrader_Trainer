@@ -321,6 +321,16 @@ python ml_trainer.py import-data \
 
 ### Federated Training
 
+Passing the ``--federated`` flag runs a local federated **simulation**.  The
+trainer splits the dataset into ``num_clients`` partitions and trains a model on
+each in memory. Only the resulting weights are aggregated, so the individual
+rows never mix. This approach stays entirely within a single process and is
+useful for quick experiments.
+
+To run a true distributed federated session across machines, pass
+``--true-federated`` instead.  This launches a Flower server and multiple
+Flower clients that exchange parameters over the network while keeping each
+participant's data local.
 The trainer exposes two flavours of federated learning.  ``--federated``
 starts a **local simulation** where the dataset is split into several
 partitions on a single machine.  Each partition is trained separately and
@@ -359,6 +369,21 @@ Programmatic access is also available via
 from coinTrader_Trainer import federated_trainer
 
 ensemble, metrics = federated_trainer.train_federated_regime(
+    "2023-01-01T00:00:00Z", "2023-01-02T00:00:00Z"
+)
+```
+
+For the Flower-based variant, call ``federated_fl.start_server`` on the
+aggregation host and ``federated_fl.start_client`` on each participant:
+
+```python
+from coinTrader_Trainer import federated_fl
+
+# server side
+federated_fl.start_server(num_rounds=20)
+
+# client side
+federated_fl.start_client(
     "2023-01-01T00:00:00Z", "2023-01-02T00:00:00Z"
 )
 ```
