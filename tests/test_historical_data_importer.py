@@ -104,6 +104,24 @@ def test_download_historical_data_symbol_column_case_insensitive(tmp_path):
     assert len(df) == 1
 
 
+def test_download_historical_data_renames_volume_column(tmp_path):
+    data = pd.DataFrame(
+        {
+            "Timestamp": pd.date_range("2021-01-01", periods=2, freq="D"),
+            "Close": [1, 2],
+            "Volume USDT": [10, 20],
+        }
+    )
+    csv_path = tmp_path / "vol.csv"
+    data.to_csv(csv_path, index=False)
+
+    df = hdi.download_historical_data(str(csv_path))
+
+    assert "Volume USDT" not in df.columns
+    assert "volume" in df.columns
+    assert list(df["volume"]) == [10, 20]
+
+
 def test_insert_to_supabase_batches(monkeypatch):
     df = pd.DataFrame({"a": [1, 2, 3]})
     inserted: list[list[dict]] = []
