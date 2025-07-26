@@ -20,7 +20,8 @@ def test_train_regime_lgbm_returns_model_and_metrics():
     y = pd.Series([-1, 0, 1] * 10)
 
     params = {
-        "objective": "binary",
+        "objective": "multiclass",
+        "num_class": 3,
         "verbose": -1,
         "num_boost_round": 10,
         "early_stopping_rounds": 5,
@@ -41,7 +42,8 @@ def test_train_regime_lgbm_with_tuning():
     y = pd.Series([-1, 0, 1] * 10)
 
     params = {
-        "objective": "binary",
+        "objective": "multiclass",
+        "num_class": 3,
         "verbose": -1,
         "num_boost_round": 10,
         "early_stopping_rounds": 5,
@@ -63,27 +65,28 @@ def _fake_booster():
         best_iteration = 1
 
         def predict(self, data, num_iteration=None):
-            return np.zeros(len(data))
+            return np.zeros((len(data), 3))
 
     return FakeBooster()
 
 
-def test_scale_pos_weight_added(monkeypatch):
+def test_label_encoding(monkeypatch):
     rng = np.random.default_rng(0)
     X = pd.DataFrame(rng.normal(size=(15, 3)))
     y = pd.Series([-1, 0, 1] * 5)
 
-    captured = []
+    captured = {}
 
-    def fake_train(params, *args, **kwargs):
-        captured.append(params)
+    def fake_train(params, train_set, *args, **kwargs):
+        captured["labels"] = train_set.get_label()
         return _fake_booster()
 
     monkeypatch.setattr(lgb, "train", fake_train)
 
-    params = {"objective": "binary", "num_boost_round": 5, "early_stopping_rounds": 2}
+    params = {"objective": "multiclass", "num_class": 3, "num_boost_round": 5, "early_stopping_rounds": 2}
     train_regime_lgbm(X, y, params, use_gpu=False)
 
+    assert set(captured["labels"]) == {0, 1, 2}
     pos = (y == 1).sum()
     neg = (y == 0).sum()
     expected = neg / pos
@@ -116,7 +119,7 @@ def test_optuna_tuning_sets_learning_rate(monkeypatch):
         pass
     monkeypatch.setattr(lgb, "train", lambda *a, **k: _fake_booster())
 
-    params = {"objective": "binary", "num_boost_round": 5, "tune_learning_rate": True}
+    params = {"objective": "multiclass", "num_class": 3, "num_boost_round": 5, "tune_learning_rate": True}
     train_regime_lgbm(X, y, params, use_gpu=False)
 
     assert calls.get("create")
@@ -143,7 +146,7 @@ def test_train_regime_lgbm_tune_and_lr(monkeypatch):
         pass
     monkeypatch.setattr(lgb, "train", lambda *a, **k: _fake_booster())
 
-    params = {"objective": "binary", "num_boost_round": 5, "tune_learning_rate": True}
+    params = {"objective": "multiclass", "num_class": 3, "num_boost_round": 5, "tune_learning_rate": True}
     model, metrics = train_regime_lgbm(
         X, y, params, use_gpu=False, tune=True, n_trials=2
     )
@@ -166,7 +169,7 @@ def test_model_registry_upload_called(monkeypatch, registry_with_dummy):
     monkeypatch.setattr(lgb, "train", lambda *a, **k: _fake_booster())
     monkeypatch.setattr(reg, "upload", fake_upload, raising=False)
 
-    params = {"objective": "binary", "num_boost_round": 5}
+    params = {"objective": "multiclass", "num_class": 3, "num_boost_round": 5}
     model, metrics = train_regime_lgbm(X, y, params, use_gpu=False, registry=reg)
 
     assert uploaded["model"] is model
