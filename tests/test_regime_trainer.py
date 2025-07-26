@@ -16,8 +16,8 @@ from trainers.regime_lgbm import train_regime_lgbm
 def test_train_regime_lgbm_returns_model_and_metrics():
     # deterministic synthetic data
     rng = np.random.default_rng(0)
-    X = pd.DataFrame(rng.normal(size=(20, 5)), columns=[f"f{i}" for i in range(5)])
-    y = pd.Series([0, 1] * 10)
+    X = pd.DataFrame(rng.normal(size=(30, 5)), columns=[f"f{i}" for i in range(5)])
+    y = pd.Series([-1, 0, 1] * 10)
 
     params = {
         "objective": "binary",
@@ -37,8 +37,8 @@ def test_train_regime_lgbm_returns_model_and_metrics():
 
 def test_train_regime_lgbm_with_tuning():
     rng = np.random.default_rng(1)
-    X = pd.DataFrame(rng.normal(size=(20, 5)), columns=[f"f{i}" for i in range(5)])
-    y = pd.Series([0, 1] * 10)
+    X = pd.DataFrame(rng.normal(size=(30, 5)), columns=[f"f{i}" for i in range(5)])
+    y = pd.Series([-1, 0, 1] * 10)
 
     params = {
         "objective": "binary",
@@ -70,8 +70,8 @@ def _fake_booster():
 
 def test_scale_pos_weight_added(monkeypatch):
     rng = np.random.default_rng(0)
-    X = pd.DataFrame(rng.normal(size=(10, 3)))
-    y = pd.Series([0] * 7 + [1] * 3)
+    X = pd.DataFrame(rng.normal(size=(15, 3)))
+    y = pd.Series([-1, 0, 1] * 5)
 
     captured = []
 
@@ -84,14 +84,16 @@ def test_scale_pos_weight_added(monkeypatch):
     params = {"objective": "binary", "num_boost_round": 5, "early_stopping_rounds": 2}
     train_regime_lgbm(X, y, params, use_gpu=False)
 
-    expected = (len(y) - y.sum()) / y.sum()
+    pos = (y == 1).sum()
+    neg = (y == 0).sum()
+    expected = neg / pos
     assert captured[0]["scale_pos_weight"] == expected
 
 
 def test_optuna_tuning_sets_learning_rate(monkeypatch):
     rng = np.random.default_rng(0)
-    X = pd.DataFrame(rng.normal(size=(10, 3)))
-    y = pd.Series([0, 1] * 5)
+    X = pd.DataFrame(rng.normal(size=(30, 3)))
+    y = pd.Series([-1, 0, 1] * 10)
 
     best_lr = 0.05
     calls = {}
@@ -123,8 +125,8 @@ def test_optuna_tuning_sets_learning_rate(monkeypatch):
 
 def test_train_regime_lgbm_tune_and_lr(monkeypatch):
     rng = np.random.default_rng(2)
-    X = pd.DataFrame(rng.normal(size=(10, 3)))
-    y = pd.Series([0, 1] * 5)
+    X = pd.DataFrame(rng.normal(size=(30, 3)))
+    y = pd.Series([-1, 0, 1] * 10)
 
     class FakeStudy:
         best_params = {"learning_rate": 0.1}
@@ -152,8 +154,8 @@ def test_model_registry_upload_called(monkeypatch, registry_with_dummy):
     reg, _ = registry_with_dummy
 
     rng = np.random.default_rng(0)
-    X = pd.DataFrame(rng.normal(size=(10, 3)))
-    y = pd.Series([0, 1] * 5)
+    X = pd.DataFrame(rng.normal(size=(30, 3)))
+    y = pd.Series([-1, 0, 1] * 10)
 
     uploaded = {}
 
