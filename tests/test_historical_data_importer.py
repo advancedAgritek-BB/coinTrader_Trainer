@@ -269,7 +269,7 @@ def test_insert_to_supabase_datetime_conversion(monkeypatch):
 
     hdi.insert_to_supabase(df, "http://localhost", "key", symbol="BTC", batch_size=1)
 
-    assert all(isinstance(row["timestamp"], str) for row in captured)
+    assert all("timestamp" not in row for row in captured)
 
 
 def test_cli_import_data(monkeypatch):

@@ -347,17 +347,28 @@ python ml_trainer.py import-csv ./prices.csv --symbol BTC --table historical_pri
 
 ### Creating the `historical_prices` table
 
-The import tools expect a table named `historical_prices` to exist in your Supabase project. Symbol-specific tables such as `historical_prices_btc` are created by cloning this schema. Here is a minimal definition:
+The import tools expect a table named `historical_prices` to exist in your
+Supabase project. Symbol-specific tables such as `historical_prices_btc` are
+created by cloning this schema. The importer writes the raw columns (`unix`,
+`date`, `symbol`, `open`, `high`, `low`, `close`, `volume_xrp`, `volume_usdt`,
+`tradecount`) and relies on the database to populate a `timestamp` column. One
+possible schema is:
 
 ```sql
 CREATE TABLE historical_prices (
-    ts TIMESTAMPTZ PRIMARY KEY,
+    unix BIGINT,
+    date TIMESTAMPTZ,
+    symbol TEXT,
     open DOUBLE PRECISION NOT NULL,
     high DOUBLE PRECISION NOT NULL,
     low DOUBLE PRECISION NOT NULL,
-    price DOUBLE PRECISION NOT NULL,
-    volume DOUBLE PRECISION,
-    target INTEGER DEFAULT 0
+    close DOUBLE PRECISION NOT NULL,
+    volume_xrp DOUBLE PRECISION,
+    volume_usdt DOUBLE PRECISION,
+    tradecount INTEGER,
+    timestamp TIMESTAMPTZ GENERATED ALWAYS AS (
+        COALESCE(to_timestamp(unix / 1000), date)
+    ) STORED PRIMARY KEY
 );
 ```
 
