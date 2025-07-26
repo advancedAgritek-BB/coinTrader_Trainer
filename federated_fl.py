@@ -226,37 +226,9 @@ def start_client(
 
 
 
-def start_server(*, address: str = "0.0.0.0:8080", num_rounds: int = 1) -> None:
-    """Launch a Flower aggregation server."""
-    fl.server.start_server(
-        server_address=address,
-        config=ServerConfig(num_rounds=num_rounds),
-    )
-
-
-def start_client(
-    start_ts: str,
-    end_ts: str,
-    *,
-    address: str = "127.0.0.1:8080",
-    config_path: str = "cfg.yaml",
-    table: str = "ohlc_data",
-) -> None:
-    """Connect to a Flower server and train on local data."""
-    params = _load_params(config_path)
-    X, y = _prepare_data(start_ts, end_ts, table=table)
-    client = _LGBClient(X, y, params)
-    fl.client.start_numpy_client(address, client)
-
 __all__ = [
     "launch",
     "start_server",
     "start_client",
-    "LightGBMClient",
-    "booster_to_parameters",
-    "parameters_to_booster",
-    "start_server",
-    "start_client",
-    "run_federated_fl",
 ]
 
