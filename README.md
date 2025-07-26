@@ -332,9 +332,9 @@ Files downloaded from CryptoDataDownload include a banner line at the top of the
 CSV. ``import-data`` now detects and skips this line automatically even when
 reading from a local path.
 
-Columns like ``Volume USDT`` or asset-specific variants such as ``Volume XRP``
-or ``Volume BTC`` from CryptoDataDownload are automatically renamed to
-``volume`` when using ``import-csv``.
+Columns like ``Volume USDT`` from CryptoDataDownload are automatically renamed
+to ``volume_usdt`` when using ``import-csv``. Asset-specific variants such as
+``Volume XRP`` are renamed to ``volume_xrp``.
 
 ``import-data`` expects trade log entries with the same columns that the live
 system stores in ``trade_logs``.  For importing OHLCV datasets use the
