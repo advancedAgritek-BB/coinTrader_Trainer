@@ -181,6 +181,9 @@ the ``regime_lgbm`` section, while feature engineering parameters like
 ``rsi_period`` and ``volatility_window`` reside under ``features``. Swarm search
 settings are grouped beneath ``swarm``. Adjust these values to customise the
 standard training behaviour.
+``--start-ts`` is not specified on the command line. Configuration now also
+includes an ``optuna`` section controlling hyperparameter tuning. By default
+``n_trials`` is ``100`` and ``direction`` is ``minimize``.
 
 ## GPU Setup
 

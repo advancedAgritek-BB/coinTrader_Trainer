@@ -43,3 +43,7 @@ federated_regime:
   num_clients: 10
   num_rounds: 20
   local_epochs: 5
+
+optuna:
+  n_trials: 100
+  direction: minimize
