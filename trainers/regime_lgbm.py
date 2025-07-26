@@ -119,6 +119,11 @@ def train_regime_lgbm(
     label_map = {-1: 0, 0: 1, 1: 2}
     y_enc = y.replace(label_map).astype(int)
 
+    pos = (y == 1).sum()
+    neg = (y == 0).sum()
+    if pos > 0 and neg > 0:
+        params.setdefault("scale_pos_weight", neg / pos)
+
     # ensure multiclass objective
     params.setdefault("objective", "multiclass")
     params.setdefault("num_class", 3)

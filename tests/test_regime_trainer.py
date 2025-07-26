@@ -90,7 +90,7 @@ def test_label_encoding(monkeypatch):
     pos = (y == 1).sum()
     neg = (y == 0).sum()
     expected = neg / pos
-    assert captured[0]["scale_pos_weight"] == expected
+    assert params["scale_pos_weight"] == expected
 
 
 def test_optuna_tuning_sets_learning_rate(monkeypatch):

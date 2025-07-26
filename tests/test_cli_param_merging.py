@@ -51,6 +51,47 @@ def test_gpu_flag_merges_params(monkeypatch):
 
     assert captured["gpu"]
     assert captured["params"].get("device_type") == "gpu"
+
+
+def test_true_federated_param_merge(monkeypatch):
+    captured = {}
+
+    def fake_server(start, end, *, table="ohlc_data", **kwargs):
+        captured["server"] = (start, end)
+        captured["params"] = kwargs.get("params_override", {}).copy()
+        return None, {}
+
+    def fake_client(start, end, *, table="ohlc_data", **kwargs):
+        captured["client"] = (start, end)
+        return None, {}
+
+    module = types.SimpleNamespace(start_server=fake_server, start_client=fake_client)
+    monkeypatch.setattr(ml_trainer, "federated_fl", module)
+    monkeypatch.setattr(
+        ml_trainer, "load_cfg", lambda p: {"federated_regime": {"objective": "binary"}}
+    )
+    argv = [
+        "prog",
+        "train",
+        "regime",
+        "--true-federated",
+        "--start-ts",
+        "2021-01-01",
+        "--end-ts",
+        "2021-01-02",
+        "--use-gpu",
+        "--gpu-platform-id",
+        "1",
+        "--gpu-device-id",
+        "2",
+    ]
+    monkeypatch.setattr(sys, "argv", argv)
+
+    ml_trainer.main()
+
+    assert captured["server"] == ("2021-01-01", "2021-01-02")
+    assert captured.get("client") == ("2021-01-01", "2021-01-02")
+    assert captured["params"].get("device_type") == "gpu"
     assert captured["params"].get("gpu_platform_id") == 1
     assert captured["params"].get("gpu_device_id") == 2
 
