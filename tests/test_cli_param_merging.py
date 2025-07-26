@@ -142,13 +142,13 @@ def test_federated_param_merge(monkeypatch):
 def test_true_federated_param_merge(monkeypatch):
     captured = {}
 
-    def fake_launch(start, end, *, config_path="cfg.yaml", params_override=None, table="ohlc_data"):
+    def fake_start(start, end, *, config_path="cfg.yaml", params_override=None, table="ohlc_data"):
         captured["start"] = start
         captured["end"] = end
         captured["table"] = table
         captured["params"] = (params_override or {}).copy()
 
-    module = types.SimpleNamespace(launch=fake_launch)
+    module = types.SimpleNamespace(start_server=fake_start)
     monkeypatch.setitem(sys.modules, "federated_fl", module)
     monkeypatch.setattr(ml_trainer, "federated_fl", module, raising=False)
     def fake_train(X, y, params, use_gpu=False, profile_gpu=False):
