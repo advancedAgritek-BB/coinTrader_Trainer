@@ -21,9 +21,19 @@ load_dotenv()
 
 
 async def fetch_and_prepare_data(
-    start_ts: datetime | str, end_ts: datetime | str, *, table: str = "ohlc_data"
+    start_ts: datetime | str,
+    end_ts: datetime | str,
+    *,
+    table: str = "ohlc_data",
+    return_threshold: float = 0.01,
 ) -> tuple[pd.DataFrame, pd.Series]:
-    """Fetch trade data and return feature matrix ``X`` and targets ``y``."""
+    """Fetch trade data and return feature matrix ``X`` and targets ``y``.
+
+    Parameters
+    ----------
+    return_threshold : float, optional
+        Threshold used to generate the ``target`` column when it is missing.
+    """
 
     if isinstance(start_ts, datetime):
         start_ts = start_ts.isoformat()
@@ -47,7 +57,15 @@ async def fetch_and_prepare_data(
         pass
 
     if "target" not in df.columns:
-        df["target"] = (df["price"].shift(-1) > df["price"]).astype(int).fillna(0)
+        returns = df["price"].pct_change().shift(-1)
+        df["target"] = pd.Series(
+            np.where(
+                returns > return_threshold,
+                1,
+                np.where(returns < -return_threshold, -1, 0),
+            ),
+            index=df.index,
+        ).fillna(0)
 
     X = df.drop(columns=["target"])
     y = df["target"]
