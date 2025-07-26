@@ -86,6 +86,23 @@ def test_download_historical_data_drop_duplicate_ts(tmp_path):
     assert not df.columns.duplicated().any()
 
 
+def test_download_historical_data_drop_symbol_column(tmp_path):
+    data = pd.DataFrame(
+        {
+            "timestamp": pd.date_range("2021-01-01", periods=3, freq="D"),
+            "Symbol": ["BTC", "BTC", "ETH"],
+            "close": [1, 2, 3],
+        }
+    )
+    csv_path = tmp_path / "sym.csv"
+    data.to_csv(csv_path, index=False)
+
+    df = hdi.download_historical_data(str(csv_path), symbol="BTC")
+
+    assert all(c.lower() != "symbol" for c in df.columns)
+    assert list(df["price"]) == [1, 2]
+
+
 def test_insert_to_supabase_batches(monkeypatch):
     df = pd.DataFrame({"a": [1, 2, 3]})
     inserted: list[list[dict]] = []
