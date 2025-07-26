@@ -122,6 +122,7 @@ def make_features(
     atr_window: int = 3,
     use_gpu: bool = False,
     log_time: bool = False,
+    return_threshold: float = 0.01,
 ) -> pd.DataFrame:
     """Generate technical indicator features for trading models.
 
@@ -144,6 +145,8 @@ def make_features(
         If ``True``, perform a round-trip through ``cudf`` to allow GPU acceleration.
     log_time : bool, optional
         Print the elapsed generation time when ``True``.
+    return_threshold : float, optional
+        Threshold used to generate the ``target`` column when it is missing.
 
     Returns
     -------
@@ -271,6 +274,16 @@ def make_features(
         if "target" not in df.columns:
             df["target"] = np.sign(df["log_ret"].shift(-1)).fillna(0).astype(int)
         result = df.dropna()
+        if "target" not in result.columns and "price" in result.columns:
+            returns = result["price"].pct_change().shift(-1)
+            result["target"] = (
+                np.where(
+                    returns > return_threshold,
+                    1,
+                    np.where(returns < -return_threshold, -1, 0),
+                )
+            )
+            result["target"] = pd.Series(result["target"], index=result.index).fillna(0)
 
         if log_time and start_time is not None:
             elapsed = time.time() - start_time
@@ -294,6 +307,16 @@ def make_features(
     if "target" not in df.columns:
         df["target"] = np.sign(df["log_ret"].shift(-1)).fillna(0).astype(int)
     result = df.dropna()
+    if "target" not in result.columns and "price" in result.columns:
+        returns = result["price"].pct_change().shift(-1)
+        result["target"] = (
+            np.where(
+                returns > return_threshold,
+                1,
+                np.where(returns < -return_threshold, -1, 0),
+            )
+        )
+        result["target"] = pd.Series(result["target"], index=result.index).fillna(0)
 
     if log_time and start_time is not None:
         elapsed = time.time() - start_time
