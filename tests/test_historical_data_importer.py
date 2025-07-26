@@ -11,9 +11,10 @@ import ml_trainer
 
 
 def test_download_historical_data(tmp_path):
+    ts = pd.date_range("2021-01-01", periods=5, freq="D", tz="UTC")
     data = pd.DataFrame(
         {
-            "timestamp": pd.date_range("2021-01-01", periods=5, freq="D"),
+            "unix": (ts.view("int64") // 10**6),
             "symbol": ["BTC", "BTC", "ETH", "BTC", "BTC"],
             "close": [1, 2, 3, 4, 5],
         }
@@ -33,17 +34,20 @@ def test_download_historical_data(tmp_path):
     )
 
     assert out_path.exists()
-    assert df["ts"].is_monotonic_increasing
-    assert not df.duplicated("ts").any()
-    assert "target" in df.columns
-    expected_target = (df["price"].shift(-1) > df["price"]).fillna(0).astype(int)
-    pd.testing.assert_series_equal(df["target"], expected_target, check_names=False)
+    assert df["timestamp"].is_monotonic_increasing
+    assert not df.duplicated("timestamp").any()
+    assert "target" not in df.columns
 
 
 @pytest.mark.parametrize("time_col", ["unix", "date", "UNIX", "Date", "Unix"])
 def test_download_historical_data_alt_timestamp(tmp_path, time_col):
+    rng = pd.date_range("2021-01-01", periods=3, freq="D", tz="UTC")
+    if time_col.lower() == "unix":
+        col_vals = rng.view("int64") // 10**6
+    else:
+        col_vals = rng
     data = pd.DataFrame({
-        time_col: pd.date_range("2021-01-01", periods=3, freq="D"),
+        time_col: col_vals,
         "close": [1, 2, 3],
     })
     csv_path = tmp_path / "prices.csv"
@@ -51,29 +55,29 @@ def test_download_historical_data_alt_timestamp(tmp_path, time_col):
 
     df = hdi.download_historical_data(str(csv_path))
 
-    assert "ts" in df.columns
-    assert "price" in df.columns
+    assert "timestamp" in df.columns
+    assert "close" in df.columns
 
 
 def test_download_historical_data_skip_banner(tmp_path):
     content = (
         "https://www.CryptoDataDownload.com\n"
-        "timestamp,close\n"
-        "2024-01-01,1\n"
+        "unix,close\n"
+        "1000,1\n"
     )
     csv_path = tmp_path / "banner.csv"
     csv_path.write_text(content)
 
     df = hdi.download_historical_data(str(csv_path))
 
-    assert list(df.columns[:2]) == ["ts", "price"]
+    assert list(df.columns[:2]) == ["unix", "close"]
 
 
 def test_download_historical_data_drop_duplicate_ts(tmp_path):
     data = pd.DataFrame(
         {
-            "unix": [1, 2, 3],
-            "date": pd.date_range("2021-01-01", periods=3, freq="D"),
+            "unix": [1_000, 2_000, 3_000],
+            "date": pd.date_range("2021-01-01", periods=3, freq="D", tz="UTC"),
             "close": [1, 2, 3],
         }
     )
@@ -82,14 +86,15 @@ def test_download_historical_data_drop_duplicate_ts(tmp_path):
 
     df = hdi.download_historical_data(str(csv_path))
 
-    assert "ts" in df.columns
+    assert "timestamp" in df.columns
     assert not df.columns.duplicated().any()
 
 
 def test_download_historical_data_symbol_column_case_insensitive(tmp_path):
+    rng = pd.date_range("2021-01-01", periods=3, freq="D", tz="UTC")
     data = pd.DataFrame(
         {
-            "Timestamp": pd.date_range("2021-01-01", periods=3, freq="D"),
+            "Unix": (rng.view("int64") // 10**6),
             "Symbol": ["BTC", "ETH", "BTC"],
             "Close": [1, 2, 3],
         }
@@ -100,14 +105,15 @@ def test_download_historical_data_symbol_column_case_insensitive(tmp_path):
     df = hdi.download_historical_data(str(csv_path), symbol="ETH")
 
     assert "Symbol" not in df.columns
-    assert "symbol" not in df.columns
+    assert "symbol" in df.columns
     assert len(df) == 1
+    assert df["symbol"].iloc[0] == "ETH"
 
 
 def test_download_historical_data_renames_volume_column(tmp_path):
     data = pd.DataFrame(
         {
-            "Timestamp": pd.date_range("2021-01-01", periods=2, freq="D"),
+            "Unix": [1000, 2000],
             "Close": [1, 2],
             "Volume USDT": [10, 20],
         }
@@ -118,14 +124,14 @@ def test_download_historical_data_renames_volume_column(tmp_path):
     df = hdi.download_historical_data(str(csv_path))
 
     assert "Volume USDT" not in df.columns
-    assert "volume" in df.columns
-    assert list(df["volume"]) == [10, 20]
+    assert "volume_usdt" in df.columns
+    assert list(df["volume_usdt"]) == [10, 20]
 
 
 def test_download_historical_data_handles_multiple_volume_columns(tmp_path):
     data = pd.DataFrame(
         {
-            "Timestamp": pd.date_range("2021-01-01", periods=2, freq="D"),
+            "Unix": [1000, 2000],
             "Close": [1, 2],
             "Volume XRP": [5, 6],
             "Volume USDT": [10, 20],
@@ -136,16 +142,15 @@ def test_download_historical_data_handles_multiple_volume_columns(tmp_path):
 
     df = hdi.download_historical_data(str(csv_path))
 
-    assert "volume" in df.columns
-    remaining_volume_like = [c for c in df.columns if c.lower().startswith("volume ") and c.lower() != "volume"]
-    assert not remaining_volume_like
+    assert "volume_xrp" in df.columns
+    assert "volume_usdt" in df.columns
 
 
 def test_insert_to_supabase_batches(monkeypatch):
     df = pd.DataFrame(
         {
-            "ts": pd.date_range("2021-01-01", periods=3, freq="D"),
-            "price": [1, 2, 3],
+            "timestamp": pd.date_range("2021-01-01", periods=3, freq="D", tz="UTC"),
+            "close": [1, 2, 3],
             "extra": [10, 11, 12],
         }
     )
@@ -195,8 +200,8 @@ def test_insert_to_supabase_batches(monkeypatch):
 def test_insert_to_supabase_custom_table(monkeypatch):
     df = pd.DataFrame(
         {
-            "ts": pd.date_range("2021-01-01", periods=3, freq="D"),
-            "price": [1, 2, 3],
+            "timestamp": pd.date_range("2021-01-01", periods=3, freq="D", tz="UTC"),
+            "close": [1, 2, 3],
             "extra": [10, 11, 12],
         }
     )
@@ -238,7 +243,7 @@ def test_insert_to_supabase_custom_table(monkeypatch):
 
 
 def test_insert_to_supabase_datetime_conversion(monkeypatch):
-    df = pd.DataFrame({"ts": pd.date_range("2021-01-01", periods=2, freq="H")})
+    df = pd.DataFrame({"timestamp": pd.date_range("2021-01-01", periods=2, freq="H", tz="UTC")})
     captured: list[dict] = []
 
     class FakeTable:
@@ -264,7 +269,7 @@ def test_insert_to_supabase_datetime_conversion(monkeypatch):
 
     hdi.insert_to_supabase(df, "http://localhost", "key", symbol="BTC", batch_size=1)
 
-    assert all(isinstance(row["ts"], str) for row in captured)
+    assert all(isinstance(row["timestamp"], str) for row in captured)
 
 
 def test_cli_import_data(monkeypatch):
