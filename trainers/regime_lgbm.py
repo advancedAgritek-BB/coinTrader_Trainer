@@ -122,6 +122,11 @@ def train_regime_lgbm(
     label_map = {-1: 0, 0: 1, 1: 2}
     y_enc = y.replace(label_map).astype(int)
 
+    # class balancing for the long vs neutral classes
+    pos = int((y == 1).sum())
+    neg = int((y == 0).sum())
+    if pos and "scale_pos_weight" not in params:
+        params["scale_pos_weight"] = neg / pos
     # set scale_pos_weight for class imbalance if not provided
     if "scale_pos_weight" not in params:
         pos = (y == 1).sum()
