@@ -9,6 +9,7 @@ networkx
 numpy
 optuna
 pandas
+backtrader
 pyarrow
 pyopencl  # optional for GPU; needs Visual Studio Build Tools on Windows
 pytest
