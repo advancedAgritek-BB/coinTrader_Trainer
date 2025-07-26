@@ -102,6 +102,9 @@ def main() -> None:
     model, metrics = train_regime_lgbm(X, y, params, use_gpu=True)
 
     preds = model.predict(X)
+
+    labels = preds.argmax(axis=1) - 1
+    sharpe = simulate_signal_pnl(df, labels)
     if preds.ndim > 1:
         pred_labels = np.argmax(preds, axis=1)
     else:

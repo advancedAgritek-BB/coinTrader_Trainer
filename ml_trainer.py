@@ -245,6 +245,9 @@ def main() -> None:  # pragma: no cover - CLI entry
                     fn(start_ts, end_ts, table=args.table, **defaults)
                 )
             else:
+                optuna_params = fn(start_ts, end_ts, table=args.table, **defaults)
+        if isinstance(optuna_params, dict):
+            params.update(optuna_params)
                 result = fn(start_ts, end_ts, table=args.table, **defaults)
         except Exception as exc:  # pragma: no cover - optional dependency
             raise SystemExit(
@@ -256,6 +259,7 @@ def main() -> None:  # pragma: no cover - CLI entry
                 import optuna_search as optuna_mod
             except Exception:  # pragma: no cover - fallback name
                 import optuna_optimizer as optuna_mod
+
             run_func = optuna_mod.run_optuna_search
             sig = inspect.signature(run_func)
             param_names = set(sig.parameters.keys())
