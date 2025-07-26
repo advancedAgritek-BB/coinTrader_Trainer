@@ -240,6 +240,14 @@ def test_cli_import_data(monkeypatch):
     captured = {}
 
     def fake_download(url, *, output_file=None, symbol=None, start_ts=None, end_ts=None):
+    def fake_download(
+        url,
+        *,
+        output_file=None,
+        symbol=None,
+        start_ts=None,
+        end_ts=None,
+    ):
         captured["args"] = (url, output_file, symbol, start_ts, end_ts)
         return pd.DataFrame()
 
