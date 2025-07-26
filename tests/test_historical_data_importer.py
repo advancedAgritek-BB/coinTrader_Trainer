@@ -239,6 +239,7 @@ def test_insert_to_supabase_datetime_conversion(monkeypatch):
 def test_cli_import_data(monkeypatch):
     captured = {}
 
+    def fake_download(url, *, output_file=None, symbol=None, start_ts=None, end_ts=None):
     def fake_download(
         url,
         *,
