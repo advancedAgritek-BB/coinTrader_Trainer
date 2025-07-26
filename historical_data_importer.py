@@ -42,14 +42,13 @@ def download_historical_data(
         "open": "open",
         "high": "high",
         "low": "low",
-        "volume": "volume",
-        # CryptoDataDownload uses a "Volume USDT" column
-        "volume usdt": "volume",
-        # Normalize CryptoDataDownload's 'Unix' column
+        "volume usdt": "volume",  # Use USDT volume as standard 'volume'
         "Unix": "timestamp",
+        "unix": "ts",
+        "date": "ts",
+        "volume xrp": "volume_base",  # Temporarily rename extras for dropping later
+        "tradecount": "tradecount",
     }
-    # Handle common alternative timestamp column names
-    rename_map.update({"unix": "ts", "date": "ts"})
 
     rename_map_lower = {k.lower(): v for k, v in rename_map.items()}
     df = df.rename(
@@ -59,7 +58,8 @@ def download_historical_data(
             if col.lower() in rename_map_lower
         }
     )
-    # Drop duplicate columns created by renaming (e.g. 'unix' and 'date')
+
+    # Drop duplicate columns if any
     if df.columns.duplicated().any():
         df = df.loc[:, ~df.columns.duplicated()]
 
@@ -132,7 +132,6 @@ def ensure_table_exists(symbol: str, *, client: Optional[Client] = None) -> str:
         f"create table if not exists {table} "
         "(like historical_prices including defaults including constraints)"
     )
-    # Use Supabase RPC to execute the SQL statement
     try:
         client.rpc("sql", {"query": sql}).execute()
     except APIError as exc:
@@ -178,6 +177,10 @@ def insert_to_supabase(
         table = "historical_prices"
 
     df = df.copy()
+    # Drop extra columns to match schema (keep only standard ones)
+    standard_columns = ['ts', 'open', 'high', 'low', 'price', 'volume', 'target']
+    df = df[[col for col in standard_columns if col in df.columns]]
+
     for col in df.columns:
         if pd.api.types.is_datetime64_any_dtype(df[col]):
             df[col] = df[col].dt.strftime("%Y-%m-%dT%H:%M:%S.%fZ")

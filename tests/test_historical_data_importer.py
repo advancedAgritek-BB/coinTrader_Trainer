@@ -142,7 +142,13 @@ def test_download_historical_data_handles_multiple_volume_columns(tmp_path):
 
 
 def test_insert_to_supabase_batches(monkeypatch):
-    df = pd.DataFrame({"a": [1, 2, 3]})
+    df = pd.DataFrame(
+        {
+            "ts": pd.date_range("2021-01-01", periods=3, freq="D"),
+            "price": [1, 2, 3],
+            "extra": [10, 11, 12],
+        }
+    )
     inserted: list[list[dict]] = []
 
     class FakeTable:
@@ -187,7 +193,13 @@ def test_insert_to_supabase_batches(monkeypatch):
 
 
 def test_insert_to_supabase_custom_table(monkeypatch):
-    df = pd.DataFrame({"a": [1, 2, 3]})
+    df = pd.DataFrame(
+        {
+            "ts": pd.date_range("2021-01-01", periods=3, freq="D"),
+            "price": [1, 2, 3],
+            "extra": [10, 11, 12],
+        }
+    )
     inserted: list[list[dict]] = []
 
     class FakeTable:
