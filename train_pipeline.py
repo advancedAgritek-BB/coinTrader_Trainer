@@ -12,6 +12,7 @@ import subprocess
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import yaml
 from dotenv import load_dotenv
@@ -101,7 +102,11 @@ def main() -> None:
     model, metrics = train_regime_lgbm(X, y, params, use_gpu=True)
 
     preds = model.predict(X)
-    sharpe = simulate_signal_pnl(df, (preds >= 0.5).astype(int))
+    if preds.ndim > 1:
+        pred_labels = np.argmax(preds, axis=1)
+    else:
+        pred_labels = (preds >= 0.5).astype(int)
+    sharpe = simulate_signal_pnl(df, pred_labels)
     eval_metrics = {"sharpe": sharpe}
 
     registry = ModelRegistry(url, key)

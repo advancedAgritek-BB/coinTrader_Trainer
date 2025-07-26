@@ -37,6 +37,12 @@ def test_make_features_interpolation_and_columns():
         "rsi5",
         "volatility2",
         "atr2",
+        "bol_upper",
+        "bol_mid",
+        "bol_lower",
+        "momentum_10",
+        "adx_14",
+        "obv",
     }
 
     assert expected_cols.issubset(result.columns)
@@ -115,6 +121,12 @@ def test_make_features_gpu_generates_columns(monkeypatch):
         "rsi5",
         "volatility2",
         "atr2",
+        "bol_upper",
+        "bol_mid",
+        "bol_lower",
+        "momentum_10",
+        "adx_14",
+        "obv",
     }
 
     assert expected_cols.issubset(result.columns)
@@ -148,6 +160,21 @@ def test_make_features_adds_columns_and_handles_params(capsys):
     result = make_features(df, rsi_period=10, volatility_window=5, atr_window=4)
     for col in ["rsi10", "volatility5", "atr4"]:
         assert col in result.columns
+
+
+def test_make_features_creates_multiclass_target():
+    df = pd.DataFrame(
+        {
+            "ts": pd.date_range("2022-01-01", periods=4, freq="D"),
+            "price": [1.0, 1.1, 1.0, 1.2],
+            "high": [1.1, 1.2, 1.1, 1.3],
+            "low": [0.9, 1.0, 0.9, 1.1],
+        }
+    )
+
+    result = make_features(df)
+    assert "target" in result.columns
+    assert set(result["target"].unique()).issubset({-1, 0, 1})
 
 
 def test_make_features_raises_when_too_many_nans():

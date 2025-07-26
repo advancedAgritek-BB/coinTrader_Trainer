@@ -182,12 +182,15 @@ def train_regime_lgbm(
 
             best_iterations.append(booster.best_iteration)
             preds = booster.predict(X_valid, num_iteration=booster.best_iteration)
-            y_pred = (preds >= 0.5).astype(int)
+            if preds.ndim > 1:
+                y_pred = np.argmax(preds, axis=1)
+            else:
+                y_pred = (preds >= 0.5).astype(int)
 
             acc_scores.append(accuracy_score(y_valid, y_pred))
-            f1_scores.append(f1_score(y_valid, y_pred))
-            precision_scores.append(precision_score(y_valid, y_pred))
-            recall_scores.append(recall_score(y_valid, y_pred))
+            f1_scores.append(f1_score(y_valid, y_pred, average="macro"))
+            precision_scores.append(precision_score(y_valid, y_pred, average="macro"))
+            recall_scores.append(recall_score(y_valid, y_pred, average="macro"))
 
         metrics = {
             "accuracy": float(np.mean(acc_scores)),

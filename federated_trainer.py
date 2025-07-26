@@ -123,7 +123,10 @@ def train_federated_regime(
     ensemble = FederatedEnsemble(models)
 
     preds = ensemble.predict(X)
-    y_pred = (preds >= 0.5).astype(int)
+    if preds.ndim > 1:
+        y_pred = np.argmax(preds, axis=1)
+    else:
+        y_pred = (preds >= 0.5).astype(int)
     metrics = {
         "accuracy": float(accuracy_score(y, y_pred)),
         "f1": float(f1_score(y, y_pred)),
