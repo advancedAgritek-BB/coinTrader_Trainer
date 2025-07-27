@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 from dataclasses import dataclass
 from typing import Iterable, List, Optional, Tuple
@@ -15,7 +16,11 @@ import pandas as pd
 import yaml
 from dotenv import load_dotenv
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
+from sklearn.utils import resample, shuffle
+from utils import timed
 from supabase import create_client
+from supabase import SupabaseException, create_client
+import httpx
 
 from coinTrader_Trainer.data_loader import (
     fetch_data_range_async,
@@ -27,6 +32,9 @@ load_dotenv()
 
 
 __all__ = ["train_federated_regime"]
+
+# Mapping from regime label to LightGBM class index
+LABEL_MAP = {-1: 0, 0: 1, 1: 2}
 
 
 async def _fetch_async(
@@ -56,13 +64,30 @@ def _prepare_data(
     symbols: Optional[Iterable[str]] = None,
     *,
     table: str = "ohlc_data",
+    min_rows: int = 1,
 ) -> Tuple[pd.DataFrame, pd.Series]:
+    """Return feature matrix and targets between ``start_ts`` and ``end_ts``.
+
+    Parameters
+    ----------
+    min_rows : int, optional
+        Minimum number of rows required. A ``ValueError`` is raised when fewer
+        rows are returned.
+    """
     start = (
         start_ts.isoformat() if isinstance(start_ts, pd.Timestamp) else str(start_ts)
     )
     end = end_ts.isoformat() if isinstance(end_ts, pd.Timestamp) else str(end_ts)
 
     df = asyncio.run(_fetch_async(start, end, table=table))
+    if df.empty:
+        logging.error("No data returned for %s - %s", start, end)
+        raise ValueError("No data available")
+
+    if df.empty or len(df) < min_rows:
+        raise ValueError(
+            f"Expected at least {min_rows} rows of data, got {len(df)}"
+        )
 
     if "timestamp" in df.columns and "ts" not in df.columns:
         df = df.rename(columns={"timestamp": "ts"})
@@ -89,15 +114,16 @@ class FederatedEnsemble:
 
 
 def _train_client(X: pd.DataFrame, y: pd.Series, params: dict) -> lgb.Booster:
-    label_map = {-1: 0, 0: 1, 1: 2}
-    y_enc = y.replace(label_map).astype(int)
+    y_enc = y.replace(LABEL_MAP).astype(int)
     dataset = lgb.Dataset(X, label=y_enc)
     num_round = params.get("num_boost_round", 100)
     booster = lgb.train(params, dataset, num_boost_round=num_round)
     return booster
 
 
+@timed
 def train_federated_regime(
+async def train_federated_regime(
     start_ts: str | pd.Timestamp,
     end_ts: str | pd.Timestamp,
     *,
@@ -114,19 +140,62 @@ def train_federated_regime(
 
     # Optionally fetch aggregated stats before downloading the full dataset
     try:
-        fetch_trade_aggregates(pd.to_datetime(start_ts), pd.to_datetime(end_ts))
+        await asyncio.to_thread(
+            fetch_trade_aggregates,
+            pd.to_datetime(start_ts),
+            pd.to_datetime(end_ts),
+        )
     except Exception:
         pass
+        fetch_trade_aggregates(pd.to_datetime(start_ts), pd.to_datetime(end_ts))
+    except (httpx.HTTPError, SupabaseException, ValueError, TypeError, AttributeError) as exc:  # pragma: no cover
+        logging.exception("Failed to fetch aggregates: %s", exc)
 
     X, y = _prepare_data(start_ts, end_ts, table=table)
-    label_map = {-1: 0, 0: 1, 1: 2}
-    y_enc = y.replace(label_map).astype(int)
+    y_enc = y.replace(LABEL_MAP).astype(int)
 
-    indices = np.array_split(np.arange(len(X)), num_clients)
+    # Upsample each class to have equal counts before splitting
+    class_indices = [np.where(y_enc == i)[0] for i in range(len(LABEL_MAP))]
+    max_len = max((len(idx) for idx in class_indices if len(idx) > 0), default=0)
+    balanced = []
+    for idx in class_indices:
+        if len(idx) == 0:
+            balanced.append(np.array([], dtype=int))
+        else:
+            balanced.append(
+                resample(idx, replace=True, n_samples=max_len, random_state=0)
+            )
+
+    # Split each class evenly across clients
+    per_class_splits = []
+    for idx in balanced:
+        if len(idx) == 0:
+            per_class_splits.append([np.array([], dtype=int)] * num_clients)
+        else:
+            per_class_splits.append(
+                np.array_split(shuffle(idx, random_state=0), num_clients)
+            )
+    indices = [
+        shuffle(
+            np.concatenate([splits[i] for splits in per_class_splits]),
+            random_state=0,
+        )
+        for i in range(num_clients)
+    ]
     models: List[lgb.Booster] = []
     for idx in indices:
         booster = _train_client(X.iloc[idx], y.iloc[idx], params)
         models.append(booster)
+    X, y = await asyncio.to_thread(_prepare_data, start_ts, end_ts, table=table)
+    label_map = {-1: 0, 0: 1, 1: 2}
+    y_enc = y.replace(label_map).astype(int)
+
+    indices = np.array_split(np.arange(len(X)), num_clients)
+    tasks = [
+        asyncio.to_thread(_train_client, X.iloc[idx], y.iloc[idx], params)
+        for idx in indices
+    ]
+    models: List[lgb.Booster] = list(await asyncio.gather(*tasks))
 
     ensemble = FederatedEnsemble(models)
 
@@ -153,7 +222,7 @@ def train_federated_regime(
             bucket = client.storage.from_("models")
             with open("federated_model.pkl", "rb") as fh:
                 bucket.upload("federated_model.pkl", fh)
-        except Exception:
-            pass
+        except (httpx.HTTPError, SupabaseException) as exc:  # pragma: no cover
+            logging.exception("Failed to upload model: %s", exc)
 
     return ensemble, metrics

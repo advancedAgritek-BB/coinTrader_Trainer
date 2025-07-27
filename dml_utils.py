@@ -19,8 +19,8 @@ def get_dml_device() -> Any:
     try:
         import torch_directml  # type: ignore
 
-        device = torch_directml.device()
-        logger.info("Using DirectML device")
+        device = torch_directml.device(0)
+        logger.info(f"Using DirectML device: {device}")
         return device
     except Exception as exc:
         logger.warning("DirectML not available, falling back to CPU: %s", exc)

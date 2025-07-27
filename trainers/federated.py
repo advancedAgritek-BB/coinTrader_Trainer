@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 from data_loader import fetch_data_range_async
 from feature_engineering import make_features
 from registry import ModelRegistry
+from utils import timed
 
 load_dotenv()
 
@@ -24,6 +25,7 @@ def _train_single(df: pd.DataFrame, params: dict) -> lgb.Booster:
     return booster
 
 
+@timed
 def train_federated_regime(
     start_ts: pd.Timestamp | str | pd.DataFrame,
     end_ts: pd.Timestamp | str | None,
@@ -90,12 +92,12 @@ def train_federated_regime(
     if url and key:
         try:
             env_reg = ModelRegistry(url, key)
-            env_reg.upload(models, model_name, metrics)
+            env_reg.upload(models, model_name, metrics, conflict_key="name")
         except Exception:
             pass
     if registry is not None:
         try:
-            registry.upload(models, model_name, metrics)
+            registry.upload(models, model_name, metrics, conflict_key="name")
         except Exception:
             pass
     return ensemble, metrics

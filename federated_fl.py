@@ -21,6 +21,7 @@ from supabase import create_client
 
 from federated_trainer import (
     FederatedEnsemble,
+    LABEL_MAP,
     _load_params,
     _prepare_data,
     _train_client,
@@ -64,8 +65,7 @@ class _LGBClient(fl.client.NumPyClient):
             return 0.0, len(self.X), {}
         preds = self.booster.predict(self.X)
         y_pred = preds.argmax(axis=1) if preds.ndim > 1 else (preds >= 0.5).astype(int)
-        label_map = {-1: 0, 0: 1, 1: 2}
-        y_enc = self.y.replace(label_map).astype(int)
+        y_enc = self.y.replace(LABEL_MAP).astype(int)
         acc = accuracy_score(y_enc, y_pred)
         return float(acc), len(self.X), {"accuracy": acc}
 
@@ -121,8 +121,7 @@ def launch(
     models = [lgb.Booster(model_str=m.decode("utf-8")) for m in strategy.models]
     ensemble = FederatedEnsemble(models)
 
-    label_map = {-1: 0, 0: 1, 1: 2}
-    y_enc = y.replace(label_map).astype(int)
+    y_enc = y.replace(LABEL_MAP).astype(int)
     preds = ensemble.predict(X)
     y_pred = preds.argmax(axis=1) if preds.ndim > 1 else (preds >= 0.5).astype(int)
     metrics = {
@@ -177,8 +176,7 @@ def start_server(
     models = [lgb.Booster(model_str=m.decode("utf-8")) for m in strategy.models]
     ensemble = FederatedEnsemble(models)
 
-    label_map = {-1: 0, 0: 1, 1: 2}
-    y_enc = y.replace(label_map).astype(int)
+    y_enc = y.replace(LABEL_MAP).astype(int)
     preds = ensemble.predict(X)
     y_pred = preds.argmax(axis=1) if preds.ndim > 1 else (preds >= 0.5).astype(int)
     metrics = {

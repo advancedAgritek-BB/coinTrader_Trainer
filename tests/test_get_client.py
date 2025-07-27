@@ -1,5 +1,6 @@
 import os
 import sys
+import httpx
 
 import pytest
 
@@ -64,7 +65,8 @@ def test_get_client_with_password(monkeypatch):
     ]
 
 
-def test_get_client_auth_error(monkeypatch):
+@pytest.mark.parametrize("exc_type", [httpx.HTTPError, ValueError])
+def test_get_client_auth_error(monkeypatch, exc_type):
     monkeypatch.delenv("SUPABASE_JWT", raising=False)
     monkeypatch.setenv("SUPABASE_URL", "https://sb.example.com")
     monkeypatch.setenv("SUPABASE_KEY", "anon")
@@ -79,11 +81,11 @@ def test_get_client_auth_error(monkeypatch):
         c = BadClient()
 
         def fail(*a, **k):
-            raise Exception("fail")
+            raise exc_type("fail")
 
         c.auth.sign_in_with_password = fail
         return c
 
     monkeypatch.setattr(data_loader, "create_client", bad_create)
-    with pytest.raises(RuntimeError):
+    with pytest.raises(exc_type):
         data_loader._get_client()
