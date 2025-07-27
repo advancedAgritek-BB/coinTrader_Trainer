@@ -400,7 +400,10 @@ def make_features(
         if cached is not None:
             return cached
 
+    orig_use_gpu = use_gpu
     use_gpu = use_gpu and has_rocm()
+    if orig_use_gpu and not use_gpu:
+        logger.info("ROCm not detected; using CPU for features.")
 
     if "ts" not in df.columns or "price" not in df.columns:
         raise ValueError("DataFrame must contain 'ts' and 'price' columns")
