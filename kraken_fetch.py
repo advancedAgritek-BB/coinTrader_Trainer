@@ -51,7 +51,7 @@ def get_last_ts(client: Client, symbol: str, table: str) -> Optional[int]:
         .execute()
     )
     if resp.data:
-        return int(pd.to_datetime(resp.data[0]["ts"]).timestamp())
+        return int(pd.to_datetime(resp.data[0]["ts"], utc=True).timestamp())
     return None
 
 def fetch_kraken_ohlc(pair: str, interval: int = 1) -> pd.DataFrame:
