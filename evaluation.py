@@ -31,8 +31,9 @@ def simulate_signal_pnl(
     Returns
     -------
     dict
-        Dictionary containing ``'sharpe_squared'``, ``'sharpe'`` and ``
-        'sortino'`` ratios for the strategy.
+        Dictionary containing metrics for the simulated strategy including
+        ``'sharpe_squared'``, ``'sharpe'``, ``'sortino'``, ``'max_drawdown'``,
+        ``'win_rate'``, ``'calmar_ratio'`` and ``'profit_factor'``.
     """
     if len(df) != len(preds):
         raise ValueError("`preds` length must match `df` length")
@@ -68,10 +69,30 @@ def simulate_signal_pnl(
     else:
         sortino = np.sqrt(365) * (strategy_returns.mean() / downside_std)
 
+    cum_returns = (strategy_returns + 1).cumprod()
+    running_max = cum_returns.cummax()
+    drawdowns = (running_max - cum_returns) / running_max
+    max_drawdown = float(drawdowns.max()) if len(drawdowns) > 0 else 0.0
+
+    win_rate = float(np.mean(strategy_returns > 0))
+
+    annual_return = strategy_returns.mean() * 365
+    calmar_ratio = (
+        float(annual_return) / max_drawdown if max_drawdown > 0 else 0.0
+    )
+
+    gains = strategy_returns[strategy_returns > 0].sum()
+    losses = -strategy_returns[strategy_returns < 0].sum()
+    profit_factor = float(gains / losses) if losses > 0 else 0.0
+
     return {
         "sharpe_squared": float(sharpe**2),
         "sharpe": float(sharpe),
         "sortino": float(sortino),
+        "max_drawdown": float(max_drawdown),
+        "win_rate": float(win_rate),
+        "calmar_ratio": float(calmar_ratio),
+        "profit_factor": float(profit_factor),
     }
 
 
