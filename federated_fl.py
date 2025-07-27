@@ -25,7 +25,7 @@ from federated_trainer import (
     FederatedEnsemble,
     LABEL_MAP,
     _load_params,
-    _prepare_data,
+    prepare_data,
     _train_client,
 )
 
@@ -107,7 +107,7 @@ def launch(
     if params_override:
         params.update(params_override)
 
-    X, y = _prepare_data(start_ts, end_ts, table=table)
+    X, y = prepare_data(start_ts, end_ts, table=table)
     indices = np.array_split(np.arange(len(X)), num_clients)
     splits = [(X.iloc[idx], y.iloc[idx]) for idx in indices]
 
@@ -177,7 +177,7 @@ def start_server(
     if params_override:
         params.update(params_override)
 
-    X, y = _prepare_data(start_ts, end_ts, table=table)
+    X, y = prepare_data(start_ts, end_ts, table=table)
 
     models = [lgb.Booster(model_str=m.decode("utf-8")) for m in strategy.models]
     ensemble = FederatedEnsemble(models)
@@ -224,7 +224,7 @@ def start_client(
     if params_override:
         params.update(params_override)
 
-    X, y = _prepare_data(start_ts, end_ts, table=table)
+    X, y = prepare_data(start_ts, end_ts, table=table)
     client = _LGBClient(X, y, params)
 
     fl.client.start_numpy_client(server_address, client)

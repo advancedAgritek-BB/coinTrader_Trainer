@@ -58,7 +58,7 @@ def _load_params(cfg_path: str) -> dict:
     return params
 
 
-def _prepare_data(
+async def _prepare_data(
     start_ts: str | pd.Timestamp,
     end_ts: str | pd.Timestamp,
     symbols: Optional[Iterable[str]] = None,
@@ -81,7 +81,7 @@ def _prepare_data(
     )
     end = end_ts.isoformat() if isinstance(end_ts, pd.Timestamp) else str(end_ts)
 
-    df = asyncio.run(_fetch_async(start, end, table=table))
+    df = await _fetch_async(start, end, table=table)
     if df.empty:
         logging.error("No data returned for %s - %s", start, end)
         raise ValueError("No data available")
@@ -107,6 +107,31 @@ def _prepare_data(
     X = df.drop(columns=["target"])
     y = df["target"]
     return X, y
+
+
+def prepare_data(
+    start_ts: str | pd.Timestamp,
+    end_ts: str | pd.Timestamp,
+    symbols: Optional[Iterable[str]] = None,
+    *,
+    table: str = "ohlc_data",
+    min_rows: int = 1,
+    redis_client: Any | None = None,
+    cache_key: str | None = None,
+) -> Tuple[pd.DataFrame, pd.Series]:
+    """Synchronous wrapper around ``_prepare_data`` for convenience."""
+
+    return asyncio.run(
+        _prepare_data(
+            start_ts,
+            end_ts,
+            symbols,
+            table=table,
+            min_rows=min_rows,
+            redis_client=redis_client,
+            cache_key=cache_key,
+        )
+    )
 
 
 @dataclass
@@ -165,7 +190,7 @@ async def train_federated_regime(
         logging.exception("Failed to fetch aggregates: %s", exc)
 
     redis_client = _get_redis_client() if feature_cache_key else None
-    X, y = _prepare_data(
+    X, y = await _prepare_data(
         start_ts,
         end_ts,
         table=table,
