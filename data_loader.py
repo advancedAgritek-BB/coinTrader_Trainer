@@ -25,7 +25,6 @@ except ImportError:  # pragma: no cover - fallback for older package
 
 logger = logging.getLogger(__name__)
 from tenacity import retry, stop_after_attempt, wait_exponential
-from feature_engineering import make_features
 from cache_utils import load_cached_features
 
 
@@ -123,6 +122,8 @@ def _maybe_cache_features(
     feature_params: Optional[dict],
 ) -> pd.DataFrame:
     """Compute features and optionally cache them in Redis."""
+    from feature_engineering import make_features
+
     if os.environ.get("DISABLE_FEATURES"):
         return df
     params = feature_params or {}
