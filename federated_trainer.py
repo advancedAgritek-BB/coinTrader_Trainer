@@ -18,9 +18,7 @@ import pandas as pd
 import yaml
 from dotenv import load_dotenv
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
-from sklearn.utils import resample, shuffle
 from feature_engineering import make_features
-from utils import timed, prepare_data as util_prepare_data
 from utils import timed, validate_schema
 from supabase import SupabaseException, create_client
 import httpx
@@ -227,11 +225,6 @@ async def train_federated_regime(
     y_enc = y.replace(LABEL_MAP).astype(int)
 
     indices = np.array_split(np.arange(len(X)), num_clients)
-    if use_processes:
-        loop = asyncio.get_running_loop()
-        with concurrent.futures.ProcessPoolExecutor() as pool:
-            tasks = [
-                loop.run_in_executor(pool, _train_client, X.iloc[idx], y.iloc[idx], params)
     loop = asyncio.get_running_loop()
     if use_processes:
         ctx = multiprocessing.get_context("spawn")
