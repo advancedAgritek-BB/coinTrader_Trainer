@@ -399,6 +399,7 @@ def make_features(
     cache_key: Optional[str] = None,
     cache_ttl: Optional[int] = None,
     use_dask: bool = False,
+    generate_target: bool = True,
 
 ) -> pd.DataFrame:
     """Generate technical indicator features for trading models.
@@ -449,6 +450,8 @@ def make_features(
         Override TTL in seconds for the cached features.
     use_dask : bool, optional
         Use Dask to parallelise feature generation.
+    generate_target : bool, optional
+        When ``True`` create the ``target`` column if it is missing.
 
     Returns
     -------
@@ -457,7 +460,8 @@ def make_features(
         ``ema_short``, ``ema_long``, ``macd`` and parameterized columns
         for RSI, volatility, ATR, Bollinger Bands, momentum, ADX and OBV.
         Missing values are forward-filled and any remaining ``NaN`` rows
-        dropped.
+        dropped. The ``target`` column is added when ``generate_target``
+        is ``True`` and not already present.
     """
 
     if redis_client is not None and cache_key:
@@ -529,13 +533,15 @@ def make_features(
 
     backend_df = backend_df.bfill().ffill()
 
-    if warn_overwrite:
+    if warn_overwrite and generate_target:
         logger.warning("Overwriting existing target column")
-    if needs_target:
-        backend_df["target"] = np.sign(backend_df["log_ret"].shift(-1)).fillna(0).astype(int)
+    if generate_target and needs_target:
+        backend_df["target"] = (
+            np.sign(backend_df["log_ret"].shift(-1)).fillna(0).astype(int)
+        )
 
     result = backend_df.dropna()
-    if needs_target and "price" in result.columns:
+    if generate_target and needs_target and "price" in result.columns:
         returns = result["price"].pct_change().shift(-1)
         result["target"] = np.where(
             returns > return_threshold,

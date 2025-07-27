@@ -22,6 +22,7 @@ from data_loader import fetch_trade_logs, _get_redis_client
 from evaluation import full_strategy_eval, simulate_signal_pnl
 from sklearn.utils import resample
 from feature_engineering import make_features
+from utils import validate_schema
 from registry import ModelRegistry
 from trainers.regime_lgbm import train_regime_lgbm
 
@@ -56,6 +57,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--feature-cache-key",
         help="Redis key for caching generated features",
+    )
+    parser.add_argument(
+        "--no-generate-target",
+        dest="generate_target",
+        action="store_false",
+        help="Do not create the target column automatically",
     )
     return parser.parse_args()
 
@@ -105,16 +112,28 @@ def main() -> None:
     df = fetch_trade_logs(start_ts, end_ts, table=args.table)
     if "timestamp" in df.columns and "ts" not in df.columns:
         df = df.rename(columns={"timestamp": "ts"})
+    validate_schema(df, ["ts"])
 
     redis_client = _get_redis_client() if args.feature_cache_key else None
     if redis_client is not None:
-        df = make_features(
-            df,
-            redis_client=redis_client,
-            cache_key=args.feature_cache_key,
-        )
+        try:
+            df = make_features(
+                df,
+                redis_client=redis_client,
+                cache_key=args.feature_cache_key,
+                generate_target=args.generate_target,
+            )
+        except TypeError:
+            df = make_features(
+                df,
+                redis_client=redis_client,
+                cache_key=args.feature_cache_key,
+            )
     else:
-        df = make_features(df)
+        try:
+            df = make_features(df, generate_target=args.generate_target)
+        except TypeError:
+            df = make_features(df)
     if "target" not in df.columns:
         raise ValueError("Data must contain a 'target' column for training")
 
