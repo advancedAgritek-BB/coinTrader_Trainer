@@ -55,6 +55,7 @@ def test_gpu_flag_merges_params(monkeypatch):
         "2",
     ]
     monkeypatch.setattr(sys, "argv", argv)
+    monkeypatch.setattr(ml_trainer, "check_clinfo_gpu", lambda: True)
 
     ml_trainer.main()
 
@@ -123,6 +124,7 @@ def test_federated_param_merge(monkeypatch):
     monkeypatch.setattr(
         ml_trainer, "load_cfg", lambda p: {"federated_regime": {"objective": "binary"}}
     )
+    monkeypatch.setattr(ml_trainer, "check_clinfo_gpu", lambda: True)
     argv = [
         "prog",
         "train",
@@ -159,6 +161,7 @@ def test_true_federated_param_merge(monkeypatch):
         return object(), {}
     monkeypatch.setitem(ml_trainer.TRAINERS, "regime", (fake_train, "regime_lgbm"))
     monkeypatch.setattr(ml_trainer, "load_cfg", lambda p: {"federated_regime": {"objective": "binary"}})
+    monkeypatch.setattr(ml_trainer, "check_clinfo_gpu", lambda: True)
 
     argv = [
         "prog",
