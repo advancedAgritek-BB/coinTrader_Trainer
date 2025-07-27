@@ -9,6 +9,7 @@ import logging
 import os
 import shutil
 import subprocess
+import platform
 from datetime import datetime, timedelta
 from typing import Any, Dict, Tuple
 
@@ -113,7 +114,10 @@ def _launch_rgp(pid: int) -> None:
             subprocess.Popen([exe, "--process", str(pid)])
             print(f"AMD RGP launched: {' '.join(cmd)}")
             return
-        except (FileNotFoundError, OSError) as exc:  # pragma: no cover - unexpected failures
+        except (
+            FileNotFoundError,
+            OSError,
+        ) as exc:  # pragma: no cover - unexpected failures
             logging.warning("Failed to launch AMD RGP: %s", exc)
     print(" ".join(cmd))
 
@@ -316,8 +320,11 @@ def main() -> None:  # pragma: no cover - CLI entry
 
     monitor_proc = None
     if args.profile_gpu:
-        monitor_proc = _start_rocm_smi_monitor()
-        _launch_rgp(os.getpid())
+        if platform.system() != "Windows":
+            monitor_proc = _start_rocm_smi_monitor()
+            _launch_rgp(os.getpid())
+        else:
+            logger.warning("ROCm profiling tools are unavailable on Windows")
 
     # Training dispatch
     try:
@@ -368,4 +375,3 @@ def main() -> None:  # pragma: no cover - CLI entry
 
 if __name__ == "__main__":  # pragma: no cover - CLI entry
     asyncio.run(main())
-
