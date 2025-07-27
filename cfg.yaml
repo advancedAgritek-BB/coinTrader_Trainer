@@ -20,11 +20,10 @@ regime_lgbm:
   bagging_fraction: 0.7
   bagging_freq: 5
   # GPU options
-  # Set device_type to 'gpu' to enable GPU training
-  device_type: gpu
+  # Set device to 'opencl' to enable GPU training
+  device: opencl
   gpu_platform_id: 0
   gpu_device_id: 0
-  gpu_use_opencl: true
   # Windows/AMD requires OpenCL drivers such as the Adrenalin/ROCm packages
   max_bin: 255
 
