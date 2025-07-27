@@ -47,6 +47,9 @@ def simulate_signal_pnl(
             Annualised return divided by ``max_drawdown``.
         ``profit_factor``
             Ratio of gross profits to gross losses.
+        Dictionary containing metrics for the simulated strategy including
+        ``'sharpe_squared'``, ``'sharpe'``, ``'sortino'``, ``'max_drawdown'``,
+        ``'win_rate'``, ``'calmar_ratio'`` and ``'profit_factor'``.
     """
     if len(df) != len(preds):
         raise ValueError("`preds` length must match `df` length")
@@ -111,6 +114,21 @@ def simulate_signal_pnl(
     total_return = cum_returns.iloc[-1]
     annual_return = total_return ** (365 / len(strategy_returns)) - 1.0
     calmar = annual_return / abs(max_drawdown) if max_drawdown != 0 else float("inf")
+    cum_returns = (strategy_returns + 1).cumprod()
+    running_max = cum_returns.cummax()
+    drawdowns = (running_max - cum_returns) / running_max
+    max_drawdown = float(drawdowns.max()) if len(drawdowns) > 0 else 0.0
+
+    win_rate = float(np.mean(strategy_returns > 0))
+
+    annual_return = strategy_returns.mean() * 365
+    calmar_ratio = (
+        float(annual_return) / max_drawdown if max_drawdown > 0 else 0.0
+    )
+
+    gains = strategy_returns[strategy_returns > 0].sum()
+    losses = -strategy_returns[strategy_returns < 0].sum()
+    profit_factor = float(gains / losses) if losses > 0 else 0.0
 
     return {
         "sharpe_squared": float(sharpe**2),
@@ -119,6 +137,7 @@ def simulate_signal_pnl(
         "max_drawdown": float(max_drawdown),
         "win_rate": float(win_rate),
         "calmar_ratio": float(calmar),
+        "calmar_ratio": float(calmar_ratio),
         "profit_factor": float(profit_factor),
     }
 

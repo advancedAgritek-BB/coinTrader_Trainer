@@ -17,7 +17,15 @@ def test_simulate_signal_pnl_metrics():
 
     metrics = simulate_signal_pnl(df, preds, costs=0.0, slippage=0.0)
 
-    for key in ["sharpe_squared", "sharpe", "sortino"]:
+    for key in [
+        "sharpe_squared",
+        "sharpe",
+        "sortino",
+        "max_drawdown",
+        "win_rate",
+        "calmar_ratio",
+        "profit_factor",
+    ]:
         assert key in metrics
         assert isinstance(metrics[key], float)
         assert np.isfinite(metrics[key])
