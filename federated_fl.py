@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import asyncio
+import logging
 from typing import Optional, Tuple, List
 
 try:  # pragma: no cover - optional dependency
@@ -153,8 +154,9 @@ def launch(
             bucket = client.storage.from_("models")
             with open("flower_federated_model.pkl", "rb") as fh:
                 bucket.upload("flower_federated_model.pkl", fh)
-        except (httpx.HTTPError, SupabaseException):
-            pass
+        except (httpx.HTTPError, SupabaseException) as exc:
+            logging.exception("Failed to upload model: %s", exc)
+            raise
 
     return ensemble, metrics
 
@@ -213,8 +215,9 @@ def start_server(
             bucket = client.storage.from_("models")
             with open("flower_federated_model.pkl", "rb") as fh:
                 bucket.upload("flower_federated_model.pkl", fh)
-        except (httpx.HTTPError, SupabaseException):
-            pass
+        except (httpx.HTTPError, SupabaseException) as exc:
+            logging.exception("Failed to upload model: %s", exc)
+            raise
 
     return ensemble, metrics
 

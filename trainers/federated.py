@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import logging
 from typing import Callable, List, Optional, Tuple
 
 import lightgbm as lgb
@@ -95,11 +96,13 @@ def train_federated_regime(
         try:
             env_reg = ModelRegistry(url, key)
             env_reg.upload(models, model_name, metrics, conflict_key="name")
-        except (httpx.HTTPError, SupabaseException):
-            pass
+        except (httpx.HTTPError, SupabaseException) as exc:
+            logging.exception("Failed to upload model: %s", exc)
+            raise
     if registry is not None:
         try:
             registry.upload(models, model_name, metrics, conflict_key="name")
-        except (httpx.HTTPError, SupabaseException):
-            pass
+        except (httpx.HTTPError, SupabaseException) as exc:
+            logging.exception("Failed to upload model: %s", exc)
+            raise
     return ensemble, metrics

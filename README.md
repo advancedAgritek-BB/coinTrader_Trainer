@@ -462,6 +462,8 @@ federated_fl.start_client(
 
 When ``SUPABASE_URL`` and credentials are present, the resulting ensemble is
 uploaded to the ``models`` bucket automatically.
+If the upload fails for any reason, the error now propagates so that
+calling code can handle it appropriately.
 
 ### Optuna Hyperparameter Tuning
 
