@@ -220,15 +220,28 @@ def test_make_features_creates_multiclass_target():
     assert set(result["target"].unique()).issubset({-1, 0, 1})
 
 
-def test_make_features_raises_when_too_many_nans():
+def test_make_features_handles_missing_high_low():
     df_small = pd.DataFrame(
+        {
+            "ts": pd.date_range("2021-01-01", periods=30, freq="1T"),
+            "price": np.arange(30),
+        }
+    )
+    make_features(df_small)
+
+
+def test_make_features_handles_insufficient_rows():
+    df_short = pd.DataFrame(
         {
             "ts": pd.date_range("2021-01-01", periods=5, freq="1T"),
             "price": np.arange(5),
+            "high": np.arange(5),
+            "low": np.arange(5),
+            "volume": np.arange(5),
         }
     )
-    with pytest.raises(ValueError):
-        make_features(df_small)
+
+    make_features(df_short)
 
 
 def test_make_features_generates_target_when_missing():
@@ -314,6 +327,10 @@ def test_make_features_dask_roundtrip(monkeypatch):
         return FakeDaskDF(df)
 
     module.from_pandas = from_pandas
+    module.Index = pd.Index
+    dask_mod = types.ModuleType("dask")
+    dask_mod.dataframe = module
+    monkeypatch.setitem(sys.modules, "dask", dask_mod)
     monkeypatch.setitem(sys.modules, "dask.dataframe", module)
 
     df = pd.DataFrame({
