@@ -22,6 +22,7 @@ from feature_engineering import make_features
 from registry import ModelRegistry
 from train_pipeline import check_clinfo_gpu
 from train_pipeline import check_clinfo_gpu, verify_lightgbm_gpu
+from sklearn.utils import resample
 
 load_dotenv()
 
@@ -85,6 +86,22 @@ async def fetch_and_prepare_data(
             ),
             index=df.index,
         ).fillna(0)
+
+    try:
+        counts = df["target"].value_counts()
+        max_count = counts.max()
+        if len(counts) > 1 and max_count > 0:
+            frames = [
+                resample(g, replace=True, n_samples=max_count, random_state=42)
+                for _, g in df.groupby("target")
+            ]
+            df = (
+                pd.concat(frames)
+                .sample(frac=1.0, random_state=42)
+                .reset_index(drop=True)
+            )
+    except Exception:
+        logging.exception("Failed to balance labels")
 
     X = df.drop(columns=["target"])
     y = df["target"]

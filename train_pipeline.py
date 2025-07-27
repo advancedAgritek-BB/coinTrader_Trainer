@@ -19,7 +19,8 @@ from dotenv import load_dotenv
 from supabase import create_client
 
 from data_loader import fetch_trade_logs, _get_redis_client
-from evaluation import full_strategy_eval
+from evaluation import full_strategy_eval, simulate_signal_pnl
+from sklearn.utils import resample
 from feature_engineering import make_features
 from registry import ModelRegistry
 from trainers.regime_lgbm import train_regime_lgbm
@@ -116,6 +117,23 @@ def main() -> None:
         df = make_features(df)
     if "target" not in df.columns:
         raise ValueError("Data must contain a 'target' column for training")
+
+    # Balance labels by oversampling each class
+    try:
+        counts = df["target"].value_counts()
+        max_count = counts.max()
+        if len(counts) > 1 and max_count > 0:
+            frames = [
+                resample(g, replace=True, n_samples=max_count, random_state=42)
+                for _, g in df.groupby("target")
+            ]
+            df = (
+                pd.concat(frames)
+                .sample(frac=1.0, random_state=42)
+                .reset_index(drop=True)
+            )
+    except Exception:
+        logging.exception("Failed to balance labels")
 
     X = df.drop(columns=["target"])
     y = df["target"]
