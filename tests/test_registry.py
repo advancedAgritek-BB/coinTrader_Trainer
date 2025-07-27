@@ -50,8 +50,9 @@ def test_upload_dict_uploads_json(monkeypatch, registry_with_dummy):
     captured = {}
 
     class Table:
-        def insert(self, row):
+        def upsert(self, row, **kwargs):
             captured["row"] = row
+            captured["conflict"] = kwargs.get("on_conflict")
             return types.SimpleNamespace(execute=lambda: types.SimpleNamespace(data=[{**row, "id": 1}]))
 
     monkeypatch.setattr(reg.client, "table", lambda name: Table())
@@ -74,8 +75,9 @@ def test_upload_dict_approved(registry_with_dummy, monkeypatch):
     captured = {}
 
     class Table:
-        def insert(self, row):
+        def upsert(self, row, **kwargs):
             captured["row"] = row
+            captured["conflict"] = kwargs.get("on_conflict")
             return types.SimpleNamespace(execute=lambda: types.SimpleNamespace(data=[{**row, "id": 1}]))
 
     monkeypatch.setattr(reg.client, "table", lambda name: Table())
@@ -84,3 +86,34 @@ def test_upload_dict_approved(registry_with_dummy, monkeypatch):
 
     row = captured["row"]
     assert row["approved"] is True
+
+
+def test_upsert_called_and_deduplicates(monkeypatch, registry_with_dummy):
+    reg, _ = registry_with_dummy
+    table_calls = {"count": 0}
+
+    class Table:
+        def __init__(self):
+            self.rows = []
+
+        def upsert(self, row, **kwargs):
+            table_calls["count"] += 1
+            table_calls["conflict"] = kwargs.get("on_conflict")
+            key = kwargs.get("on_conflict")
+            if key is not None:
+                for existing in self.rows:
+                    if existing.get(key) == row.get(key):
+                        existing.update(row)
+                        return types.SimpleNamespace(execute=lambda: types.SimpleNamespace(data=[{**existing, "id": 1}]))
+            self.rows.append(row)
+            return types.SimpleNamespace(execute=lambda: types.SimpleNamespace(data=[{**row, "id": len(self.rows)}]))
+
+    table = Table()
+    monkeypatch.setattr(reg.client, "table", lambda name: table)
+
+    reg.upload(object(), "dup", conflict_key="name")
+    reg.upload(object(), "dup", conflict_key="name")
+
+    assert table_calls["count"] == 2
+    assert table_calls["conflict"] == "name"
+    assert len(table.rows) == 1

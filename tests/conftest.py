@@ -107,6 +107,11 @@ class DummySupabase:
                     execute=lambda: types.SimpleNamespace(data=[{**row, "id": 1}])
                 )
 
+            def upsert(_, row, **kwargs):
+                return types.SimpleNamespace(
+                    execute=lambda: types.SimpleNamespace(data=[{**row, "id": 1}])
+                )
+
             def select(_, *args, **kwargs):
                 return self.query
 

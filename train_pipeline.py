@@ -19,7 +19,7 @@ from dotenv import load_dotenv
 from supabase import create_client
 
 from data_loader import fetch_trade_logs
-from evaluation import simulate_signal_pnl
+from evaluation import full_strategy_eval
 from feature_engineering import make_features
 from registry import ModelRegistry
 from trainers.regime_lgbm import train_regime_lgbm
@@ -109,8 +109,8 @@ def main() -> None:
     else:
         pred_labels = (preds >= 0.5).astype(int)
 
-    sharpe = simulate_signal_pnl(df, pred_labels)
-    eval_metrics = {"sharpe": sharpe}
+    bt_params = cfg.get("backtest", {})
+    eval_metrics = full_strategy_eval(df, pred_labels, **bt_params)
 
     registry = ModelRegistry(url, key)
     registry.upload(model, "regime_model", {**metrics, **eval_metrics})
@@ -205,14 +205,7 @@ def ensure_lightgbm_gpu(
 
 
 def verify_opencl():
-    if cl is None:
-        raise ValueError("pyopencl not installed")
+    """Delegates to :func:`opencl_utils.verify_opencl`."""
+    from opencl_utils import verify_opencl as _verify
 
-    platforms = cl.get_platforms()
-    for plat in platforms:
-        if "AMD" in plat.name:
-            devices = plat.get_devices(cl.device_type.GPU)
-            if devices:
-                print(f"AMD GPU detected: {devices[0].name}")
-                return True
-    raise ValueError("No AMD OpenCL GPU detected")
+    return _verify()

@@ -163,7 +163,7 @@ def test_model_registry_upload_called(monkeypatch, registry_with_dummy):
 
     uploaded = {}
 
-    def fake_upload(model, name, metrics):
+    def fake_upload(model, name, metrics, conflict_key=None):
         uploaded["model"] = model
         uploaded["metrics"] = metrics
 
