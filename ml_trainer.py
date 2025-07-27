@@ -233,8 +233,6 @@ def main() -> None:  # pragma: no cover - CLI entry
         raise SystemExit(f"Unknown task: {args.task}")
 
     trainer_fn, cfg_key = TRAINERS[args.task]
-    if trainer_fn is None:
-        raise SystemExit(f"Trainer '{args.task}' not available, install LightGBM")
 
     if args.federated:
         if args.task != "regime":
@@ -243,6 +241,9 @@ def main() -> None:  # pragma: no cover - CLI entry
             raise SystemExit("Federated training not supported")
         trainer_fn = train_federated_regime
         cfg_key = "federated_regime"
+
+    if trainer_fn is None and not args.federated:
+        raise SystemExit(f"Trainer '{args.task}' not available, install LightGBM")
 
     params = cfg.get(cfg_key, {}).copy()
 
