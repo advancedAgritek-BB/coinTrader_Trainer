@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import os
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List
@@ -16,7 +15,7 @@ except Exception as exc:  # pragma: no cover - optional dependency
 import numpy as np
 import pandas as pd
 import yaml
-from dotenv import load_dotenv
+from config import load_config
 from utils import timed
 import httpx
 from supabase import SupabaseException
@@ -26,8 +25,6 @@ from feature_engineering import make_features
 from registry import ModelRegistry
 from train_pipeline import check_clinfo_gpu, verify_lightgbm_gpu
 from sklearn.utils import resample
-
-load_dotenv()
 
 
 async def fetch_and_prepare_data(
@@ -254,10 +251,11 @@ async def run_swarm_search(
 
     best = min(agents, key=lambda a: a.fitness)
 
-    url = os.environ.get("SUPABASE_URL")
-    key = os.environ.get("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABASE_KEY")
-    bucket = os.environ.get("PARAMS_BUCKET", "agent_params")
-    table = os.environ.get("PARAMS_TABLE", "agent_params")
+    cfg = load_config()
+    url = cfg.supabase_url
+    key = cfg.supabase_service_key or cfg.supabase_key
+    bucket = cfg.params_bucket or "agent_params"
+    table = cfg.params_table or "agent_params"
     if url and key:
         try:
             reg = ModelRegistry(url, key, bucket=bucket, table=table)

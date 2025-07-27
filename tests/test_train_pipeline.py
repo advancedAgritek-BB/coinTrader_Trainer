@@ -9,6 +9,7 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 import train_pipeline
+from config import load_config
 
 
 class DummyModel:
@@ -29,6 +30,8 @@ def test_gpu_helper_import_warning(monkeypatch, caplog):
 
     monkeypatch.setenv("SUPABASE_URL", "http://localhost")
     monkeypatch.setenv("SUPABASE_KEY", "anon")
+    load_config()
+    load_config()
 
     monkeypatch.setattr(train_pipeline, "check_clinfo_gpu", lambda: True)
 

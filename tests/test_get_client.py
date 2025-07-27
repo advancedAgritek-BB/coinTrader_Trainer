@@ -7,6 +7,7 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 import data_loader
+from config import load_config
 
 
 class FakeAuth:
@@ -33,6 +34,7 @@ def test_get_client_uses_jwt(monkeypatch):
     monkeypatch.setenv("SUPABASE_URL", "https://sb.example.com")
     monkeypatch.setenv("SUPABASE_KEY", "anon")
     monkeypatch.setenv("SUPABASE_JWT", "token")
+    load_config()
     called = {}
 
     def fake_create(url, key):
@@ -51,6 +53,7 @@ def test_get_client_with_password(monkeypatch):
     monkeypatch.setenv("SUPABASE_KEY", "anon")
     monkeypatch.setenv("SUPABASE_USER_EMAIL", "u@example.com")
     monkeypatch.setenv("SUPABASE_PASSWORD", "pw")
+    load_config()
     called = {}
 
     def fake_create(url, key):
@@ -72,6 +75,7 @@ def test_get_client_auth_error(monkeypatch, exc_type):
     monkeypatch.setenv("SUPABASE_KEY", "anon")
     monkeypatch.setenv("SUPABASE_USER_EMAIL", "u@example.com")
     monkeypatch.setenv("SUPABASE_PASSWORD", "pw")
+    load_config()
 
     class BadClient(FakeClient):
         def __init__(self):
