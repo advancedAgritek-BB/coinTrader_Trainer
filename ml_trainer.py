@@ -7,6 +7,7 @@ import asyncio
 import inspect
 import logging
 import os
+import shutil
 import subprocess
 from datetime import datetime, timedelta
 from typing import Any, Dict, Tuple
@@ -103,6 +104,20 @@ def _start_rocm_smi_monitor() -> subprocess.Popen | None:
     threading.Thread(target=_forward, daemon=True).start()
     logging.info("Started rocm-smi monitor: %s", " ".join(cmd))
     return proc
+
+
+def _launch_rgp(pid: int) -> None:
+    """Launch AMD RGP if available, otherwise print the command."""
+    cmd = ["rgp.exe", "--process", str(pid)]
+    exe = shutil.which("rgp.exe")
+    if exe:
+        try:
+            subprocess.Popen([exe, "--process", str(pid)])
+            print(f"AMD RGP launched: {' '.join(cmd)}")
+            return
+        except Exception as exc:  # pragma: no cover - unexpected failures
+            logging.warning("Failed to launch AMD RGP: %s", exc)
+    print(" ".join(cmd))
 
 
 def main() -> None:  # pragma: no cover - CLI entry
@@ -299,44 +314,53 @@ def main() -> None:  # pragma: no cover - CLI entry
         if isinstance(result, dict):
             params.update(result)
 
-    # Training dispatch
-    if args.true_federated:
-        if federated_fl is None:
-            raise SystemExit("True federated training not supported")
-        if not args.start_ts or not args.end_ts:
-            raise SystemExit("--true-federated requires --start-ts and --end-ts")
-        federated_fl.start_server(
-            args.start_ts,
-            args.end_ts,
-            config_path=args.cfg,
-            params_override=params,
-            table=args.table,
-        )
-        return
+    monitor_proc = None
+    if args.profile_gpu:
+        monitor_proc = _start_rocm_smi_monitor()
+        _launch_rgp(os.getpid())
 
-    if args.federated:
-        if not args.start_ts or not args.end_ts:
-            raise SystemExit("--federated requires --start-ts and --end-ts")
-        model, metrics = asyncio.run(
-            trainer_fn(
+    # Training dispatch
+    try:
+        if args.true_federated:
+            if federated_fl is None:
+                raise SystemExit("True federated training not supported")
+            if not args.start_ts or not args.end_ts:
+                raise SystemExit("--true-federated requires --start-ts and --end-ts")
+            federated_fl.start_server(
                 args.start_ts,
                 args.end_ts,
                 config_path=args.cfg,
                 params_override=params,
                 table=args.table,
             )
-        )
-    else:
-        X, y = _make_dummy_data()
-        model, metrics = trainer_fn(
-            X,
-            y,
-            params,
-            use_gpu=use_gpu_flag,
-            profile_gpu=args.profile_gpu,
-        )  # type: ignore[arg-type]
+            return
 
-    print("Training completed. Metrics:")
-    for k, v in metrics.items():
-        print(f"{k}: {v}")
-    accuracy_gauge.set(metrics.get("accuracy", 0))
+        if args.federated:
+            if not args.start_ts or not args.end_ts:
+                raise SystemExit("--federated requires --start-ts and --end-ts")
+            model, metrics = asyncio.run(
+                trainer_fn(
+                    args.start_ts,
+                    args.end_ts,
+                    config_path=args.cfg,
+                    params_override=params,
+                    table=args.table,
+                )
+            )
+        else:
+            X, y = _make_dummy_data()
+            model, metrics = trainer_fn(
+                X,
+                y,
+                params,
+                use_gpu=use_gpu_flag,
+                profile_gpu=args.profile_gpu,
+            )  # type: ignore[arg-type]
+
+        print("Training completed. Metrics:")
+        for k, v in metrics.items():
+            print(f"{k}: {v}")
+        accuracy_gauge.set(metrics.get("accuracy", 0))
+    finally:
+        if monitor_proc:
+            monitor_proc.terminate()
