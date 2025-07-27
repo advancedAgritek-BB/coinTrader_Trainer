@@ -28,6 +28,8 @@ optionally persisted to Supabase Storage and the ``models`` table.
   is provided to compile and upload wheels.
 * GPU feature generation uses [Numba](https://numba.pydata.org/) when
   ``use_gpu=True`` in ``feature_engineering.make_features``.
+* Optional: set ``REDIS_URL`` (or ``REDIS_TLS_URL``) to cache trade log queries
+  in Redis.
 
 ## Integration with coinTrader2.0
 
@@ -134,6 +136,8 @@ naive timestamps are interpreted as UTC.  The optional ``symbol`` argument
 filters rows to a specific pair.  When a ``cache_path`` is supplied the
 function will read from the Parquet file if it exists and write new
 results back to this location, avoiding repeated network requests.
+If ``REDIS_URL`` or ``REDIS_TLS_URL`` is configured, results are additionally
+cached in Redis.
 
 ### Async Data Fetching
 

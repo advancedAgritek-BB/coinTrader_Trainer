@@ -32,6 +32,11 @@ def _get_redis_client():
         return None
     if _REDIS_CLIENT is not None:
         return _REDIS_CLIENT
+    url = os.environ.get("REDIS_URL") or os.environ.get("REDIS_TLS_URL")
+    if url:
+        _REDIS_CLIENT = redis.from_url(url)
+        return _REDIS_CLIENT
+
     host = os.environ.get("REDIS_HOST")
     if not host:
         return None
