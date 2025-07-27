@@ -22,9 +22,9 @@ def verify_opencl() -> bool:
 
     platforms = cl.get_platforms()
     amd_found = False
-    for platform in platforms:
+    for plat in platforms:
         try:
-            devices = platform.get_devices()
+            devices = plat.get_devices()
         except Exception:
             continue
         for dev in devices:
@@ -37,6 +37,10 @@ def verify_opencl() -> bool:
 
     if not amd_found:
         raise ValueError("No AMD OpenCL device found")
+
+    if platform.system() == "Windows":
+        logger.info("AMD GPU detected via OpenCL on Windows")
+        return True
 
     try:
         result = subprocess.run(
