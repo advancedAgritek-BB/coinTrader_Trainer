@@ -275,6 +275,38 @@ def test_make_features_generates_target_when_missing():
     pd.testing.assert_series_equal(result["target"], expected)
 
 
+def test_make_features_populates_target_when_missing_flag_false():
+    prices = [1, 1.02, 0.98, 1.05, 1.06, 1.07]
+    df = pd.DataFrame(
+        {
+            "ts": pd.date_range("2021-01-01", periods=len(prices), freq="D"),
+            "price": prices,
+            "high": [p * 1.01 for p in prices],
+            "low": [p * 0.99 for p in prices],
+        }
+    )
+
+    result = make_features(
+        df,
+        ema_short_period=1,
+        ema_long_period=1,
+        rsi_period=2,
+        volatility_window=2,
+        atr_window=2,
+        generate_target=False,
+    )
+
+    returns = result["price"].pct_change().shift(-1)
+    expected = np.where(
+        returns > 0.01,
+        1,
+        np.where(returns < -0.01, -1, 0),
+    )
+    expected = pd.Series(expected, index=result.index, name="target").fillna(0)
+
+    pd.testing.assert_series_equal(result["target"], expected)
+
+
 def test_make_features_modin_roundtrip(monkeypatch):
     calls = {"construct": False}
 
@@ -453,4 +485,8 @@ def test_make_features_logs_cpu_fallback(monkeypatch, caplog):
     with caplog.at_level("INFO", logger="feature_engineering"):
         result = make_features(df, use_gpu=True)
 
+    assert any(
+        "GPU acceleration unavailable; using CPU." in r.getMessage()
+        for r in caplog.records
+    )
     assert isinstance(result, pd.DataFrame)

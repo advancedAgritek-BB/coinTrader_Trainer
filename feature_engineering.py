@@ -18,10 +18,6 @@ try:  # optional dependency for GPU acceleration
 except Exception:  # pragma: no cover - jax may be absent
     jnp = None  # type: ignore
 import numba
-try:  # pragma: no cover - optional ROCm support
-    from numba import roc  # type: ignore
-except Exception:  # pragma: no cover - numba without ROCm
-    roc = None  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -101,46 +97,6 @@ def _rsi_nb(arr: np.ndarray, period: int = 14) -> np.ndarray:
     return rsi
 
 
-if roc is not None:
-    @roc.jit
-    def _rsi_roc(arr, period=14):  # pragma: no cover - requires ROCm
-        n = len(arr)
-        rsi = np.empty(n)
-        rsi[:] = np.nan
-        gains = np.zeros(n)
-        losses = np.zeros(n)
-        for i in range(1, n):
-            diff = arr[i] - arr[i - 1]
-            if diff > 0:
-                gains[i] = diff
-                losses[i] = 0.0
-            else:
-                gains[i] = 0.0
-                losses[i] = -diff
-        avg_gain = 0.0
-        avg_loss = 0.0
-        for i in range(1, period + 1):
-            avg_gain += gains[i]
-            avg_loss += losses[i]
-        avg_gain /= period
-        avg_loss /= period
-        if avg_loss == 0.0:
-            rsi[period] = 100.0
-        else:
-            rs = avg_gain / avg_loss
-            rsi[period] = 100.0 - 100.0 / (1.0 + rs)
-        for i in range(period + 1, n):
-            avg_gain = (avg_gain * (period - 1) + gains[i]) / period
-            avg_loss = (avg_loss * (period - 1) + losses[i]) / period
-            if avg_loss == 0.0:
-                rsi[i] = 100.0
-            else:
-                rs = avg_gain / avg_loss
-                rsi[i] = 100.0 - 100.0 / (1.0 + rs)
-        return rsi
-else:  # pragma: no cover - ROCm unavailable
-    def _rsi_roc(arr, period=14):
-        raise RuntimeError("numba.roc not available")
 
 
 @numba.njit
@@ -315,14 +271,9 @@ def _compute_features_pandas(
     rsi_col = f"rsi{rsi_period}"
     if use_numba and os.environ.get("NUMBA_DISABLE_JIT") != "1":
         price_arr = df["price"].to_numpy()
-        if has_rocm() and roc is not None:
-            df[rsi_col] = pd.Series(
-                _rsi_roc(price_arr, rsi_period), index=df.index
-            )
-        else:
-            df[rsi_col] = pd.Series(
-                _rsi_nb(price_arr, rsi_period), index=df.index
-            )
+        df[rsi_col] = pd.Series(
+            _rsi_nb(price_arr, rsi_period), index=df.index
+        )
     else:
         df[rsi_col] = _rsi(df["price"], rsi_period)
 
@@ -451,7 +402,8 @@ def make_features(
     use_dask : bool, optional
         Use Dask to parallelise feature generation.
     generate_target : bool, optional
-        When ``True`` create the ``target`` column if it is missing.
+        Regenerate the ``target`` column when it contains missing values.
+        The column is always created if it does not exist.
 
     Returns
     -------
@@ -460,8 +412,8 @@ def make_features(
         ``ema_short``, ``ema_long``, ``macd`` and parameterized columns
         for RSI, volatility, ATR, Bollinger Bands, momentum, ADX and OBV.
         Missing values are forward-filled and any remaining ``NaN`` rows
-        dropped. The ``target`` column is added when ``generate_target``
-        is ``True`` and not already present.
+        dropped. The ``target`` column is always created when absent and
+        regenerated for NaNs only when ``generate_target`` is ``True``.
     """
 
     if redis_client is not None and cache_key:
@@ -470,9 +422,8 @@ def make_features(
             return cached
 
     orig_use_gpu = use_gpu
-    use_gpu = use_gpu and has_rocm()
-    if orig_use_gpu and not use_gpu:
-        logger.info("ROCm not detected; using CPU for features.")
+    if orig_use_gpu and not has_rocm():
+        logger.info("GPU acceleration unavailable; using CPU.")
 
     if "ts" not in df.columns or "price" not in df.columns:
         raise ValueError("DataFrame must contain 'ts' and 'price' columns")
@@ -483,8 +434,11 @@ def make_features(
     else:
         backend_df = df
 
-    needs_target = "target" not in df.columns or df.get("target", pd.Series()).isna().any()
-    warn_overwrite = "target" in df.columns and needs_target
+    target_missing = "target" not in df.columns
+    target_has_na = df["target"].isna().any() if not target_missing else False
+    needs_target = target_missing or target_has_na
+    compute_target = target_missing or (generate_target and target_has_na)
+    warn_overwrite = not target_missing and compute_target
 
     if use_dask:
         import dask.dataframe as dd  # type: ignore
@@ -533,15 +487,15 @@ def make_features(
 
     backend_df = backend_df.bfill().ffill()
 
-    if warn_overwrite and generate_target:
+    if warn_overwrite:
         logger.warning("Overwriting existing target column")
-    if generate_target and needs_target:
+    if compute_target:
         backend_df["target"] = (
             np.sign(backend_df["log_ret"].shift(-1)).fillna(0).astype(int)
         )
 
     result = backend_df.dropna()
-    if generate_target and needs_target and "price" in result.columns:
+    if compute_target and "price" in result.columns:
         returns = result["price"].pct_change().shift(-1)
         result["target"] = np.where(
             returns > return_threshold,

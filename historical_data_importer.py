@@ -13,6 +13,8 @@ from supabase import Client, create_client
 from postgrest.exceptions import APIError
 from tenacity import retry, stop_after_attempt, wait_exponential
 
+from utils.normalise import normalize_ohlc
+
 load_dotenv()
 
 
@@ -120,6 +122,7 @@ def download_historical_data(
         else:
             df.to_csv(output_path, index=False)
 
+    df = normalize_ohlc(df)
     return df
 
 
