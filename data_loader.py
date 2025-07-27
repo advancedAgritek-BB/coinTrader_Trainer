@@ -105,8 +105,14 @@ def fetch_trade_logs(
     cache_path: Optional[str] = None,
     redis_client: Optional[Any] = None,
     redis_key: Optional[str] = None,
+    cache_only: bool = False,
 ) -> pd.DataFrame:
-    """Return trade logs between ``start_ts`` and ``end_ts`` as a DataFrame."""
+    """Return trade logs between ``start_ts`` and ``end_ts`` as a DataFrame.
+
+    When ``cache_only`` is ``True`` and a cached result exists in Redis, the
+    cached data is returned without querying the database. Otherwise, the data
+    is fetched and the cache is refreshed.
+    """
 
     if cache_path and os.path.exists(cache_path):
         return pd.read_parquet(cache_path)
@@ -136,7 +142,7 @@ def fetch_trade_logs(
     if redis_client is not None:
         cache_key = f"trades_{int(start_ts.timestamp())}_{int(end_ts.timestamp())}_{symbol or ''}"
         cached = redis_client.get(cache_key)
-        if cached:
+        if cache_only and cached:
             return pd.read_parquet(BytesIO(cached))
 
     client = _get_client()
@@ -160,7 +166,7 @@ def fetch_trade_logs(
         redis_client.set(key, df.to_json(orient="split"))
 
     if redis_client is not None and cache_key is not None:
-        ttl = int(os.environ.get("REDIS_TTL", 3600))
+        ttl = int(os.environ.get("REDIS_TTL", 86400))
         buf = BytesIO()
         df.to_parquet(buf)
         redis_client.setex(cache_key, ttl, buf.getvalue())
