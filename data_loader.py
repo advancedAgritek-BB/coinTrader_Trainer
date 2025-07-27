@@ -38,6 +38,7 @@ def _get_redis_client():
     """Return a configured Redis client or ``None`` if unavailable."""
     global _REDIS_CLIENT
     if redis is None:
+        logger.warning("Redis package not installed; caching disabled")
         return None
     if _REDIS_CLIENT is not None:
         return _REDIS_CLIENT
