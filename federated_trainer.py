@@ -48,11 +48,11 @@ def _load_params(cfg_path: str) -> dict:
     with open(cfg_path, "r") as fh:
         cfg = yaml.safe_load(fh) or {}
     params = cfg.get("regime_lgbm", {})
-    # LightGBM expects the parameter ``device_type`` when selecting the
+    # LightGBM expects the ``device`` parameter when selecting the
     # computation backend. Always enable GPU by default to mirror the previous
     # behaviour where ``device`` was forced to ``gpu`` regardless of the
     # configuration value.
-    params["device_type"] = "gpu"
+    params["device"] = "opencl"
     params.setdefault("objective", "multiclass")
     params.setdefault("num_class", 3)
     return params
@@ -180,7 +180,8 @@ def _train_client(X: pd.DataFrame, y: pd.Series, params: dict) -> lgb.Booster:
     except lgb.basic.LightGBMError as exc:  # pragma: no cover - hardware dependent
         if "OpenCL" in str(exc):
             logging.exception("LightGBM GPU training failed: %s", exc)
-            train_params["device_type"] = "cpu"
+            train_params["device"] = "cpu"
+            train_params.pop("device_type", None)
             booster = lgb.train(train_params, dataset, num_boost_round=num_round)
         else:
             raise

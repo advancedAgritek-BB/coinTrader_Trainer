@@ -63,7 +63,7 @@ def load_cfg(path: str) -> Dict[str, Any]:
     for key in ("regime_lgbm", "federated_regime"):
         section = cfg.get(key)
         if isinstance(section, dict):
-            section.setdefault("device_type", "gpu")
+            section.setdefault("device", "opencl")
     cfg.setdefault("backtest", {"slippage": 0.005, "costs": 0.002})
     return cfg
 
@@ -255,19 +255,21 @@ def main() -> None:  # pragma: no cover - CLI entry
 
     # GPU parameter overrides
     if args.use_gpu:
-        params["device_type"] = "gpu"
+        params["device"] = "opencl"
     if args.gpu_platform_id is not None:
         params["gpu_platform_id"] = args.gpu_platform_id
     if args.gpu_device_id is not None:
         params["gpu_device_id"] = args.gpu_device_id
 
     if check_clinfo_gpu() and verify_lightgbm_gpu(params):
-        params.setdefault("device_type", "gpu")
+        params.setdefault("device", "opencl")
         params.setdefault("gpu_platform_id", 0)
         params.setdefault("gpu_device_id", 0)
+        params.pop("device_type", None)
         use_gpu_flag = True
     else:
-        params["device_type"] = "cpu"
+        params["device"] = "cpu"
+        params.pop("device_type", None)
         logger.warning("GPU not detected; falling back to CPU")
         use_gpu_flag = False
 
