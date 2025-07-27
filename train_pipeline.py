@@ -79,12 +79,14 @@ def main() -> None:
         )
 
     if check_clinfo_gpu():
-        params.setdefault("device_type", "gpu")
+        params.setdefault("device", "opencl")
         params.setdefault("gpu_platform_id", 0)
         params.setdefault("gpu_device_id", 0)
+        params.pop("device_type", None)
         use_gpu = True
     else:
-        params["device_type"] = "cpu"
+        params["device"] = "cpu"
+        params.pop("device_type", None)
         logger.warning("GPU not detected; falling back to CPU")
         use_gpu = False
 
@@ -246,7 +248,7 @@ def ensure_lightgbm_gpu(
         import lightgbm as lgb
 
         lgb.train(
-            {"device_type": "gpu", "gpu_platform_id": 0, "gpu_device_id": 0},
+            {"device": "opencl", "gpu_platform_id": 0, "gpu_device_id": 0},
             lgb.Dataset([[1.0]], label=[0]),
             num_boost_round=1,
         )

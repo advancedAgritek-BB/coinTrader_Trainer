@@ -40,6 +40,7 @@ def verify_opencl() -> bool:
 
     if platform.system() == "Windows":
         logger.info("Skipping rocm-smi check on Windows")
+        logger.info("AMD GPU detected via OpenCL on Windows")
         return True
 
     try:

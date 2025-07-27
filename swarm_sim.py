@@ -148,7 +148,7 @@ class SwarmAgent:
             Baseline LightGBM parameters to start from.
         """
         train_params = {**base_params, **self.params}
-        train_params.setdefault("device_type", "gpu")
+        train_params.setdefault("device", "opencl")
         dataset = lgb.Dataset(X, label=y)
         loop = asyncio.get_running_loop()
         try:
@@ -163,7 +163,8 @@ class SwarmAgent:
         except lgb.basic.LightGBMError as exc:
             if "OpenCL" in str(exc):
                 logging.exception("LightGBM GPU training failed: %s", exc)
-                train_params["device_type"] = "cpu"
+                train_params["device"] = "cpu"
+                train_params.pop("device_type", None)
                 booster = await loop.run_in_executor(
                     None,
                     lambda: lgb.train(
@@ -238,14 +239,16 @@ async def run_swarm_search(
         cfg = yaml.safe_load(fh) or {}
     base_params: Dict[str, Any] = cfg.get("regime_lgbm", {})
     if check_clinfo_gpu():
-        base_params.setdefault("device_type", "gpu")
+        base_params.setdefault("device", "opencl")
 
     if check_clinfo_gpu() and verify_lightgbm_gpu(base_params):
-        base_params.setdefault("device_type", "gpu")
+        base_params.setdefault("device", "opencl")
         base_params.setdefault("gpu_platform_id", 0)
         base_params.setdefault("gpu_device_id", 0)
+        base_params.pop("device_type", None)
     else:
-        base_params["device_type"] = "cpu"
+        base_params["device"] = "cpu"
+        base_params.pop("device_type", None)
         logging.warning("GPU not detected; falling back to CPU")
 
     graph = nx.complete_graph(num_agents)

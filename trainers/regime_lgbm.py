@@ -97,7 +97,7 @@ def train_regime_lgbm(
         updated in-place with computed defaults and tuned hyperparameters.
     use_gpu : bool, optional
         Enable GPU training if ``True`` (default). When enabled the model is
-        initialised with ``device_type='gpu'``, ``tree_learner='data'``,
+        initialised with ``device='opencl'``, ``tree_learner='data'``,
         ``gpu_platform_id=0`` and ``gpu_device_id=0``.
     tune : bool, optional
         If ``True`` perform hyperparameter tuning with Optuna to optimise
@@ -140,7 +140,7 @@ def train_regime_lgbm(
     skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 
     gpu_defaults = {
-        "device_type": "gpu",
+        "device": "opencl",
         "tree_learner": "data",
         "gpu_platform_id": 0,
         "gpu_device_id": 0,

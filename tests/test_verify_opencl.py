@@ -41,6 +41,21 @@ def test_verify_opencl_success(monkeypatch):
     assert opencl_utils.verify_opencl() is True
 
 
+def test_verify_opencl_windows(monkeypatch):
+    fake_platform = FakePlatform([FakeDevice("Advanced Micro Devices, Inc.")])
+    cl_module = types.SimpleNamespace(get_platforms=lambda: [fake_platform])
+    monkeypatch.setitem(sys.modules, "pyopencl", cl_module)
+    importlib.reload(opencl_utils)
+    monkeypatch.setattr(opencl_utils.platform, "system", lambda: "Windows")
+
+    def fake_run(*args, **kwargs):
+        raise AssertionError("rocm-smi should not be called on Windows")
+
+    monkeypatch.setattr(opencl_utils.subprocess, "run", fake_run)
+
+    assert opencl_utils.verify_opencl() is True
+
+
 def test_verify_opencl_no_amd(monkeypatch):
     fake_platform = FakePlatform([FakeDevice("NVIDIA")])
     cl_module = types.SimpleNamespace(get_platforms=lambda: [fake_platform])
