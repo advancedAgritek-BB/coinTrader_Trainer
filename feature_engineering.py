@@ -362,8 +362,8 @@ def make_features(
     adx_period : int, optional
         Period for the Average Directional Index.
     use_gpu : bool, optional
-        If ``True``, perform a round-trip through ``cudf`` to allow GPU acceleration.
-        If ``True``, JAX and Numba are used to accelerate calculations on the GPU.
+        If ``True``, calculations are accelerated on the GPU using JAX and Numba.
+        OpenCL/ROCm are used when available to provide GPU support.
         When ``True`` Numba accelerated functions operate on NumPy arrays
         for faster computation.
     log_time : bool, optional
