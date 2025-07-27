@@ -282,16 +282,15 @@ def main() -> None:  # pragma: no cover - CLI entry
         try:
             import swarm_sim
         except ImportError as exc:  # pragma: no cover - optional dependency
-            raise SystemExit(
-                "--swarm requires the 'swarm_sim' module to be installed"
-            ) from exc
-        end_ts = datetime.utcnow()
-        start_ts = end_ts - timedelta(days=7)
-        swarm_params = asyncio.run(
-            swarm_sim.run_swarm_search(start_ts, end_ts, table=args.table)
-        )
-        if isinstance(swarm_params, dict):
-            params.update(swarm_params)
+            logger.warning("Swarm optimization unavailable: %s", exc)
+        else:
+            end_ts = datetime.utcnow()
+            start_ts = end_ts - timedelta(days=7)
+            swarm_params = asyncio.run(
+                swarm_sim.run_swarm_search(start_ts, end_ts, table=args.table)
+            )
+            if isinstance(swarm_params, dict):
+                params.update(swarm_params)
 
     # Optuna optimisation
     if args.optuna:
@@ -301,34 +300,31 @@ def main() -> None:  # pragma: no cover - CLI entry
             try:
                 import optuna_optimizer as optuna_mod  # type: ignore
             except ImportError as exc:  # pragma: no cover - optional dependency
-                raise SystemExit(
-                    "--optuna requires the 'optuna_optimizer' module to be installed"
-                ) from exc
+                logger.warning("Optuna optimization unavailable: %s", exc)
+                optuna_mod = None
+        if optuna_mod:
+            window = cfg.get("default_window_days", 7)
+            defaults = cfg.get("optuna", {})
+            run_func = optuna_mod.run_optuna_search
+            sig = inspect.signature(run_func)
+            param_names = set(sig.parameters.keys())
+            if {"start", "end"}.issubset(param_names):
+                start = datetime.utcnow() - timedelta(days=window)
+                end = datetime.utcnow()
+                result = run_func(start, end, table=args.table, **defaults)
+            else:
+                result = run_func(window, table=args.table, **defaults)
 
-        window = cfg.get("default_window_days", 7)
-        defaults = cfg.get("optuna", {})
+            if inspect.iscoroutine(result):
+                result = asyncio.run(result)
 
-        run_func = optuna_mod.run_optuna_search
-        sig = inspect.signature(run_func)
-        param_names = set(sig.parameters.keys())
-        if {"start", "end"}.issubset(param_names):
-            start = datetime.utcnow() - timedelta(days=window)
-            end = datetime.utcnow()
-            result = run_func(start, end, table=args.table, **defaults)
-        else:
-            result = run_func(window, table=args.table, **defaults)
-
-        if inspect.iscoroutine(result):
-            result = asyncio.run(result)
-
-        if isinstance(result, dict):
-            params.update(result)
+            if isinstance(result, dict):
+                params.update(result)
 
     monitor_proc = None
     if args.profile_gpu:
         if platform.system() != "Windows":
             monitor_proc = _start_rocm_smi_monitor()
-        _launch_rgp(os.getpid())
             _launch_rgp(os.getpid())
         else:
             logger.warning("ROCm profiling tools are unavailable on Windows")
@@ -336,8 +332,11 @@ def main() -> None:  # pragma: no cover - CLI entry
     # Training dispatch
     try:
         if args.true_federated:
-            if federated_fl is None:
-                raise SystemExit("True federated training not supported")
+            if federated_fl is None or not getattr(federated_fl, "_HAVE_FLWR", True):
+                logger.warning(
+                    "True federated training requires the 'flwr' package. Install it with 'pip install flwr'"
+                )
+                return
             if not args.start_ts or not args.end_ts:
                 raise SystemExit("--true-federated requires --start-ts and --end-ts")
             federated_fl.start_server(
