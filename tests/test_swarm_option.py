@@ -4,6 +4,7 @@ import types
 import logging
 import pytest
 import swarm_sim
+import data_loader
 
 import numpy as np
 import pandas as pd
@@ -62,7 +63,7 @@ async def test_fetch_and_prepare_data_empty(monkeypatch, caplog):
     async def fake_fetch(table, start, end):
         return pd.DataFrame()
 
-    monkeypatch.setattr(swarm_sim.data_loader, "fetch_data_range_async", fake_fetch)
+    monkeypatch.setattr(data_loader, "fetch_data_range_async", fake_fetch)
 
     with caplog.at_level(logging.ERROR):
         with pytest.raises(ValueError, match="No data available"):

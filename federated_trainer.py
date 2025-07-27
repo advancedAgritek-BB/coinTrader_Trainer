@@ -17,6 +17,7 @@ import yaml
 from dotenv import load_dotenv
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
 from sklearn.utils import resample, shuffle
+from utils import timed, prepare_data
 from utils import timed, validate_schema
 from supabase import SupabaseException, create_client
 import httpx
@@ -26,7 +27,6 @@ from coinTrader_Trainer.data_loader import (
     fetch_trade_aggregates,
     _get_redis_client,
 )
-from coinTrader_Trainer.feature_engineering import make_features
 
 load_dotenv()
 
@@ -79,6 +79,18 @@ async def _prepare_data(
     generate_target : bool, optional
         Whether to create the ``target`` column when it is missing.
     """
+    return asyncio.run(
+        prepare_data(
+            start_ts,
+            end_ts,
+            table=table,
+            min_rows=min_rows,
+            symbols=symbols,
+            use_gpu=True,
+            redis_client=redis_client,
+            cache_key=cache_key,
+        )
+    )
     start = (
         start_ts.isoformat() if isinstance(start_ts, pd.Timestamp) else str(start_ts)
     )

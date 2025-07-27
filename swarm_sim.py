@@ -16,17 +16,15 @@ import numpy as np
 import pandas as pd
 import yaml
 from dotenv import load_dotenv
+from utils import timed, prepare_data
 from utils import timed, validate_schema
 from config import load_config
 from utils import timed
 import httpx
 from supabase import SupabaseException
 
-import data_loader
-from feature_engineering import make_features
 from registry import ModelRegistry
 from train_pipeline import check_clinfo_gpu, verify_lightgbm_gpu
-from sklearn.utils import resample
 
 
 async def fetch_and_prepare_data(
@@ -38,6 +36,16 @@ async def fetch_and_prepare_data(
     min_rows: int = 1,
     generate_target: bool = True,
 ) -> tuple[pd.DataFrame, pd.Series]:
+    """Fetch trade data and return feature matrix ``X`` and targets ``y``."""
+
+    return await prepare_data(
+        start_ts,
+        end_ts,
+        table=table,
+        min_rows=min_rows,
+        return_threshold=return_threshold,
+        balance=True,
+    )
     """Fetch trade data and return feature matrix ``X`` and targets ``y``.
 
     Parameters
