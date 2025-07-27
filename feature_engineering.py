@@ -2,7 +2,6 @@
 
 import os
 import platform
-import time
 from utils import timed
 import logging
 from typing import Any, Optional
@@ -95,8 +94,6 @@ def _rsi_nb(arr: np.ndarray, period: int = 14) -> np.ndarray:
             rs = avg_gain / avg_loss
             rsi[i] = 100.0 - 100.0 / (1.0 + rs)
     return rsi
-
-
 
 
 @numba.njit
@@ -436,7 +433,6 @@ def make_features(
 
     target_missing = "target" not in df.columns
     target_has_na = df["target"].isna().any() if not target_missing else False
-    needs_target = target_missing or target_has_na
     compute_target = target_missing or (generate_target and target_has_na)
     warn_overwrite = not target_missing and compute_target
 
@@ -482,7 +478,10 @@ def make_features(
     if use_gpu and jnp is not None:
         _ = jnp.asarray(backend_df.select_dtypes(include=[np.number]).to_numpy())
 
-    if len(backend_df) > max(rsi_period, volatility_window, atr_window) and backend_df[[rsi_col, vol_col, atr_col]].isna().all().all():
+    if (
+        len(backend_df) > max(rsi_period, volatility_window, atr_window)
+        and backend_df[[rsi_col, vol_col, atr_col]].isna().all().all()
+    ):
         raise ValueError("Too many NaN values after interpolation")
 
     backend_df = backend_df.bfill().ffill()
