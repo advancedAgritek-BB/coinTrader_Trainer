@@ -12,14 +12,14 @@ from dotenv import load_dotenv
 
 try:
     import redis  # type: ignore
-except Exception:  # pragma: no cover - optional dependency
+except ImportError:  # pragma: no cover - optional dependency
     redis = None
 
 import httpx
 import pandas as pd
 try:
     from supabase import Client, create_client, AuthApiError
-except Exception:  # pragma: no cover - fallback for older package
+except ImportError:  # pragma: no cover - fallback for older package
     from supabase import Client, create_client
     AuthApiError = Exception
 

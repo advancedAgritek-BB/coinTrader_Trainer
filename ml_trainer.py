@@ -34,21 +34,21 @@ if __name__ == "__main__":
 
 try:
     from trainers.regime_lgbm import train_regime_lgbm
-except Exception:  # pragma: no cover - optional during tests
+except ImportError:  # pragma: no cover - optional during tests
     train_regime_lgbm = None  # type: ignore
 
 
 try:  # pragma: no cover - optional dependency
     from federated_trainer import train_federated_regime
-except Exception:  # pragma: no cover - missing during testing
+except ImportError:  # pragma: no cover - missing during testing
     try:  # pragma: no cover - federated trainer may be optional
         from trainers.federated import train_federated_regime
-    except Exception:  # pragma: no cover - trainer not available
+    except ImportError:  # pragma: no cover - trainer not available
         train_federated_regime = None  # type: ignore
 
 try:  # pragma: no cover - optional dependency
     import federated_fl
-except Exception:  # pragma: no cover - module may be missing
+except ImportError:  # pragma: no cover - module may be missing
     federated_fl = None  # type: ignore
 
 TRAINERS = {
@@ -92,7 +92,7 @@ def _start_rocm_smi_monitor() -> subprocess.Popen | None:
             stderr=subprocess.STDOUT,
             text=True,
         )
-    except Exception as exc:  # pragma: no cover - command missing
+    except (FileNotFoundError, OSError) as exc:  # pragma: no cover - command missing
         logging.warning("Failed to start rocm-smi monitor: %s", exc)
         return None
 
@@ -115,7 +115,7 @@ def _launch_rgp(pid: int) -> None:
             subprocess.Popen([exe, "--process", str(pid)])
             print(f"AMD RGP launched: {' '.join(cmd)}")
             return
-        except Exception as exc:  # pragma: no cover - unexpected failures
+        except (FileNotFoundError, OSError) as exc:  # pragma: no cover - unexpected failures
             logging.warning("Failed to launch AMD RGP: %s", exc)
     print(" ".join(cmd))
 
@@ -271,7 +271,7 @@ def main() -> None:  # pragma: no cover - CLI entry
     if args.swarm:
         try:
             import swarm_sim
-        except Exception as exc:  # pragma: no cover - optional dependency
+        except ImportError as exc:  # pragma: no cover - optional dependency
             raise SystemExit(
                 "--swarm requires the 'swarm_sim' module to be installed"
             ) from exc
@@ -287,10 +287,10 @@ def main() -> None:  # pragma: no cover - CLI entry
     if args.optuna:
         try:
             import optuna_search as optuna_mod
-        except Exception:
+        except ImportError:
             try:
                 import optuna_optimizer as optuna_mod  # type: ignore
-            except Exception as exc:  # pragma: no cover - optional dependency
+            except ImportError as exc:  # pragma: no cover - optional dependency
                 raise SystemExit(
                     "--optuna requires the 'optuna_optimizer' module to be installed"
                 ) from exc

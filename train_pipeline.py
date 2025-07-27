@@ -27,7 +27,7 @@ from trainers.regime_lgbm import train_regime_lgbm
 
 try:  # optional dependency
     import pyopencl as cl
-except Exception as exc:  # pragma: no cover - pyopencl may be absent
+except ImportError as exc:  # pragma: no cover - pyopencl may be absent
     cl = None  # type: ignore
     logging.getLogger(__name__).warning("pyopencl not available: %s", exc)
 

@@ -20,6 +20,8 @@ from sklearn.model_selection import StratifiedKFold
 from registry import ModelRegistry
 from utils import timed
 from evaluation import simulate_signal_pnl
+import httpx
+from supabase import SupabaseException
 
 # Optional container for capturing training parameters in unit tests
 captured: dict | None = None
@@ -66,7 +68,7 @@ try:  # pragma: no cover - only used during testing
         _pytest.monkeypatch.MonkeyPatch.setattr = _setattr
         _pytest.monkeypatch.MonkeyPatch.undo = _undo
         _pytest.monkeypatch.MonkeyPatch._dict_attr_patch = True
-except Exception:
+except ImportError:
     pass
 
 
@@ -315,14 +317,14 @@ def train_regime_lgbm(
                 conflict_key="name",
             )
             logging.info("Uploaded model %s", entry.file_path)
-        except Exception as exc:
+        except (httpx.HTTPError, SupabaseException) as exc:
             logging.exception("Failed to upload model: %s", exc)
     else:
         logging.info("SUPABASE credentials not set; skipping upload")
     if registry is not None:
         try:
             registry.upload(final_model, model_name, metrics, conflict_key="name")
-        except Exception:
+        except (httpx.HTTPError, SupabaseException):
             pass
 
     return final_model, metrics
