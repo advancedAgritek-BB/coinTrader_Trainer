@@ -101,9 +101,41 @@ def test_fetch_trade_logs_uses_redis(monkeypatch):
         lambda: (_ for _ in ()).throw(AssertionError("client should not be called")),
     )
 
-    df = data_loader.fetch_trade_logs(start, end, symbol="BTC")
+    df = data_loader.fetch_trade_logs(start, end, symbol="BTC", cache_only=True)
 
     pd.testing.assert_frame_equal(df, df_cached)
+
+
+def test_fetch_trade_logs_ignores_cache_without_flag(monkeypatch):
+    start = datetime(2021, 1, 1)
+    end = datetime(2021, 1, 2)
+    key = (
+        f"trades_{int(start.replace(tzinfo=data_loader.timezone.utc).timestamp())}_"
+        f"{int(end.replace(tzinfo=data_loader.timezone.utc).timestamp())}_BTC"
+    )
+
+    fake_r = fakeredis.FakeRedis()
+    df_cached = pd.DataFrame({"a": [1], "symbol": ["BTC"]})
+    buf = io.BytesIO()
+    df_cached.to_parquet(buf)
+    fake_r.set(key, buf.getvalue())
+
+    monkeypatch.setattr(data_loader, "_get_redis_client", lambda: fake_r)
+
+    called = {}
+
+    def fake_fetch(client, start_ts, end_ts, *, symbol=None, table="ohlc_data"):
+        called["fetched"] = True
+        return [
+            {"timestamp": start_ts.isoformat(), "symbol": symbol, "price": 1},
+        ]
+
+    monkeypatch.setattr(data_loader, "_get_client", lambda: object())
+    monkeypatch.setattr(data_loader, "_fetch_logs", fake_fetch)
+
+    df = data_loader.fetch_trade_logs(start, end, symbol="BTC")
+
+    assert called.get("fetched")
 
 
 def test_fetch_trade_logs_sets_redis(monkeypatch):
@@ -129,4 +161,79 @@ def test_fetch_trade_logs_sets_redis(monkeypatch):
     )
     cached = fake_r.get(key)
     assert cached is not None
+    pd.testing.assert_frame_equal(df, pd.read_parquet(io.BytesIO(cached)))
+
+
+def test_fetch_trade_logs_max_rows_in_cache(monkeypatch):
+    fake_r = fakeredis.FakeRedis()
+    monkeypatch.setattr(data_loader, "_get_redis_client", lambda: fake_r)
+
+    rows = [
+        {"timestamp": "2021-01-01T00:00:00Z", "symbol": "BTC", "price": 1},
+        {"timestamp": "2021-01-01T00:01:00Z", "symbol": "BTC", "price": 2},
+    ]
+    monkeypatch.setattr(data_loader, "_get_client", lambda: object())
+    monkeypatch.setattr(data_loader, "_fetch_logs", lambda *a, **k: rows)
+def test_fetch_trade_logs_features_cache_hit(monkeypatch):
+    start = datetime(2021, 1, 1)
+    end = datetime(2021, 1, 2)
+    key = (
+        f"trades_{int(start.replace(tzinfo=data_loader.timezone.utc).timestamp())}_"
+        f"{int(end.replace(tzinfo=data_loader.timezone.utc).timestamp())}_BTC"
+    )
+    feat_key = f"features_{key}"
+
+    fake_r = fakeredis.FakeRedis()
+    df_feat = pd.DataFrame({"feat": [1]})
+    buf = io.BytesIO()
+    df_feat.to_parquet(buf)
+    fake_r.set(feat_key, buf.getvalue())
+
+    monkeypatch.setattr(data_loader, "_get_redis_client", lambda: fake_r)
+    monkeypatch.setattr(data_loader, "_get_client", lambda: None)
+    monkeypatch.setattr(
+        data_loader,
+        "_fetch_logs",
+        lambda *a, **k: (_ for _ in ()).throw(AssertionError("should not fetch")),
+    )
+
+    df = data_loader.fetch_trade_logs(start, end, symbol="BTC", cache_features=True)
+
+    pd.testing.assert_frame_equal(df, df_feat)
+
+
+def test_fetch_trade_logs_caches_features(monkeypatch):
+    fake_r = fakeredis.FakeRedis()
+    monkeypatch.setattr(data_loader, "_get_redis_client", lambda: fake_r)
+
+    def fake_fetch(client, start_ts, end_ts, *, symbol=None, table="ohlc_data"):
+        return [
+            {"timestamp": start_ts.isoformat(), "symbol": symbol, "price": 1},
+        ]
+
+    monkeypatch.setattr(data_loader, "_get_client", lambda: object())
+    monkeypatch.setattr(data_loader, "_fetch_logs", fake_fetch)
+    monkeypatch.setattr(data_loader, "make_features", lambda df, **k: df.assign(f=1))
+
+    start = datetime(2021, 1, 1)
+    end = datetime(2021, 1, 2)
+
+    df = data_loader.fetch_trade_logs(start, end, symbol="BTC", max_rows=1)
+
+    assert len(df) == 1
+    cache_key = (
+        f"trades_{int(start.replace(tzinfo=data_loader.timezone.utc).timestamp())}_"
+        f"{int(end.replace(tzinfo=data_loader.timezone.utc).timestamp())}_BTC_1"
+    )
+    assert fake_r.get(cache_key) is not None
+    df = data_loader.fetch_trade_logs(start, end, symbol="BTC", cache_features=True)
+
+    key = (
+        f"trades_{int(start.replace(tzinfo=data_loader.timezone.utc).timestamp())}_"
+        f"{int(end.replace(tzinfo=data_loader.timezone.utc).timestamp())}_BTC"
+    )
+    feat_key = f"features_{key}"
+    cached = fake_r.get(feat_key)
+
+    assert cached is not None and fake_r.ttl(feat_key) > 0
     pd.testing.assert_frame_equal(df, pd.read_parquet(io.BytesIO(cached)))

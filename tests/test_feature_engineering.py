@@ -1,12 +1,15 @@
+import os
 import sys
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import pytest
+import logging
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import feature_engineering
 from feature_engineering import make_features
 
 
@@ -49,6 +52,48 @@ def test_make_features_interpolation_and_columns():
     assert not result.isna().any().any()
 
 
+def test_make_features_gpu_matches_cpu(monkeypatch):
+    monkeypatch.setenv("ROCM_PATH", "1")
+def test_make_features_gpu_uses_jax(monkeypatch):
+    calls = {"asarray": False}
+
+    jnp = types.ModuleType("jax.numpy")
+
+    def asarray(x):
+        calls["asarray"] = True
+        return np.asarray(x)
+
+    jnp.asarray = asarray
+    jax_mod = types.ModuleType("jax")
+    jax_mod.numpy = jnp
+    monkeypatch.setitem(sys.modules, "jax", jax_mod)
+    monkeypatch.setitem(sys.modules, "jax.numpy", jnp)
+    monkeypatch.setattr(feature_engineering, "jnp", jnp, raising=False)
+
+    df = pd.DataFrame(
+        {
+            "ts": range(6),
+            "price": [1, 2, 3, 4, 5, 6],
+            "high": [1, 2, 3, 4, 5, 6],
+            "low": [0, 1, 2, 3, 4, 5],
+            "volume": [1, 1, 1, 1, 1, 1],
+        }
+    )
+
+    make_features(df, use_gpu=True, ema_short_period=2, ema_long_period=3)
+
+    assert calls["asarray"]
+
+
+def test_make_features_gpu_generates_columns(monkeypatch):
+    jnp = types.ModuleType("jax.numpy")
+    jnp.asarray = np.asarray
+    jax_mod = types.ModuleType("jax")
+    jax_mod.numpy = jnp
+    monkeypatch.setitem(sys.modules, "jax", jax_mod)
+    monkeypatch.setitem(sys.modules, "jax.numpy", jnp)
+    monkeypatch.setattr(feature_engineering, "jnp", jnp, raising=False)
+
 def test_make_features_gpu_matches_cpu():
     df = pd.DataFrame(
         {
@@ -82,7 +127,7 @@ def test_make_features_gpu_matches_cpu():
     pd.testing.assert_frame_equal(cpu, gpu)
 
 
-def test_make_features_adds_columns_and_handles_params(capsys):
+def test_make_features_adds_columns_and_handles_params(caplog):
     df = pd.DataFrame(
         {
             "ts": pd.date_range("2021-01-01", periods=300, freq="1T"),
@@ -93,9 +138,9 @@ def test_make_features_adds_columns_and_handles_params(capsys):
         }
     )
 
-    result = make_features(df, log_time=True)
-    captured = capsys.readouterr().out
-    assert "feature generation took" in captured
+    with caplog.at_level(logging.INFO):
+        result = make_features(df)
+    assert any("make_features took" in r.message for r in caplog.records)
     for col in [
         "log_ret",
         "ema_short",
@@ -174,3 +219,60 @@ def test_make_features_generates_target_when_missing():
     expected = pd.Series(expected, index=result.index, name="target").fillna(0)
 
     pd.testing.assert_series_equal(result["target"], expected)
+
+
+def test_make_features_modin_roundtrip(monkeypatch):
+    calls = {"construct": False}
+
+    module = types.ModuleType("modin.pandas")
+
+    class FakeDF(pd.DataFrame):
+        def __init__(self, *args, **kwargs):
+            calls["construct"] = True
+            super().__init__(*args, **kwargs)
+
+        def to_pandas(self):
+            return pd.DataFrame(self)
+
+    module.DataFrame = FakeDF
+    module.concat = pd.concat
+    module.Series = pd.Series
+    module.to_datetime = pd.to_datetime
+    monkeypatch.setitem(sys.modules, "modin.pandas", module)
+
+    df = pd.DataFrame({
+        "ts": pd.date_range("2020-01-01", periods=3, freq="D"),
+        "price": [1.0, 1.1, 1.2],
+        "high": [1.0, 1.1, 1.2],
+        "low": [0.9, 1.0, 1.1],
+    })
+
+    result = make_features(df, use_modin=True)
+    assert calls["construct"]
+    assert isinstance(result, pd.DataFrame)
+def test_make_features_warns_when_overwriting_target(caplog):
+    prices = [1, 1.02, 0.98, 1.05, 1.06, 1.07]
+    df = pd.DataFrame(
+        {
+            "ts": pd.date_range("2021-01-01", periods=len(prices), freq="D"),
+            "price": prices,
+            "high": [p * 1.01 for p in prices],
+            "low": [p * 0.99 for p in prices],
+            "target": [1, np.nan, -1, 0, 1, 1],
+        }
+    )
+
+    with caplog.at_level("WARNING", logger="feature_engineering"):
+        make_features(
+            df,
+            ema_short_period=1,
+            ema_long_period=1,
+            rsi_period=2,
+            volatility_window=2,
+            atr_window=2,
+        )
+
+    assert any(
+        "Overwriting existing target column" in record.getMessage()
+        for record in caplog.records
+    )

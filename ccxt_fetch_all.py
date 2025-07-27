@@ -74,13 +74,19 @@ def fetch_ccxt_ohlc(
 
 
 def insert_to_supabase(
-    client: Client, df: pd.DataFrame, *, table: str, batch_size: int = 1000
+    client: Client,
+    df: pd.DataFrame,
+    *,
+    table: str,
+    batch_size: int = 1000,
+    conflict_cols: tuple[str, ...] = ("ts", "symbol"),
 ) -> None:
-    """Insert rows of ``df`` into Supabase ``table`` using ``client``."""
+    """Insert or update rows of ``df`` into Supabase ``table`` using ``client``."""
     records = df.to_dict(orient="records")
+    on_conflict = ",".join(conflict_cols)
     for i in range(0, len(records), batch_size):
         chunk = records[i : i + batch_size]
-        client.table(table).insert(chunk).execute()
+        client.table(table).upsert(chunk, on_conflict=on_conflict).execute()
 
 
 def append_ccxt_data_all(
