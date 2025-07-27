@@ -19,6 +19,7 @@ from sklearn.model_selection import StratifiedKFold
 
 from registry import ModelRegistry
 from utils import timed
+from evaluation import simulate_signal_pnl
 
 # Optional container for capturing training parameters in unit tests
 captured: dict | None = None
@@ -275,6 +276,21 @@ def train_regime_lgbm(
         num_boost_round=final_num_boost_round,
         callbacks=[_gpu_logging_callback()] if profile_gpu else None,
     )
+
+    # compute PnL metrics on training data
+    try:
+        preds = final_model.predict(X)
+        if preds.ndim > 1:
+            pred_labels_enc = np.argmax(preds, axis=1)
+        else:
+            pred_labels_enc = (preds >= 0.5).astype(int)
+        inv_map = {0: -1, 1: 0, 2: 1}
+        pred_labels = pd.Series(pred_labels_enc).map(inv_map).fillna(pred_labels_enc)
+        if any(c in X.columns for c in ["returns", "close", "Close"]):
+            pnl_metrics = simulate_signal_pnl(X, pred_labels.to_numpy())
+            metrics.update(pnl_metrics)
+    except Exception:
+        logging.exception("Failed to compute PnL metrics")
 
     if not isinstance(final_model, Booster):
         try:  # pragma: no cover - only triggered in tests
