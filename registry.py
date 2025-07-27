@@ -63,13 +63,14 @@ class ModelRegistry:
         configured bucket. A record is inserted into the configured table with
         the model metadata and ``approved`` status.
         """
+        path = f"{name}.pkl"
         with tempfile.NamedTemporaryFile(delete=False) as temp_file:
-            joblib.dump(model, temp_file.name)
-            path = f"{name}.pkl"
-            with open(temp_file.name, "rb") as f:
-                self.client.storage.from_(self.bucket).upload(path, f.read())
-
-        os.unlink(temp_file.name)
+            try:
+                joblib.dump(model, temp_file.name)
+                with open(temp_file.name, "rb") as f:
+                    self.client.storage.from_(self.bucket).upload(path, f.read())
+            finally:
+                os.unlink(temp_file.name)
 
         now = datetime.utcnow().isoformat()
         entry = {
@@ -112,14 +113,15 @@ class ModelRegistry:
 
         import json
 
+        path = f"{name}.json"
         with tempfile.NamedTemporaryFile(suffix=".json", delete=False, mode="w+b") as tmp:
-            tmp.write(json.dumps(obj).encode())
-            tmp.flush()
-            path = f"{name}.json"
-            tmp.seek(0)
-            self.client.storage.from_(self.bucket).upload(path, tmp.read())
-
-        os.unlink(tmp.name)
+            try:
+                tmp.write(json.dumps(obj).encode())
+                tmp.flush()
+                tmp.seek(0)
+                self.client.storage.from_(self.bucket).upload(path, tmp.read())
+            finally:
+                os.unlink(tmp.name)
 
         now = datetime.utcnow().isoformat()
         entry = {
