@@ -71,6 +71,8 @@ def _rsi_nb(arr: np.ndarray, period: int = 14) -> np.ndarray:
     n = len(arr)
     rsi = np.empty(n)
     rsi[:] = np.nan
+    if n <= period:
+        return rsi
     gains = np.zeros(n)
     losses = np.zeros(n)
     for i in range(1, n):
@@ -146,6 +148,8 @@ def _atr_nb(high: np.ndarray, low: np.ndarray, close: np.ndarray, period: int = 
     n = len(high)
     atr = np.empty(n)
     atr[:] = np.nan
+    if n <= period:
+        return atr
     tr = np.zeros(n)
     for i in range(1, n):
         tr1 = high[i] - low[i]
@@ -164,6 +168,8 @@ def _adx_nb(high: np.ndarray, low: np.ndarray, close: np.ndarray, period: int = 
     n = len(high)
     adx = np.empty(n)
     adx[:] = np.nan
+    if n <= period:
+        return adx
     plus_dm = np.zeros(n)
     minus_dm = np.zeros(n)
     tr = np.zeros(n)
@@ -518,7 +524,7 @@ def make_features(
     if use_gpu and jnp is not None:
         _ = jnp.asarray(backend_df.select_dtypes(include=[np.number]).to_numpy())
 
-    if backend_df[[rsi_col, vol_col, atr_col]].isna().all().all():
+    if len(backend_df) > max(rsi_period, volatility_window, atr_window) and backend_df[[rsi_col, vol_col, atr_col]].isna().all().all():
         raise ValueError("Too many NaN values after interpolation")
 
     backend_df = backend_df.bfill().ffill()
