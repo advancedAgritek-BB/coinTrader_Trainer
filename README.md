@@ -218,8 +218,8 @@ GPU acceleration is provided via ``numba`` when ``use_gpu=True`` is passed to
 When the [`modin[ray]`](https://modin.org/) package is available, you can
 set ``use_modin=True`` to distribute the pandas workload across CPU cores.
 
-Set ``log_time=True`` to print the total processing time for feature
-generation.
+The execution time for feature generation and model training is logged
+at ``INFO`` level automatically so no extra flag is required.
 
 The ``target`` column produced during training is now a three-class label:
 ``1`` for long, ``0`` for flat and ``-1`` for short. These classes are

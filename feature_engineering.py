@@ -1,6 +1,7 @@
 """Feature generation utilities used by coinTrader models."""
 
 import time
+from utils import timed
 import logging
 
 import numpy as np
@@ -339,6 +340,7 @@ def _compute_features_pandas(
     return df, rsi_col, vol_col, atr_col
 
 
+@timed
 def make_features(
     df: pd.DataFrame,
     *,
@@ -352,7 +354,6 @@ def make_features(
     momentum_period: int = 10,
     adx_period: int = 14,
     use_gpu: bool = False,
-    log_time: bool = False,
     return_threshold: float = 0.01,
     use_modin: bool = False,
 ) -> pd.DataFrame:
@@ -382,6 +383,7 @@ def make_features(
     adx_period : int, optional
         Period for the Average Directional Index.
     use_gpu : bool, optional
+        If ``True``, perform a round-trip through ``cudf`` to allow GPU acceleration.
         If ``True``, JAX and Numba are used to accelerate calculations on the GPU.
         When ``True`` Numba accelerated functions operate on NumPy arrays
         for faster computation.
@@ -402,7 +404,7 @@ def make_features(
         dropped.
     """
 
-    start_time = time.time() if log_time else None
+
 
     if "ts" not in df.columns or "price" not in df.columns:
         raise ValueError("DataFrame must contain 'ts' and 'price' columns")
@@ -453,9 +455,7 @@ def make_features(
             )
             result["target"] = pd.Series(result["target"], index=result.index).fillna(0)
 
-        if log_time and start_time is not None:
-            elapsed = time.time() - start_time
-            print(f"feature generation took {elapsed:.3f}s")
+
 
         return result
 
