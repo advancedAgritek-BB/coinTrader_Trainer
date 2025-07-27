@@ -12,6 +12,8 @@ import numpy as np
 import pandas as pd
 import yaml
 from dotenv import load_dotenv
+import httpx
+from supabase import SupabaseException
 
 import data_loader
 from feature_engineering import make_features
@@ -41,19 +43,22 @@ async def fetch_and_prepare_data(
         end_ts = end_ts.isoformat()
 
     df = await data_loader.fetch_data_range_async(table, str(start_ts), str(end_ts))
+    if df.empty:
+        logging.error("No data returned for %s - %s", start_ts, end_ts)
+        raise ValueError("No data available")
 
     if "timestamp" in df.columns and "ts" not in df.columns:
         df = df.rename(columns={"timestamp": "ts"})
     if "ts" not in df.columns:
         try:
             start_dt = pd.to_datetime(start_ts)
-        except Exception:
+        except (TypeError, ValueError):
             start_dt = pd.Timestamp.utcnow()
         df["ts"] = pd.date_range(start_dt, periods=len(df), freq="min")
 
     try:
         df = make_features(df)
-    except Exception:
+    except ValueError:
         pass
 
     if "target" not in df.columns:
@@ -194,7 +199,7 @@ async def run_swarm_search(
                 {"fitness": best.fitness},
             )
             logging.info("Uploaded swarm parameters %s", entry_id)
-        except Exception as exc:
+        except (httpx.HTTPError, SupabaseException) as exc:  # pragma: no cover
             logging.exception("Failed to upload parameters: %s", exc)
     else:
         logging.info("SUPABASE credentials not set; skipping parameter upload")
