@@ -15,6 +15,8 @@ except Exception as exc:  # pragma: no cover - optional dependency
 import numpy as np
 import pandas as pd
 import yaml
+from dotenv import load_dotenv
+from utils import timed, validate_schema
 from config import load_config
 from utils import timed
 import httpx
@@ -34,6 +36,7 @@ async def fetch_and_prepare_data(
     table: str = "ohlc_data",
     return_threshold: float = 0.01,
     min_rows: int = 1,
+    generate_target: bool = True,
 ) -> tuple[pd.DataFrame, pd.Series]:
     """Fetch trade data and return feature matrix ``X`` and targets ``y``.
 
@@ -69,10 +72,16 @@ async def fetch_and_prepare_data(
         except (TypeError, ValueError):
             start_dt = pd.Timestamp.utcnow()
         df["ts"] = pd.date_range(start_dt, periods=len(df), freq="min")
+    validate_schema(df, ["ts"])
 
     loop = asyncio.get_running_loop()
     try:
-        df = await loop.run_in_executor(None, make_features, df)
+        df = await loop.run_in_executor(
+            None,
+            lambda: make_features(df, generate_target=generate_target),
+        )
+    except TypeError:
+        df = await loop.run_in_executor(None, lambda: make_features(df))
     except ValueError:
         pass
 
