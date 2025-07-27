@@ -9,10 +9,8 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 import joblib
-from dotenv import load_dotenv
+from config import load_config
 from supabase import Client, create_client
-
-load_dotenv()
 
 logger = logging.getLogger(__name__)
 
@@ -35,10 +33,9 @@ class ModelRegistry:
         is created from ``url`` and ``key`` or environment variables.
         """
         if client is None:
-            url = url or os.environ.get("SUPABASE_URL")
-            key = key or os.environ.get("SUPABASE_KEY") or os.environ.get(
-                "SUPABASE_SERVICE_KEY"
-            )
+            cfg = load_config()
+            url = url or cfg.supabase_url
+            key = key or cfg.supabase_key or cfg.supabase_service_key
             if not url or not key:
                 raise ValueError("SUPABASE_URL and SUPABASE_KEY must be set")
             self.client = create_client(url, key)

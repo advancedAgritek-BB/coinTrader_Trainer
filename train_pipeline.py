@@ -15,7 +15,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import yaml
-from dotenv import load_dotenv
+from config import load_config
 from supabase import create_client
 
 from data_loader import fetch_trade_logs, _get_redis_client
@@ -31,8 +31,6 @@ try:  # optional dependency
 except ImportError as exc:  # pragma: no cover - pyopencl may be absent
     cl = None  # type: ignore
     logging.getLogger(__name__).warning("pyopencl not available: %s", exc)
-
-load_dotenv()
 
 
 logger = logging.getLogger(__name__)
@@ -72,8 +70,9 @@ def main() -> None:
     cfg = load_cfg(args.cfg)
     params = cfg.get("regime_lgbm", {})
 
-    url = os.environ.get("SUPABASE_URL")
-    key = os.environ.get("SUPABASE_KEY") or os.environ.get("SUPABASE_SERVICE_KEY")
+    cfg_env = load_config()
+    url = cfg_env.supabase_url
+    key = cfg_env.supabase_key or cfg_env.supabase_service_key
     if not url or not key:
         raise ValueError(
             "SUPABASE_URL and SUPABASE_KEY environment variables must be set"
@@ -114,7 +113,8 @@ def main() -> None:
         df = df.rename(columns={"timestamp": "ts"})
     validate_schema(df, ["ts"])
 
-    redis_client = _get_redis_client() if args.feature_cache_key else None
+    cache_key = getattr(args, "feature_cache_key", None)
+    redis_client = _get_redis_client() if cache_key else None
     if redis_client is not None:
         try:
             df = make_features(
@@ -129,6 +129,11 @@ def main() -> None:
                 redis_client=redis_client,
                 cache_key=args.feature_cache_key,
             )
+        df = make_features(
+            df,
+            redis_client=redis_client,
+            cache_key=cache_key,
+        )
     else:
         try:
             df = make_features(df, generate_target=args.generate_target)

@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from io import BytesIO
 from typing import Any, AsyncGenerator, Dict, Optional
 
-from dotenv import load_dotenv
+from config import load_config
 
 try:
     import redis  # type: ignore
@@ -28,8 +28,6 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 from feature_engineering import make_features
 from cache_utils import load_cached_features
 
-load_dotenv()
-
 
 _REDIS_CLIENT = None
 
@@ -38,19 +36,24 @@ def _get_redis_client():
     """Return a configured Redis client or ``None`` if unavailable."""
     global _REDIS_CLIENT
     if redis is None:
+        logger.warning("Redis package not installed; caching disabled")
         return None
     if _REDIS_CLIENT is not None:
         return _REDIS_CLIENT
-    url = os.environ.get("REDIS_URL") or os.environ.get("REDIS_TLS_URL")
+    cfg = load_config(require_supabase=False)
+    url = cfg.redis_url or cfg.redis_tls_url
     if url:
         _REDIS_CLIENT = redis.from_url(url)
         return _REDIS_CLIENT
 
-    host = os.environ.get("REDIS_HOST", "localhost")
-    port = int(os.environ.get("REDIS_PORT", 6379))
-    db = int(os.environ.get("REDIS_DB", 0))
-    _REDIS_CLIENT = redis.Redis(host=host, port=port, db=db)
-    return _REDIS_CLIENT
+    if cfg.redis_host or cfg.redis_port or cfg.redis_db:
+        host = cfg.redis_host or "localhost"
+        port = int(cfg.redis_port or 6379)
+        db = int(cfg.redis_db or 0)
+        _REDIS_CLIENT = redis.Redis(host=host, port=port, db=db)
+        return _REDIS_CLIENT
+
+    return None
 
 
 def _get_client() -> Client:
@@ -62,8 +65,9 @@ def _get_client() -> Client:
     should only be used for write operations such as model uploads.
     """
 
-    url = os.environ.get("SUPABASE_URL")
-    anon_key = os.environ.get("SUPABASE_KEY")
+    cfg = load_config()
+    url = cfg.supabase_url
+    anon_key = cfg.supabase_key
     if not url or not anon_key:
         raise ValueError(
             "SUPABASE_URL and SUPABASE_KEY environment variables must be set"
@@ -71,9 +75,9 @@ def _get_client() -> Client:
 
     client = create_client(url, anon_key)
 
-    jwt = os.environ.get("SUPABASE_JWT")
-    email = os.environ.get("SUPABASE_USER_EMAIL")
-    password = os.environ.get("SUPABASE_PASSWORD")
+    jwt = cfg.supabase_jwt
+    email = cfg.supabase_user_email
+    password = cfg.supabase_password
 
     try:
         if jwt:
@@ -233,11 +237,13 @@ def fetch_trade_logs(
         key = redis_key or f"{table}:{start_ts.isoformat()}:{end_ts.isoformat()}:{symbol or 'all'}"
         if max_rows is not None:
             key = f"{key}:{max_rows}"
-        ttl = int(os.environ.get("REDIS_TTL", 86400))
+        cfg = load_config(require_supabase=False)
+        ttl = int(cfg.redis_ttl or 86400)
         redis_client.setex(key, ttl, df.to_json(orient="split"))
 
     if redis_cache is not None and cache_key is not None:
-        ttl = int(os.environ.get("REDIS_TTL", 86400))
+        cfg = load_config(require_supabase=False)
+        ttl = int(cfg.redis_ttl or 86400)
         buf = BytesIO()
         df.to_parquet(buf)
         redis_cache.setex(cache_key, ttl, buf.getvalue())
@@ -302,13 +308,14 @@ async def fetch_table_async(
 
     own_client = False
     if client is None:
-        url = os.environ.get("SUPABASE_URL")
-        key = os.environ.get("SUPABASE_KEY")
+        cfg = load_config()
+        url = cfg.supabase_url
+        key = cfg.supabase_key
         if not url or not key:
             raise ValueError(
                 "SUPABASE_URL and SUPABASE_KEY environment variables must be set"
             )
-        jwt = os.environ.get("SUPABASE_JWT")
+        jwt = cfg.supabase_jwt
         headers = {"apikey": key, "Authorization": f"Bearer {jwt or key}"}
         client = httpx.AsyncClient(base_url=url, headers=headers)
         own_client = True
@@ -407,14 +414,15 @@ async def fetch_data_range_async(
     chunk_size: int = 1000,
 ) -> pd.DataFrame:
 
-    url = os.environ.get("SUPABASE_URL")
-    key = os.environ.get("SUPABASE_KEY")
+    cfg = load_config()
+    url = cfg.supabase_url
+    key = cfg.supabase_key
     if not url or not key:
         raise ValueError(
             "SUPABASE_URL and SUPABASE_KEY environment variables must be set"
         )
 
-    jwt = os.environ.get("SUPABASE_JWT")
+    jwt = cfg.supabase_jwt
 
     endpoint = f"{url.rstrip('/')}/rest/v1/{table}"
     headers = {"apikey": key, "Authorization": f"Bearer {jwt or key}"}

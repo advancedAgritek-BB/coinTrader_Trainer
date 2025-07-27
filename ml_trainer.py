@@ -17,13 +17,11 @@ from prometheus_client import Gauge, start_http_server
 import numpy as np
 import pandas as pd
 import yaml
-from dotenv import load_dotenv
+from config import load_config
 
 import historical_data_importer
 from data_import import download_historical_data, insert_to_supabase
 from train_pipeline import check_clinfo_gpu, verify_lightgbm_gpu
-
-load_dotenv()
 
 logger = logging.getLogger(__name__)
 
@@ -210,8 +208,9 @@ def main() -> None:  # pragma: no cover - CLI entry
             start_ts=args.start_ts,
             end_ts=args.end_ts,
         )
-        url = os.environ.get("SUPABASE_URL")
-        key = os.environ.get("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABASE_KEY")
+        cfg_env = load_config()
+        url = cfg_env.supabase_url
+        key = cfg_env.supabase_service_key or cfg_env.supabase_key
         if not url or not key:
             raise SystemExit("SUPABASE_URL and service key must be set")
         table = args.table or f"historical_prices_{args.symbol.lower()}"
@@ -233,8 +232,6 @@ def main() -> None:  # pragma: no cover - CLI entry
         raise SystemExit(f"Unknown task: {args.task}")
 
     trainer_fn, cfg_key = TRAINERS[args.task]
-    if trainer_fn is None:
-        raise SystemExit(f"Trainer '{args.task}' not available, install LightGBM")
 
     if args.federated:
         if args.task != "regime":
@@ -243,6 +240,9 @@ def main() -> None:  # pragma: no cover - CLI entry
             raise SystemExit("Federated training not supported")
         trainer_fn = train_federated_regime
         cfg_key = "federated_regime"
+
+    if trainer_fn is None and not args.federated:
+        raise SystemExit(f"Trainer '{args.task}' not available, install LightGBM")
 
     params = cfg.get(cfg_key, {}).copy()
 
@@ -364,3 +364,8 @@ def main() -> None:  # pragma: no cover - CLI entry
     finally:
         if monitor_proc:
             monitor_proc.terminate()
+
+
+if __name__ == "__main__":  # pragma: no cover - CLI entry
+    asyncio.run(main())
+

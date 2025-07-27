@@ -1,30 +1,32 @@
 from __future__ import annotations
 
 import logging
-import os
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List
 import asyncio
 
 import lightgbm as lgb
-import networkx as nx
+try:
+    import networkx as nx
+except Exception as exc:  # pragma: no cover - optional dependency
+    nx = None  # type: ignore
+    logging.getLogger(__name__).warning("networkx import failed: %s", exc)
 import numpy as np
 import pandas as pd
 import yaml
 from dotenv import load_dotenv
 from utils import timed, validate_schema
+from config import load_config
+from utils import timed
 import httpx
 from supabase import SupabaseException
 
 import data_loader
 from feature_engineering import make_features
 from registry import ModelRegistry
-from train_pipeline import check_clinfo_gpu
 from train_pipeline import check_clinfo_gpu, verify_lightgbm_gpu
 from sklearn.utils import resample
-
-load_dotenv()
 
 
 async def fetch_and_prepare_data(
@@ -219,6 +221,8 @@ async def run_swarm_search(
     Dict[str, Any]
         Parameter dictionary from the best-performing agent.
     """
+    if nx is None:
+        raise SystemExit("networkx is required for run_swarm_search")
     X, y = await fetch_and_prepare_data(start_ts, end_ts, table=table)
 
     with open("cfg.yaml", "r") as fh:
@@ -256,10 +260,11 @@ async def run_swarm_search(
 
     best = min(agents, key=lambda a: a.fitness)
 
-    url = os.environ.get("SUPABASE_URL")
-    key = os.environ.get("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABASE_KEY")
-    bucket = os.environ.get("PARAMS_BUCKET", "agent_params")
-    table = os.environ.get("PARAMS_TABLE", "agent_params")
+    cfg = load_config()
+    url = cfg.supabase_url
+    key = cfg.supabase_service_key or cfg.supabase_key
+    bucket = cfg.params_bucket or "agent_params"
+    table = cfg.params_table or "agent_params"
     if url and key:
         try:
             reg = ModelRegistry(url, key, bucket=bucket, table=table)

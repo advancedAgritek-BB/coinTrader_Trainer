@@ -138,11 +138,13 @@ pip install pandas numpy lightgbm scikit-learn supabase tenacity pyarrow pytz ne
 
 Copy `.env.example` to `.env` and populate your Supabase credentials. The
 optional `PARAMS_BUCKET` and `PARAMS_TABLE` variables default to
-`agent_params`.
+`agent_params`. After editing the file run `python bootstrap_env.py` to
+verify the configuration is complete.
 
 ```bash
 cp .env.example .env
 # edit .env with your credentials
+python bootstrap_env.py
 ```
 
 All modules reside directly in the project root rather than under a
