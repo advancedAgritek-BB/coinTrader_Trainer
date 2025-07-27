@@ -1,11 +1,12 @@
 import os
 import sys
 import types
-import importlib
+import io
+
 import pandas as pd
+import fakeredis
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-
 
 
 def _sample_df():
@@ -28,8 +29,11 @@ def _sample_df():
 def _load_module(monkeypatch):
     monkeypatch.setenv("SUPABASE_URL", "http://sb")
     monkeypatch.setenv("SUPABASE_SERVICE_KEY", "key")
-    sys.modules["supabase"] = types.SimpleNamespace(create_client=lambda *a, **k: object(), Client=object)
+    sys.modules["supabase"] = types.SimpleNamespace(
+        create_client=lambda *a, **k: object(), Client=object
+    )
     import importlib
+
     return importlib.import_module("kraken_fetch")
 
 
@@ -146,6 +150,49 @@ def test_cli_env_default(monkeypatch):
     assert captured["table"] == "env_table"
 
 
+def test_fetch_kraken_ohlc_uses_redis(monkeypatch):
+    kf = _load_module(monkeypatch)
+    fake_r = fakeredis.FakeRedis()
+    df_cached = _sample_df().iloc[:1]
+    buf = io.BytesIO()
+    df_cached.to_parquet(buf)
+    fake_r.set("kraken_BTCUSD_1", buf.getvalue())
+
+    monkeypatch.setattr(kf, "_get_redis_client", lambda: fake_r)
+    monkeypatch.setattr(
+        kf.requests,
+        "get",
+        lambda *a, **k: (_ for _ in ()).throw(AssertionError("should not fetch")),
+    )
+
+    df = kf.fetch_kraken_ohlc("BTCUSD", interval=1)
+
+    pd.testing.assert_frame_equal(df, df_cached)
+
+
+def test_fetch_kraken_ohlc_sets_redis(monkeypatch):
+    kf = _load_module(monkeypatch)
+    fake_r = fakeredis.FakeRedis()
+
+    sample_data = {
+        "error": [],
+        "result": {"BTCUSD": [[1609459200, "1", "1", "1", "1", "1", "1", 1]]},
+    }
+
+    def fake_get(url, params=None):
+        assert url == "https://api.kraken.com/0/public/OHLC"
+        return types.SimpleNamespace(
+            json=lambda: sample_data, raise_for_status=lambda: None
+        )
+
+    monkeypatch.setattr(kf, "_get_redis_client", lambda: fake_r)
+    monkeypatch.setattr(kf.requests, "get", fake_get)
+
+    df = kf.fetch_kraken_ohlc("BTCUSD", interval=1)
+
+    cached = fake_r.get("kraken_BTCUSD_1")
+    assert cached is not None
+    pd.testing.assert_frame_equal(df, pd.read_parquet(io.BytesIO(cached)))
 def test_get_last_ts_parses_naive_timestamp(monkeypatch):
     kf = _load_module(monkeypatch)
 

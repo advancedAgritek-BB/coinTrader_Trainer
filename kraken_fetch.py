@@ -12,12 +12,15 @@ import os
 import time
 import logging
 from typing import Optional
+from io import BytesIO
 
 import pandas as pd
 import requests
 from dotenv import load_dotenv
 from supabase import Client, create_client
 import argparse
+
+from data_loader import _get_redis_client
 
 load_dotenv()
 
@@ -34,6 +37,7 @@ client: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 # Destination table for new rows (override with KRAKEN_TABLE or --table)
 DEFAULT_TABLE = os.environ.get("KRAKEN_TABLE", "trade_logs")
 
+
 def get_tradable_pairs() -> list[str]:
     """Fetch list of all tradable asset pairs from Kraken."""
     resp = requests.get("https://api.kraken.com/0/public/AssetPairs")
@@ -42,6 +46,7 @@ def get_tradable_pairs() -> list[str]:
     if "error" in data and data["error"]:
         raise ValueError(data["error"])
     return list(data["result"].keys())  # e.g., ['XBTUSD', 'ETHUSD']
+
 
 def get_last_ts(client: Client, symbol: str, table: str) -> Optional[int]:
     """Get the Unix timestamp of the latest entry for a symbol (or None if empty)."""
@@ -57,8 +62,16 @@ def get_last_ts(client: Client, symbol: str, table: str) -> Optional[int]:
         return int(pd.to_datetime(resp.data[0]["ts"], utc=True).timestamp())
     return None
 
+
 def fetch_kraken_ohlc(pair: str, interval: int = 1) -> pd.DataFrame:
     """Fetch recent OHLC for a pair (last ~720 candles)."""
+    redis_client = _get_redis_client()
+    cache_key = f"kraken_{pair}_{interval}"
+    if redis_client is not None:
+        cached = redis_client.get(cache_key)
+        if cached:
+            return pd.read_parquet(BytesIO(cached))
+
     params = {"pair": pair, "interval": interval}
     resp = requests.get("https://api.kraken.com/0/public/OHLC", params=params)
     resp.raise_for_status()
@@ -79,7 +92,15 @@ def fetch_kraken_ohlc(pair: str, interval: int = 1) -> pd.DataFrame:
     numeric_cols = ["open", "high", "low", "close", "price", "vwap", "volume"]
     df[numeric_cols] = df[numeric_cols].apply(pd.to_numeric)
     df["trades"] = df["trades"].astype(int)
+
+    if redis_client is not None:
+        ttl = int(os.environ.get("REDIS_TTL", 3600))
+        buf = BytesIO()
+        df.to_parquet(buf)
+        redis_client.setex(cache_key, ttl, buf.getvalue())
+
     return df
+
 
 def insert_to_supabase(
     client: Client,
@@ -94,7 +115,10 @@ def insert_to_supabase(
     on_conflict = ",".join(conflict_cols)
     for i in range(0, len(records), batch_size):
         chunk = records[i : i + batch_size]
-        client.table(table).upsert(chunk, on_conflict=on_conflict).execute()  # UNIQUE constraint prevents duplicates
+        client.table(table).upsert(
+            chunk, on_conflict=on_conflict
+        ).execute()  # UNIQUE constraint prevents duplicates
+
 
 def append_kraken_data(
     interval: int = 1, delay_sec: float = 1.0, *, table: str = DEFAULT_TABLE
@@ -112,6 +136,7 @@ def append_kraken_data(
             print(f"Appended {len(df)} rows for {pair}")
         time.sleep(delay_sec)
 
+
 def main(argv: Optional[list[str]] = None) -> None:
     parser = argparse.ArgumentParser(description="Fetch OHLC data from Kraken")
     parser.add_argument(
@@ -123,7 +148,9 @@ def main(argv: Optional[list[str]] = None) -> None:
     parser.add_argument("--delay-sec", type=float, default=1.0)
 
     args = parser.parse_args(argv)
-    append_kraken_data(interval=args.interval, delay_sec=args.delay_sec, table=args.table)
+    append_kraken_data(
+        interval=args.interval, delay_sec=args.delay_sec, table=args.table
+    )
 
 
 if __name__ == "__main__":
