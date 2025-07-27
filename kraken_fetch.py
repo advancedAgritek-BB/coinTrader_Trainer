@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import os
 import time
+import logging
 from typing import Optional
 
 import pandas as pd
@@ -19,6 +20,8 @@ from supabase import Client, create_client
 import argparse
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 # Supabase client (using service key for writes)
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
@@ -68,6 +71,8 @@ def fetch_kraken_ohlc(pair: str, interval: int = 1) -> pd.DataFrame:
         columns=["ts", "open", "high", "low", "close", "vwap", "volume", "trades"],
     )
     df["ts"] = pd.to_datetime(df["ts"], unit="s", utc=True)
+    if not df["ts"].diff().iloc[1:].eq(pd.Timedelta(minutes=1)).all():
+        logger.warning("Gaps detected in OHLC")
     df["symbol"] = pair
     df["price"] = df["close"]  # Alias for code compatibility
     # Convert types
