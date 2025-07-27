@@ -389,8 +389,9 @@ python ml_trainer.py import-data \
 Passing the ``--federated`` flag runs a local federated **simulation**.  The
 trainer splits the dataset into ``num_clients`` partitions and trains a model on
 each in memory. Only the resulting weights are aggregated, so the individual
-rows never mix. This approach stays entirely within a single process and is
-useful for quick experiments.
+rows never mix. Client training now runs in **separate processes** for better
+CPU utilisation. Set ``use_processes=False`` to disable multiprocessing during
+testing or on low‑resource machines.
 
 To run a true distributed federated session across machines, pass
 ``--true-federated`` instead.  This launches a Flower server and multiple
@@ -436,7 +437,8 @@ Programmatic access is also available via
 from coinTrader_Trainer import federated_trainer
 
 ensemble, metrics = federated_trainer.train_federated_regime(
-    "2023-01-01T00:00:00Z", "2023-01-02T00:00:00Z"
+    "2023-01-01T00:00:00Z", "2023-01-02T00:00:00Z",
+    use_processes=False,  # disable multiprocessing when resources are limited
 )
 ```
 By default each client is trained in a separate process. Pass
@@ -446,7 +448,7 @@ undesirable.
 For the Flower-based variant, call ``federated_fl.start_server`` on the
 aggregation host and ``federated_fl.start_client`` on each participant:
 
-```python
+```
 from coinTrader_Trainer import federated_fl
 
 # server side
