@@ -5,6 +5,7 @@ import os
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List
+import asyncio
 
 import lightgbm as lgb
 import networkx as nx
@@ -12,6 +13,8 @@ import numpy as np
 import pandas as pd
 import yaml
 from dotenv import load_dotenv
+import httpx
+from supabase import SupabaseException
 
 import data_loader
 from feature_engineering import make_features
@@ -26,6 +29,7 @@ async def fetch_and_prepare_data(
     *,
     table: str = "ohlc_data",
     return_threshold: float = 0.01,
+    min_rows: int = 1,
 ) -> tuple[pd.DataFrame, pd.Series]:
     """Fetch trade data and return feature matrix ``X`` and targets ``y``.
 
@@ -33,6 +37,9 @@ async def fetch_and_prepare_data(
     ----------
     return_threshold : float, optional
         Threshold used to generate the ``target`` column when it is missing.
+    min_rows : int, optional
+        Minimum number of rows required. A ``ValueError`` is raised when fewer
+        rows are returned.
     """
 
     if isinstance(start_ts, datetime):
@@ -41,19 +48,27 @@ async def fetch_and_prepare_data(
         end_ts = end_ts.isoformat()
 
     df = await data_loader.fetch_data_range_async(table, str(start_ts), str(end_ts))
+    if df.empty:
+        logging.error("No data returned for %s - %s", start_ts, end_ts)
+        raise ValueError("No data available")
+
+    if df.empty or len(df) < min_rows:
+        raise ValueError(
+            f"Expected at least {min_rows} rows of data, got {len(df)}"
+        )
 
     if "timestamp" in df.columns and "ts" not in df.columns:
         df = df.rename(columns={"timestamp": "ts"})
     if "ts" not in df.columns:
         try:
             start_dt = pd.to_datetime(start_ts)
-        except Exception:
+        except (TypeError, ValueError):
             start_dt = pd.Timestamp.utcnow()
         df["ts"] = pd.date_range(start_dt, periods=len(df), freq="min")
 
     try:
         df = make_features(df)
-    except Exception:
+    except ValueError:
         pass
 
     if "target" not in df.columns:
@@ -175,8 +190,9 @@ async def run_swarm_search(
 
     rounds = 3
     for _ in range(rounds):
-        for agent in agents:
-            agent.simulate(X, y, base_params)
+        await asyncio.gather(
+            *(asyncio.to_thread(agent.simulate, X, y, base_params) for agent in agents)
+        )
         evolve_swarm(agents, graph)
 
     best = min(agents, key=lambda a: a.fitness)
@@ -192,9 +208,10 @@ async def run_swarm_search(
                 best.params,
                 "swarm_params",
                 {"fitness": best.fitness},
+                conflict_key="name",
             )
             logging.info("Uploaded swarm parameters %s", entry_id)
-        except Exception as exc:
+        except (httpx.HTTPError, SupabaseException) as exc:  # pragma: no cover
             logging.exception("Failed to upload parameters: %s", exc)
     else:
         logging.info("SUPABASE credentials not set; skipping parameter upload")
