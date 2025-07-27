@@ -365,3 +365,8 @@ def main() -> None:  # pragma: no cover - CLI entry
     finally:
         if monitor_proc:
             monitor_proc.terminate()
+
+
+if __name__ == "__main__":  # pragma: no cover - CLI entry
+    asyncio.run(main())
+
