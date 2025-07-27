@@ -101,9 +101,41 @@ def test_fetch_trade_logs_uses_redis(monkeypatch):
         lambda: (_ for _ in ()).throw(AssertionError("client should not be called")),
     )
 
-    df = data_loader.fetch_trade_logs(start, end, symbol="BTC")
+    df = data_loader.fetch_trade_logs(start, end, symbol="BTC", cache_only=True)
 
     pd.testing.assert_frame_equal(df, df_cached)
+
+
+def test_fetch_trade_logs_ignores_cache_without_flag(monkeypatch):
+    start = datetime(2021, 1, 1)
+    end = datetime(2021, 1, 2)
+    key = (
+        f"trades_{int(start.replace(tzinfo=data_loader.timezone.utc).timestamp())}_"
+        f"{int(end.replace(tzinfo=data_loader.timezone.utc).timestamp())}_BTC"
+    )
+
+    fake_r = fakeredis.FakeRedis()
+    df_cached = pd.DataFrame({"a": [1], "symbol": ["BTC"]})
+    buf = io.BytesIO()
+    df_cached.to_parquet(buf)
+    fake_r.set(key, buf.getvalue())
+
+    monkeypatch.setattr(data_loader, "_get_redis_client", lambda: fake_r)
+
+    called = {}
+
+    def fake_fetch(client, start_ts, end_ts, *, symbol=None, table="ohlc_data"):
+        called["fetched"] = True
+        return [
+            {"timestamp": start_ts.isoformat(), "symbol": symbol, "price": 1},
+        ]
+
+    monkeypatch.setattr(data_loader, "_get_client", lambda: object())
+    monkeypatch.setattr(data_loader, "_fetch_logs", fake_fetch)
+
+    df = data_loader.fetch_trade_logs(start, end, symbol="BTC")
+
+    assert called.get("fetched")
 
 
 def test_fetch_trade_logs_sets_redis(monkeypatch):
