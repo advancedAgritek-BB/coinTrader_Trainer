@@ -149,3 +149,22 @@ def test_cli_env_default(monkeypatch):
     mod.main()
 
     assert captured["table"] == "env_table"
+
+
+def test_fetch_gap_warning(monkeypatch, caplog):
+    import logging
+    mod = _load_module(monkeypatch)
+
+    class FakeExchange:
+        id = "binance"
+
+        def fetch_ohlcv(self, symbol, timeframe="1m", limit=720):
+            return [
+                [1609459200000, 1, 1, 1, 1, 1],
+                [1609459320000, 1, 1, 1, 1, 1],
+            ]
+
+    with caplog.at_level(logging.WARNING):
+        mod.fetch_ccxt_ohlc(FakeExchange(), "BTC/USD")
+
+    assert any("Gaps detected in OHLC" in r.message for r in caplog.records)
