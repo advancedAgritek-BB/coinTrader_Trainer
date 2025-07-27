@@ -5,6 +5,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
+import fakeredis
 import logging
 import types
 
@@ -312,3 +313,68 @@ def test_make_features_warns_when_overwriting_target(caplog):
         "Overwriting existing target column" in record.getMessage()
         for record in caplog.records
     )
+
+
+def test_make_features_redis_cache(monkeypatch):
+    r = fakeredis.FakeRedis()
+    df = pd.DataFrame({
+        "ts": pd.date_range("2021-01-01", periods=3, freq="D"),
+        "price": [1.0, 1.1, 1.2],
+        "high": [1.0, 1.1, 1.2],
+        "low": [0.9, 1.0, 1.1],
+        "volume": [1, 1, 1],
+    })
+    key = "feat_key"
+    out1 = make_features(
+        df,
+        ema_short_period=1,
+        ema_long_period=1,
+        rsi_period=2,
+        volatility_window=2,
+        atr_window=2,
+        redis_client=r,
+        cache_key=key,
+    )
+    def fail_compute(*a, **k):
+        raise AssertionError("recompute")
+    monkeypatch.setattr(feature_engineering, "_compute_features_pandas", fail_compute)
+    out2 = make_features(
+        df,
+        ema_short_period=1,
+        ema_long_period=1,
+        rsi_period=2,
+        volatility_window=2,
+        atr_window=2,
+        redis_client=r,
+        cache_key=key,
+    )
+    pd.testing.assert_frame_equal(out1, out2)
+
+
+def test_make_features_cache_bypass(monkeypatch):
+    r = fakeredis.FakeRedis()
+    df = pd.DataFrame({
+        "ts": pd.date_range("2021-01-01", periods=3, freq="D"),
+        "price": [1.0, 1.1, 1.2],
+        "high": [1.0, 1.1, 1.2],
+        "low": [0.9, 1.0, 1.1],
+        "volume": [1, 1, 1],
+    })
+    make_features(
+        df,
+        ema_short_period=1,
+        ema_long_period=1,
+        rsi_period=2,
+        volatility_window=2,
+        atr_window=2,
+        redis_client=r,
+        cache_key="feat_key2",
+    )
+    called = {}
+    orig = feature_engineering._compute_features_pandas
+    def spy(*a, **k):
+        called["run"] = True
+        return orig(*a, **k)
+    monkeypatch.setattr(feature_engineering, "_compute_features_pandas", spy)
+    make_features(df, ema_short_period=1, ema_long_period=1, rsi_period=2, volatility_window=2, atr_window=2)
+    assert called.get("run")

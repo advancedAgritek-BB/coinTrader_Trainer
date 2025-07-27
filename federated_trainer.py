@@ -7,7 +7,7 @@ import asyncio
 import logging
 import os
 from dataclasses import dataclass
-from typing import Iterable, List, Optional, Tuple
+from typing import Any, Iterable, List, Optional, Tuple
 
 import joblib
 import lightgbm as lgb
@@ -25,6 +25,7 @@ import httpx
 from coinTrader_Trainer.data_loader import (
     fetch_data_range_async,
     fetch_trade_aggregates,
+    _get_redis_client,
 )
 from coinTrader_Trainer.feature_engineering import make_features
 
@@ -65,6 +66,8 @@ def _prepare_data(
     *,
     table: str = "ohlc_data",
     min_rows: int = 1,
+    redis_client: Any | None = None,
+    cache_key: str | None = None,
 ) -> Tuple[pd.DataFrame, pd.Series]:
     """Return feature matrix and targets between ``start_ts`` and ``end_ts``.
 
@@ -94,7 +97,12 @@ def _prepare_data(
     if symbols is not None and "symbol" in df.columns:
         df = df[df["symbol"].isin(set(symbols))]
 
-    df = make_features(df, use_gpu=True)
+    df = make_features(
+        df,
+        use_gpu=True,
+        redis_client=redis_client,
+        cache_key=cache_key,
+    )
     if "target" not in df.columns:
         raise ValueError("Data must contain a 'target' column for training")
     X = df.drop(columns=["target"])
@@ -130,6 +138,7 @@ async def train_federated_regime(
     config_path: str = "cfg.yaml",
     params_override: Optional[dict] = None,
     table: str = "ohlc_data",
+    feature_cache_key: str | None = None,
 ) -> Tuple[FederatedEnsemble, dict]:
     """Train LightGBM models across ``num_clients`` and aggregate their predictions."""
 
@@ -150,7 +159,14 @@ async def train_federated_regime(
     except (httpx.HTTPError, SupabaseException, ValueError, TypeError, AttributeError) as exc:  # pragma: no cover
         logging.exception("Failed to fetch aggregates: %s", exc)
 
-    X, y = _prepare_data(start_ts, end_ts, table=table)
+    redis_client = _get_redis_client() if feature_cache_key else None
+    X, y = _prepare_data(
+        start_ts,
+        end_ts,
+        table=table,
+        redis_client=redis_client,
+        cache_key=feature_cache_key,
+    )
     y_enc = y.replace(LABEL_MAP).astype(int)
 
     # Upsample each class to have equal counts before splitting
@@ -185,7 +201,14 @@ async def train_federated_regime(
     for idx in indices:
         booster = _train_client(X.iloc[idx], y.iloc[idx], params)
         models.append(booster)
-    X, y = await asyncio.to_thread(_prepare_data, start_ts, end_ts, table=table)
+    X, y = await asyncio.to_thread(
+        _prepare_data,
+        start_ts,
+        end_ts,
+        table=table,
+        redis_client=redis_client,
+        cache_key=feature_cache_key,
+    )
     label_map = {-1: 0, 0: 1, 1: 2}
     y_enc = y.replace(label_map).astype(int)
 
