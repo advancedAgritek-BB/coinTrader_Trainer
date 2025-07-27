@@ -11,6 +11,8 @@ from dotenv import load_dotenv
 from supabase import Client, create_client
 from tenacity import retry, stop_after_attempt, wait_exponential
 
+from utils.normalise import normalize_ohlc
+
 load_dotenv()
 
 
@@ -50,33 +52,7 @@ def download_historical_data(
         skiprows = 1 if "cryptodatadownload" in first_line else 0
         df = pd.read_csv(io.StringIO(resp.text), skiprows=skiprows)
 
-    rename_map = {
-        "timestamp": "ts",
-        "unix": "ts",
-        "date": "ts",
-        "time": "ts",
-        "close": "price",
-        "price": "price",
-        "open": "open",
-        "high": "high",
-        "low": "low",
-        "volume": "volume",
-        "volume usdt": "volume",
-    }
-    rename_map_lower = {k.lower(): v for k, v in rename_map.items()}
-    df = df.rename(
-        columns={
-            col: rename_map_lower[col.lower()]
-            for col in df.columns
-            if col.lower() in rename_map_lower
-        }
-    )
-
-    if df.columns.duplicated().any():
-        df = df.loc[:, ~df.columns.duplicated()]
-
-    if "ts" in df.columns:
-        df["ts"] = pd.to_datetime(df["ts"], errors="coerce", utc=True)
+    df = normalize_ohlc(df)
 
     if symbol is not None and "symbol" in df.columns:
         df = df[df["symbol"] == symbol]

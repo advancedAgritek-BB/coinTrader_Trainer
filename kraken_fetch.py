@@ -21,6 +21,7 @@ from supabase import Client, create_client
 import argparse
 
 from data_loader import _get_redis_client
+from utils.normalise import normalize_ohlc
 
 load_dotenv()
 
@@ -98,7 +99,7 @@ def fetch_kraken_ohlc(pair: str, interval: int = 1) -> pd.DataFrame:
         buf = BytesIO()
         df.to_parquet(buf)
         redis_client.setex(cache_key, ttl, buf.getvalue())
-
+    df = normalize_ohlc(df)
     return df
 
 

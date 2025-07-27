@@ -34,8 +34,8 @@ def test_download_historical_data(tmp_path):
     )
 
     assert out_path.exists()
-    assert df["timestamp"].is_monotonic_increasing
-    assert not df.duplicated("timestamp").any()
+    assert df["ts"].is_monotonic_increasing
+    assert not df.duplicated("ts").any()
     assert "target" not in df.columns
 
 
@@ -55,8 +55,8 @@ def test_download_historical_data_alt_timestamp(tmp_path, time_col):
 
     df = hdi.download_historical_data(str(csv_path))
 
-    assert "timestamp" in df.columns
-    assert "close" in df.columns
+    assert "ts" in df.columns
+    assert "price" in df.columns
 
 
 def test_download_historical_data_skip_banner(tmp_path):
@@ -70,7 +70,7 @@ def test_download_historical_data_skip_banner(tmp_path):
 
     df = hdi.download_historical_data(str(csv_path))
 
-    assert list(df.columns[:2]) == ["unix", "close"]
+    assert list(df.columns[:2]) == ["ts", "price"]
 
 
 def test_download_historical_data_drop_duplicate_ts(tmp_path):
@@ -86,7 +86,7 @@ def test_download_historical_data_drop_duplicate_ts(tmp_path):
 
     df = hdi.download_historical_data(str(csv_path))
 
-    assert "timestamp" in df.columns
+    assert "ts" in df.columns
     assert not df.columns.duplicated().any()
 
 
