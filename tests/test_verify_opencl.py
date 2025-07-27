@@ -62,3 +62,28 @@ def test_verify_opencl_bad_rocm_output(monkeypatch):
 
     with pytest.raises(RuntimeError):
         opencl_utils.verify_opencl()
+
+
+def test_has_rocm_uses_verify(monkeypatch):
+    monkeypatch.setattr(opencl_utils, "verify_opencl", lambda: True)
+    assert opencl_utils.has_rocm() is True
+
+
+def test_has_rocm_env_fallback(monkeypatch):
+    def fail():
+        raise RuntimeError("no gpu")
+
+    monkeypatch.setattr(opencl_utils, "verify_opencl", fail)
+    monkeypatch.setattr(opencl_utils.platform, "system", lambda: "Windows")
+    monkeypatch.setenv("ROCM_PATH", "1")
+    assert opencl_utils.has_rocm() is True
+
+
+def test_has_rocm_false(monkeypatch):
+    def fail():
+        raise RuntimeError("no gpu")
+
+    monkeypatch.setattr(opencl_utils, "verify_opencl", fail)
+    monkeypatch.setattr(opencl_utils.platform, "system", lambda: "Linux")
+    monkeypatch.delenv("ROCM_PATH", raising=False)
+    assert opencl_utils.has_rocm() is False

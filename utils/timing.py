@@ -25,10 +25,9 @@ def timed(func: Callable[..., T]) -> Callable[..., T]:
             result = await func(*args, **kwargs)
             elapsed = perf_counter() - start
             message = f"{func.__name__} took {elapsed:.3f}s"
-            if log_flag:
-                logger.info(message)
-            else:
+            if not log_flag:
                 print(message)
+            logger.info(message)
             return result
 
         return async_wrapper
@@ -40,10 +39,9 @@ def timed(func: Callable[..., T]) -> Callable[..., T]:
         result = func(*args, **kwargs)
         elapsed = perf_counter() - start
         message = f"{func.__name__} took {elapsed:.3f}s"
-        if log_flag:
-            logger.info(message)
-        else:
+        if not log_flag:
             print(message)
+        logger.info(message)
         return result
 
     return sync_wrapper
