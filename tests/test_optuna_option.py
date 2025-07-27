@@ -1,6 +1,8 @@
 import os
 import sys
 import types
+import logging
+import builtins
 
 import numpy as np
 import pandas as pd
@@ -60,3 +62,40 @@ def test_cli_optuna_merges_params_once(monkeypatch):
 
     assert captured["count"] == 1
     assert captured["params"].get("learning_rate") == 0.1
+
+
+def test_cli_optuna_missing_module_warns(monkeypatch, caplog):
+    called = {}
+
+    def fake_train(X, y, params, use_gpu=False, profile_gpu=False):
+        called["train"] = True
+        return object(), {}
+
+    monkeypatch.setitem(ml_trainer.TRAINERS, "regime", (fake_train, "regime_lgbm"))
+    monkeypatch.setattr(ml_trainer, "load_cfg", lambda p: {"regime_lgbm": {}})
+    monkeypatch.setattr(
+        ml_trainer,
+        "_make_dummy_data",
+        lambda n=200: (pd.DataFrame({"f": [1]}), pd.Series([0])),
+    )
+    monkeypatch.setattr(ml_trainer, "check_clinfo_gpu", lambda: True)
+    monkeypatch.setattr(ml_trainer, "verify_lightgbm_gpu", lambda p: True)
+    real_import = __import__
+
+    def fake_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name in ("optuna_search", "optuna_optimizer"):
+            raise ImportError("missing")
+        return real_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+
+    argv = ["prog", "train", "regime", "--optuna"]
+    monkeypatch.setattr(sys, "argv", argv)
+
+    with caplog.at_level(logging.WARNING):
+        ml_trainer.main()
+
+    assert called.get("train")
+    assert any(
+        "Optuna optimisation unavailable" in r.message for r in caplog.records
+    )
