@@ -20,6 +20,7 @@ from supabase import SupabaseException
 import data_loader
 from feature_engineering import make_features
 from registry import ModelRegistry
+from train_pipeline import check_clinfo_gpu, verify_lightgbm_gpu
 
 load_dotenv()
 
@@ -197,7 +198,14 @@ async def run_swarm_search(
     with open("cfg.yaml", "r") as fh:
         cfg = yaml.safe_load(fh) or {}
     base_params: Dict[str, Any] = cfg.get("regime_lgbm", {})
-    base_params.setdefault("device_type", "gpu")
+
+    if check_clinfo_gpu() and verify_lightgbm_gpu(base_params):
+        base_params.setdefault("device_type", "gpu")
+        base_params.setdefault("gpu_platform_id", 0)
+        base_params.setdefault("gpu_device_id", 0)
+    else:
+        base_params["device_type"] = "cpu"
+        logging.warning("GPU not detected; falling back to CPU")
 
     graph = nx.complete_graph(num_agents)
     agents: List[SwarmAgent] = []
