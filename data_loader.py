@@ -241,7 +241,7 @@ def fetch_trade_logs(
         redis_client.setex(key, ttl, df.to_json(orient="split"))
 
     if redis_cache is not None and cache_key is not None:
-        ttl = int(os.environ.get("REDIS_TTL", 3600))
+        ttl = int(os.environ.get("REDIS_TTL", 86400))
         buf = BytesIO()
         df.to_parquet(buf)
         redis_cache.setex(cache_key, ttl, buf.getvalue())

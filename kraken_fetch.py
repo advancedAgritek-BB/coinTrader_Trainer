@@ -94,7 +94,7 @@ def fetch_kraken_ohlc(pair: str, interval: int = 1) -> pd.DataFrame:
     df["trades"] = df["trades"].astype(int)
 
     if redis_client is not None:
-        ttl = int(os.environ.get("REDIS_TTL", 3600))
+        ttl = int(os.environ.get("REDIS_TTL", 86400))
         buf = BytesIO()
         df.to_parquet(buf)
         redis_client.setex(cache_key, ttl, buf.getvalue())
