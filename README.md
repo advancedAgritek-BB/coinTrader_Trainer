@@ -154,8 +154,8 @@ function will read from the Parquet file if it exists and write new
 results back to this location, avoiding repeated network requests.
 If ``REDIS_URL`` or ``REDIS_TLS_URL`` is configured, results are additionally
 cached in Redis.
-results back to this location, avoiding repeated network requests.  Use
-``max_rows`` to limit the number of rows returned:
+
+Use ``max_rows`` to limit the number of rows returned:
 
 ```python
 df = data_loader.fetch_trade_logs(start_ts, end_ts, symbol="BTC", max_rows=1000)

@@ -428,6 +428,47 @@ def make_features(
     needs_target = "target" not in df.columns or df.get("target", pd.Series()).isna().any()
     warn_overwrite = "target" in df.columns and needs_target
 
+    if use_gpu:
+        if jnp is None:
+            raise ValueError("jax is required for GPU acceleration")
+
+        df, rsi_col, vol_col, atr_col = _compute_features_pandas(
+            df,
+            ema_short_period,
+            ema_long_period,
+            rsi_period,
+            volatility_window,
+            atr_window,
+            bollinger_window,
+            bollinger_std,
+            momentum_period,
+            adx_period,
+            True,
+        )
+
+        # Materialise numeric columns on the GPU
+        _ = jnp.asarray(df.select_dtypes(include=[np.number]).to_numpy())
+
+        if df[[rsi_col, vol_col, atr_col]].isna().all().all():
+            raise ValueError("Too many NaN values after interpolation")
+
+        df = df.bfill().ffill()
+        if warn_overwrite:
+            logger.warning("Overwriting existing target column")
+        if needs_target:
+            df["target"] = np.sign(df["log_ret"].shift(-1)).fillna(0).astype(int)
+        result = df.dropna()
+        if needs_target and "price" in result.columns:
+            returns = result["price"].pct_change().shift(-1)
+            result["target"] = (
+                np.where(
+                    returns > return_threshold,
+                    1,
+                    np.where(returns < -return_threshold, -1, 0),
+                )
+            )
+            result["target"] = pd.Series(result["target"], index=result.index).fillna(0)
+
     if use_gpu and jnp is None:
         raise ValueError("jax is required for GPU acceleration")
 
@@ -456,6 +497,32 @@ def make_features(
         vol_col = f"volatility{volatility_window}"
         atr_col = f"atr{atr_window}"
     else:
+        df, rsi_col, vol_col, atr_col = _compute_features_pandas(
+            df,
+            ema_short_period,
+            ema_long_period,
+            rsi_period,
+            volatility_window,
+            atr_window,
+            bollinger_window,
+            bollinger_std,
+            momentum_period,
+            adx_period,
+            False,
+        )
+    df, rsi_col, vol_col, atr_col = _compute_features_pandas(
+        df,
+        ema_short_period,
+        ema_long_period,
+        rsi_period,
+        volatility_window,
+        atr_window,
+        bollinger_window,
+        bollinger_std,
+        momentum_period,
+        adx_period,
+        use_gpu,
+    )
         if use_modin:
             old_pd = pd
             globals()["pd"] = mpd  # type: ignore

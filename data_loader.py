@@ -138,17 +138,15 @@ def fetch_trade_logs(
     redis_client: Optional[Any] = None,
     redis_key: Optional[str] = None,
     cache_only: bool = False,
+    max_rows: Optional[int] = None,
+    cache_features: bool = False,
+    feature_params: Optional[dict] = None,
 ) -> pd.DataFrame:
     """Return trade logs between ``start_ts`` and ``end_ts`` as a DataFrame.
 
     When ``cache_only`` is ``True`` and a cached result exists in Redis, the
     cached data is returned without querying the database. Otherwise, the data
     is fetched and the cache is refreshed.
-    max_rows: Optional[int] = None,
-    cache_features: bool = False,
-    feature_params: Optional[dict] = None,
-) -> pd.DataFrame:
-    """Return trade logs between ``start_ts`` and ``end_ts`` as a DataFrame.
 
     When ``max_rows`` is provided the DataFrame is truncated to that many rows
     before any caching occurs.
