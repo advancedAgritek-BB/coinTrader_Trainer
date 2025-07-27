@@ -154,8 +154,8 @@ function will read from the Parquet file if it exists and write new
 results back to this location, avoiding repeated network requests.
 If ``REDIS_URL`` or ``REDIS_TLS_URL`` is configured, results are additionally
 cached in Redis.
-results back to this location, avoiding repeated network requests.  Use
-``max_rows`` to limit the number of rows returned:
+
+Use ``max_rows`` to limit the number of rows returned:
 
 ```python
 df = data_loader.fetch_trade_logs(start_ts, end_ts, symbol="BTC", max_rows=1000)
@@ -695,8 +695,11 @@ metrics = simulate_signal_pnl(df, preds)
 ```
 
 ``run_backtest`` returns the final portfolio value while
-``simulate_signal_pnl`` computes Sharpe and Sortino ratios for the same
-signals.
+``simulate_signal_pnl`` reports a dictionary of metrics for the same
+signals. Those metrics include Sharpe squared, Sharpe, Sortino, maximum
+drawdown, win rate, Calmar ratio and profit factor.
+``simulate_signal_pnl`` computes Sharpe/Sortino along with drawdown,
+win rate and other trade statistics for the same signals.
 
 ## Monitoring and Automation
 

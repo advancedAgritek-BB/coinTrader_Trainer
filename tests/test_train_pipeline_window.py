@@ -55,7 +55,7 @@ def test_default_window_used(monkeypatch, tmp_path):
         "train_regime_lgbm",
         lambda X, y, p, use_gpu=True: (FakeModel(), {}),
     )
-    monkeypatch.setattr(train_pipeline, "full_strategy_eval", lambda df, signal, **k: {})
+    monkeypatch.setattr(train_pipeline, "simulate_signal_pnl", lambda df, signal, **k: {})
 
     class DummyRegistry:
         def __init__(self, url, key):

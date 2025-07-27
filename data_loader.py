@@ -148,6 +148,10 @@ def fetch_trade_logs(
 ) -> pd.DataFrame:
     """Return trade logs between ``start_ts`` and ``end_ts`` as a DataFrame.
 
+    When ``cache_only`` is ``True`` and a cached result exists in Redis, the
+    cached data is returned without querying the database. Otherwise, the data
+    is fetched and the cache is refreshed.
+
     When ``cache_only`` is ``True`` and a cached result exists in Redis,
     the cached data is returned without querying the database. Otherwise the
     data is fetched and the cache is refreshed. If ``max_rows`` is provided the
@@ -406,7 +410,6 @@ async def fetch_data_range_async(
     end_ts: str,
     chunk_size: int = 1000,
 ) -> pd.DataFrame:
-    """Fetch ``table`` rows between ``start_ts`` and ``end_ts`` asynchronously."""
 
     url = os.environ.get("SUPABASE_URL")
     key = os.environ.get("SUPABASE_KEY")
