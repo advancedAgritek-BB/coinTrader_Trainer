@@ -1,6 +1,7 @@
 import os
 import sys
 import types
+import asyncio
 
 import numpy as np
 import pandas as pd
@@ -54,6 +55,7 @@ def test_gpu_flag_merges_params(monkeypatch):
         "2",
     ]
     monkeypatch.setattr(sys, "argv", argv)
+    monkeypatch.setattr(ml_trainer, "check_clinfo_gpu", lambda: True)
 
     ml_trainer.main()
 
@@ -102,7 +104,7 @@ def test_swarm_merges_once(monkeypatch):
 def test_federated_param_merge(monkeypatch):
     captured = {}
 
-    def fake_federated(start, end, *, table="ohlc_data", **kwargs):
+    async def fake_federated(start, end, *, table="ohlc_data", **kwargs):
         captured["start"] = start
         captured["end"] = end
         captured["params"] = kwargs.get("params_override", {}).copy()
@@ -116,9 +118,13 @@ def test_federated_param_merge(monkeypatch):
         return FakeBooster(), {}
 
     monkeypatch.setattr(ml_trainer, "train_federated_regime", fake_federated)
+    def fake_train(X, y, params, use_gpu=False, profile_gpu=False):
+        return object(), {}
+    monkeypatch.setitem(ml_trainer.TRAINERS, "regime", (fake_train, "regime_lgbm"))
     monkeypatch.setattr(
         ml_trainer, "load_cfg", lambda p: {"federated_regime": {"objective": "binary"}}
     )
+    monkeypatch.setattr(ml_trainer, "check_clinfo_gpu", lambda: True)
     argv = [
         "prog",
         "train",
@@ -155,6 +161,7 @@ def test_true_federated_param_merge(monkeypatch):
         return object(), {}
     monkeypatch.setitem(ml_trainer.TRAINERS, "regime", (fake_train, "regime_lgbm"))
     monkeypatch.setattr(ml_trainer, "load_cfg", lambda p: {"federated_regime": {"objective": "binary"}})
+    monkeypatch.setattr(ml_trainer, "check_clinfo_gpu", lambda: True)
 
     argv = [
         "prog",
