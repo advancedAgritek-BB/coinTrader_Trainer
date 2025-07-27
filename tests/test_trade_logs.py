@@ -68,7 +68,9 @@ def test_fetch_trade_logs_redis_cache(monkeypatch):
     end = datetime(2021, 1, 2)
     key = f"ohlc_data:{start.isoformat()}:{end.isoformat()}:BTC"
     df_cached = pd.DataFrame({"a": [1, 2]})
-    r.set(key, df_cached.to_json(orient="split"))
+    buf = io.BytesIO()
+    df_cached.to_parquet(buf)
+    r.set(key, buf.getvalue())
 
     monkeypatch.setattr(data_loader, "_get_client", lambda: None)
 

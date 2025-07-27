@@ -168,7 +168,7 @@ filters rows to a specific pair.  When a ``cache_path`` is supplied the
 function will read from the Parquet file if it exists and write new
 results back to this location, avoiding repeated network requests.
 If ``REDIS_URL`` or ``REDIS_TLS_URL`` is configured, results are additionally
-cached in Redis.
+cached in Redis as Parquet bytes.
 
 Use ``max_rows`` to limit the number of rows returned:
 
