@@ -170,6 +170,15 @@ compute ``make_features`` on the returned data and store the result under
 ``features_<key>`` in Redis. Subsequent calls with the same parameters return
 this cached feature set directly.
 
+Set ``cache_only=True`` to instruct ``fetch_trade_logs`` to return data only if
+the corresponding key already exists in Redis. When the cache is populated no
+database request is made; otherwise the data is fetched and the cache
+refreshed.
+
+```python
+df = data_loader.fetch_trade_logs(start_ts, end_ts, symbol="BTC", cache_only=True)
+```
+
 ### Async Data Fetching
 
 `data_loader` now provides asynchronous helpers for retrieving trade logs
