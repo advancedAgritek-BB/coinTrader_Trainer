@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import inspect
+import logging
 import os
 import subprocess
 from datetime import datetime, timedelta
@@ -19,8 +20,11 @@ from dotenv import load_dotenv
 
 import historical_data_importer
 from data_import import download_historical_data, insert_to_supabase
+from train_pipeline import check_clinfo_gpu
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 # expose model accuracy metrics via Prometheus
 accuracy_gauge = Gauge("model_accuracy", "Model accuracy")
@@ -214,6 +218,16 @@ def main() -> None:  # pragma: no cover - CLI entry
     if args.gpu_device_id is not None:
         params["gpu_device_id"] = args.gpu_device_id
 
+    if check_clinfo_gpu():
+        params.setdefault("device_type", "gpu")
+        params.setdefault("gpu_platform_id", 0)
+        params.setdefault("gpu_device_id", 0)
+        use_gpu_flag = True
+    else:
+        params["device_type"] = "cpu"
+        logger.warning("GPU not detected; falling back to CPU")
+        use_gpu_flag = False
+
     # Swarm optimisation
     if args.swarm:
         try:
@@ -299,7 +313,7 @@ def main() -> None:  # pragma: no cover - CLI entry
             X,
             y,
             params,
-            use_gpu=args.use_gpu,
+            use_gpu=use_gpu_flag,
             profile_gpu=args.profile_gpu,
         )  # type: ignore[arg-type]
 

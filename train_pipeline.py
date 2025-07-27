@@ -67,7 +67,15 @@ def main() -> None:
             "SUPABASE_URL and SUPABASE_KEY environment variables must be set"
         )
 
-    check_clinfo_gpu()
+    if check_clinfo_gpu():
+        params.setdefault("device_type", "gpu")
+        params.setdefault("gpu_platform_id", 0)
+        params.setdefault("gpu_device_id", 0)
+        use_gpu = True
+    else:
+        params["device_type"] = "cpu"
+        logger.warning("GPU not detected; falling back to CPU")
+        use_gpu = False
 
     # Import and invoke LightGBM GPU wheel helper
     try:
@@ -100,7 +108,7 @@ def main() -> None:
     X = df.drop(columns=["target"])
     y = df["target"]
 
-    model, metrics = train_regime_lgbm(X, y, params, use_gpu=True)
+    model, metrics = train_regime_lgbm(X, y, params, use_gpu=use_gpu)
 
     preds = model.predict(X)
 
@@ -121,18 +129,21 @@ if __name__ == "__main__":
 
 
 def check_clinfo_gpu() -> bool:
-    """Return True if clinfo reports a GPU device."""
+    """Return ``True`` if ``clinfo`` reports a GPU device."""
     exe = shutil.which("clinfo") or shutil.which("rocminfo")
     if not exe:
-        raise RuntimeError("clinfo not found; GPU device check failed")
+        logger.warning("clinfo not found; skipping GPU check")
+        return False
     try:
         result = subprocess.run([exe], capture_output=True, text=True)
     except Exception as exc:  # pragma: no cover - subprocess errors are unlikely
-        raise RuntimeError(f"failed to run {exe}: {exc}") from exc
+        logger.warning("failed to run %s: %s", exe, exc)
+        return False
     output = result.stdout + result.stderr
     if "GPU" in output.upper():
         return True
-    raise RuntimeError("No GPU device detected via clinfo")
+    logger.warning("No GPU device detected via clinfo")
+    return False
 
 
 def ensure_lightgbm_gpu(
