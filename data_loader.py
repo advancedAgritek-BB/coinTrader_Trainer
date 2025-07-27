@@ -132,10 +132,27 @@ def fetch_trade_logs(
     cache_path: Optional[str] = None,
     redis_client: Optional[Any] = None,
     redis_key: Optional[str] = None,
+    max_rows: Optional[int] = None,
     cache_features: bool = False,
     feature_params: Optional[dict] = None,
 ) -> pd.DataFrame:
-    """Return trade logs between ``start_ts`` and ``end_ts`` as a DataFrame."""
+    """Return trade logs between ``start_ts`` and ``end_ts`` as a DataFrame.
+
+    When ``max_rows`` is provided the DataFrame is truncated to that many rows
+    before any caching occurs.
+    """
+
+    if cache_path and os.path.exists(cache_path):
+        return pd.read_parquet(cache_path)
+    if redis_client is not None:
+        key = redis_key or f"{table}:{start_ts.isoformat()}:{end_ts.isoformat()}:{symbol or 'all'}"
+        if max_rows is not None:
+            key = f"{key}:{max_rows}"
+        cached = redis_client.get(key)
+        if cached:
+            if isinstance(cached, bytes):
+                cached = cached.decode()
+            return pd.read_json(cached, orient="split")
 
     if start_ts.tzinfo is None:
         start_ts = start_ts.replace(tzinfo=timezone.utc)
@@ -151,6 +168,9 @@ def fetch_trade_logs(
     cache_key = None
     if redis_cache is not None:
         cache_key = f"trades_{int(start_ts.timestamp())}_{int(end_ts.timestamp())}_{symbol or ''}"
+        if max_rows is not None:
+            cache_key = f"{cache_key}_{max_rows}"
+        cached = redis_client.get(cache_key)
         if cache_features:
             feat_key = f"features_{cache_key}"
             cached_feat = redis_cache.get(feat_key)
@@ -189,13 +209,15 @@ def fetch_trade_logs(
             # leave column unchanged if conversion fails
             pass
 
+    if max_rows is not None:
+        df = df.head(max_rows)
+
     if cache_path:
         df.to_parquet(cache_path)
     if redis_client is not None:
-        key = (
-            redis_key
-            or f"{table}:{start_ts.isoformat()}:{end_ts.isoformat()}:{symbol or 'all'}"
-        )
+        key = redis_key or f"{table}:{start_ts.isoformat()}:{end_ts.isoformat()}:{symbol or 'all'}"
+        if max_rows is not None:
+            key = f"{key}:{max_rows}"
         redis_client.set(key, df.to_json(orient="split"))
 
     if redis_cache is not None and cache_key is not None:
