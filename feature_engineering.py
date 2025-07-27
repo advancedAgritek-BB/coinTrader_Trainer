@@ -1,6 +1,7 @@
 """Feature generation utilities used by coinTrader models."""
 
 import time
+import logging
 
 import numpy as np
 import pandas as pd
@@ -10,6 +11,8 @@ try:  # optional dependency for GPU acceleration
 except Exception:  # pragma: no cover - jax may be absent
     jnp = None  # type: ignore
 import numba
+
+logger = logging.getLogger(__name__)
 
 
 def _rsi(series: pd.Series, period: int = 14) -> pd.Series:
@@ -401,6 +404,9 @@ def make_features(
     if "ts" not in df.columns or "price" not in df.columns:
         raise ValueError("DataFrame must contain 'ts' and 'price' columns")
 
+    needs_target = "target" not in df.columns or df.get("target", pd.Series()).isna().any()
+    warn_overwrite = "target" in df.columns and needs_target
+
     if use_gpu:
         if jnp is None:
             raise ValueError("jax is required for GPU acceleration")
@@ -425,10 +431,12 @@ def make_features(
             raise ValueError("Too many NaN values after interpolation")
 
         df = df.bfill().ffill()
-        if "target" not in df.columns:
+        if warn_overwrite:
+            logger.warning("Overwriting existing target column")
+        if needs_target:
             df["target"] = np.sign(df["log_ret"].shift(-1)).fillna(0).astype(int)
         result = df.dropna()
-        if "target" not in result.columns and "price" in result.columns:
+        if needs_target and "price" in result.columns:
             returns = result["price"].pct_change().shift(-1)
             result["target"] = (
                 np.where(
@@ -463,10 +471,12 @@ def make_features(
         raise ValueError("Too many NaN values after interpolation")
 
     df = df.bfill().ffill()
-    if "target" not in df.columns:
+    if warn_overwrite:
+        logger.warning("Overwriting existing target column")
+    if needs_target:
         df["target"] = np.sign(df["log_ret"].shift(-1)).fillna(0).astype(int)
     result = df.dropna()
-    if "target" not in result.columns and "price" in result.columns:
+    if needs_target and "price" in result.columns:
         returns = result["price"].pct_change().shift(-1)
         result["target"] = (
             np.where(
