@@ -227,9 +227,9 @@ technical indicator implementations.
 
 GPU acceleration is possible when ``numba`` and ``jax`` are installed.
 Pass ``use_gpu=True`` to ``make_features`` to compute features on the GPU
-using JAX.
-GPU acceleration is provided via ``numba`` when ``use_gpu=True`` is passed to
-``make_features``.
+using JAX. When ``use_gpu`` is enabled, the internal call to
+``_compute_features_pandas`` sets ``use_numba=True`` to take advantage of
+Numba-accelerated indicator calculations.
 
 When the [`modin[ray]`](https://modin.org/) package is available, you can
 set ``use_modin=True`` to distribute the pandas workload across CPU cores.
