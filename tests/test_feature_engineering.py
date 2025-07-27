@@ -453,4 +453,8 @@ def test_make_features_logs_cpu_fallback(monkeypatch, caplog):
     with caplog.at_level("INFO", logger="feature_engineering"):
         result = make_features(df, use_gpu=True)
 
+    assert any(
+        "GPU acceleration unavailable; using CPU." in r.getMessage()
+        for r in caplog.records
+    )
     assert isinstance(result, pd.DataFrame)
