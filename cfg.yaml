@@ -25,6 +25,7 @@ regime_lgbm:
   gpu_platform_id: 0
   gpu_device_id: 0
   gpu_use_opencl: true
+  # Windows/AMD requires OpenCL drivers such as the Adrenalin/ROCm packages
   max_bin: 255
 
 federated_regime:
