@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import asyncio
 from typing import Optional, Tuple, List
 
 try:  # pragma: no cover - optional dependency
