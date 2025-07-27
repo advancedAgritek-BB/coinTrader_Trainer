@@ -26,6 +26,7 @@ async def fetch_and_prepare_data(
     *,
     table: str = "ohlc_data",
     return_threshold: float = 0.01,
+    min_rows: int = 1,
 ) -> tuple[pd.DataFrame, pd.Series]:
     """Fetch trade data and return feature matrix ``X`` and targets ``y``.
 
@@ -33,6 +34,9 @@ async def fetch_and_prepare_data(
     ----------
     return_threshold : float, optional
         Threshold used to generate the ``target`` column when it is missing.
+    min_rows : int, optional
+        Minimum number of rows required. A ``ValueError`` is raised when fewer
+        rows are returned.
     """
 
     if isinstance(start_ts, datetime):
@@ -41,6 +45,11 @@ async def fetch_and_prepare_data(
         end_ts = end_ts.isoformat()
 
     df = await data_loader.fetch_data_range_async(table, str(start_ts), str(end_ts))
+
+    if df.empty or len(df) < min_rows:
+        raise ValueError(
+            f"Expected at least {min_rows} rows of data, got {len(df)}"
+        )
 
     if "timestamp" in df.columns and "ts" not in df.columns:
         df = df.rename(columns={"timestamp": "ts"})

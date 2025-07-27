@@ -56,13 +56,27 @@ def _prepare_data(
     symbols: Optional[Iterable[str]] = None,
     *,
     table: str = "ohlc_data",
+    min_rows: int = 1,
 ) -> Tuple[pd.DataFrame, pd.Series]:
+    """Return feature matrix and targets between ``start_ts`` and ``end_ts``.
+
+    Parameters
+    ----------
+    min_rows : int, optional
+        Minimum number of rows required. A ``ValueError`` is raised when fewer
+        rows are returned.
+    """
     start = (
         start_ts.isoformat() if isinstance(start_ts, pd.Timestamp) else str(start_ts)
     )
     end = end_ts.isoformat() if isinstance(end_ts, pd.Timestamp) else str(end_ts)
 
     df = asyncio.run(_fetch_async(start, end, table=table))
+
+    if df.empty or len(df) < min_rows:
+        raise ValueError(
+            f"Expected at least {min_rows} rows of data, got {len(df)}"
+        )
 
     if "timestamp" in df.columns and "ts" not in df.columns:
         df = df.rename(columns={"timestamp": "ts"})
