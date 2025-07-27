@@ -197,6 +197,7 @@ def make_features(
     use_gpu: bool = False,
     log_time: bool = False,
     return_threshold: float = 0.01,
+    use_modin: bool = False,
 ) -> pd.DataFrame:
     """Generate technical indicator features for trading models.
 
@@ -229,6 +230,8 @@ def make_features(
         Print the elapsed generation time when ``True``.
     return_threshold : float, optional
         Threshold used to generate the ``target`` column when it is missing.
+    use_modin : bool, optional
+        Convert ``df`` to a Modin DataFrame for parallelised processing.
 
     Returns
     -------
@@ -244,6 +247,10 @@ def make_features(
 
     if "ts" not in df.columns or "price" not in df.columns:
         raise ValueError("DataFrame must contain 'ts' and 'price' columns")
+
+    if use_modin:
+        import modin.pandas as mpd  # type: ignore
+        df = mpd.DataFrame(df)
 
     if use_gpu:
         import cudf as _cudf  # type: ignore
@@ -393,18 +400,37 @@ def make_features(
 
         return result
 
-    df, rsi_col, vol_col, atr_col = _compute_features_pandas(
-        df,
-        ema_short_period,
-        ema_long_period,
-        rsi_period,
-        volatility_window,
-        atr_window,
-        bollinger_window,
-        bollinger_std,
-        momentum_period,
-        adx_period,
-    )
+    if use_modin:
+        old_pd = pd
+        globals()["pd"] = mpd
+        try:
+            df, rsi_col, vol_col, atr_col = _compute_features_pandas(
+                df,
+                ema_short_period,
+                ema_long_period,
+                rsi_period,
+                volatility_window,
+                atr_window,
+                bollinger_window,
+                bollinger_std,
+                momentum_period,
+                adx_period,
+            )
+        finally:
+            globals()["pd"] = old_pd
+    else:
+        df, rsi_col, vol_col, atr_col = _compute_features_pandas(
+            df,
+            ema_short_period,
+            ema_long_period,
+            rsi_period,
+            volatility_window,
+            atr_window,
+            bollinger_window,
+            bollinger_std,
+            momentum_period,
+            adx_period,
+        )
 
     if df[[rsi_col, vol_col, atr_col]].isna().all().all():
         raise ValueError("Too many NaN values after interpolation")
@@ -423,6 +449,9 @@ def make_features(
             )
         )
         result["target"] = pd.Series(result["target"], index=result.index).fillna(0)
+
+    if use_modin:
+        result = result.to_pandas() if hasattr(result, "to_pandas") else pd.DataFrame(result)
 
     if log_time and start_time is not None:
         elapsed = time.time() - start_time

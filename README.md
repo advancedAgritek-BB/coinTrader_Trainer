@@ -192,6 +192,9 @@ GPU acceleration is possible when the `cudf` package is installed.  Pass
 ``use_gpu=True`` to ``make_features`` to switch to GPU-backed DataFrame
 operations.
 
+When the [`modin[ray]`](https://modin.org/) package is available, you can
+set ``use_modin=True`` to distribute the pandas workload across CPU cores.
+
 Set ``log_time=True`` to print the total processing time for feature
 generation.
 

@@ -23,3 +23,4 @@ scikit-learn
 prometheus_client
 supabase
 tenacity
+modin[ray]
