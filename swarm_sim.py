@@ -20,6 +20,7 @@ from supabase import SupabaseException
 import data_loader
 from feature_engineering import make_features
 from registry import ModelRegistry
+from train_pipeline import check_clinfo_gpu
 from train_pipeline import check_clinfo_gpu, verify_lightgbm_gpu
 
 load_dotenv()
@@ -198,6 +199,8 @@ async def run_swarm_search(
     with open("cfg.yaml", "r") as fh:
         cfg = yaml.safe_load(fh) or {}
     base_params: Dict[str, Any] = cfg.get("regime_lgbm", {})
+    if check_clinfo_gpu():
+        base_params.setdefault("device_type", "gpu")
 
     if check_clinfo_gpu() and verify_lightgbm_gpu(base_params):
         base_params.setdefault("device_type", "gpu")
