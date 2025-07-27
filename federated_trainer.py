@@ -15,6 +15,7 @@ import pandas as pd
 import yaml
 from dotenv import load_dotenv
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
+from sklearn.utils import resample, shuffle
 from supabase import create_client
 
 from coinTrader_Trainer.data_loader import (
@@ -27,6 +28,9 @@ load_dotenv()
 
 
 __all__ = ["train_federated_regime"]
+
+# Mapping from regime label to LightGBM class index
+LABEL_MAP = {-1: 0, 0: 1, 1: 2}
 
 
 async def _fetch_async(
@@ -89,8 +93,7 @@ class FederatedEnsemble:
 
 
 def _train_client(X: pd.DataFrame, y: pd.Series, params: dict) -> lgb.Booster:
-    label_map = {-1: 0, 0: 1, 1: 2}
-    y_enc = y.replace(label_map).astype(int)
+    y_enc = y.replace(LABEL_MAP).astype(int)
     dataset = lgb.Dataset(X, label=y_enc)
     num_round = params.get("num_boost_round", 100)
     booster = lgb.train(params, dataset, num_boost_round=num_round)
@@ -119,10 +122,36 @@ def train_federated_regime(
         pass
 
     X, y = _prepare_data(start_ts, end_ts, table=table)
-    label_map = {-1: 0, 0: 1, 1: 2}
-    y_enc = y.replace(label_map).astype(int)
+    y_enc = y.replace(LABEL_MAP).astype(int)
 
-    indices = np.array_split(np.arange(len(X)), num_clients)
+    # Upsample each class to have equal counts before splitting
+    class_indices = [np.where(y_enc == i)[0] for i in range(len(LABEL_MAP))]
+    max_len = max((len(idx) for idx in class_indices if len(idx) > 0), default=0)
+    balanced = []
+    for idx in class_indices:
+        if len(idx) == 0:
+            balanced.append(np.array([], dtype=int))
+        else:
+            balanced.append(
+                resample(idx, replace=True, n_samples=max_len, random_state=0)
+            )
+
+    # Split each class evenly across clients
+    per_class_splits = []
+    for idx in balanced:
+        if len(idx) == 0:
+            per_class_splits.append([np.array([], dtype=int)] * num_clients)
+        else:
+            per_class_splits.append(
+                np.array_split(shuffle(idx, random_state=0), num_clients)
+            )
+    indices = [
+        shuffle(
+            np.concatenate([splits[i] for splits in per_class_splits]),
+            random_state=0,
+        )
+        for i in range(num_clients)
+    ]
     models: List[lgb.Booster] = []
     for idx in indices:
         booster = _train_client(X.iloc[idx], y.iloc[idx], params)
