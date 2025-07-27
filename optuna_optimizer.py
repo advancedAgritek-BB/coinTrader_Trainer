@@ -38,7 +38,8 @@ async def load_data(start_ts: datetime | str, end_ts: datetime | str, table: str
     df = await fetch_data_range_async(table, str(start_ts), str(end_ts))
     if "timestamp" in df.columns and "ts" not in df.columns:
         df = df.rename(columns={"timestamp": "ts"})
-    df = make_features(df)
+    loop = asyncio.get_running_loop()
+    df = await loop.run_in_executor(None, make_features, df)
     if "target" not in df.columns:
         df["target"] = df["price"].shift(-1).fillna(df["price"]).astype(float)
 
@@ -93,5 +94,8 @@ async def run_optuna_search(
 
     X, y = await load_data(start_ts, end_ts, table)
     study = optuna.create_study(direction=direction)
-    study.optimize(objective_factory(X, y), n_trials=n_trials)
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(
+        None, lambda: study.optimize(objective_factory(X, y), n_trials=n_trials)
+    )
     return study.best_params
