@@ -1,3 +1,4 @@
+import os
 import sys
 from pathlib import Path
 
@@ -49,7 +50,8 @@ def test_make_features_interpolation_and_columns():
     assert not result.isna().any().any()
 
 
-def test_make_features_gpu_matches_cpu():
+def test_make_features_gpu_matches_cpu(monkeypatch):
+    monkeypatch.setenv("ROCM_PATH", "1")
     df = pd.DataFrame(
         {
             "ts": pd.date_range("2020-01-01", periods=6, freq="D"),

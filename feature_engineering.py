@@ -1,5 +1,7 @@
 """Feature generation utilities used by coinTrader models."""
 
+import os
+import platform
 import time
 
 import numpy as np
@@ -393,23 +395,43 @@ def make_features(
 
     start_time = time.time() if log_time else None
 
+    use_gpu = (
+        use_gpu
+        and "ROCM_PATH" in os.environ
+        and platform.system() == "Windows"
+    )
+
     if "ts" not in df.columns or "price" not in df.columns:
         raise ValueError("DataFrame must contain 'ts' and 'price' columns")
 
-
-    df, rsi_col, vol_col, atr_col = _compute_features_pandas(
-        df,
-        ema_short_period,
-        ema_long_period,
-        rsi_period,
-        volatility_window,
-        atr_window,
-        bollinger_window,
-        bollinger_std,
-        momentum_period,
-        adx_period,
-        use_gpu,
-    )
+    if use_gpu:
+        df, rsi_col, vol_col, atr_col = _compute_features_pandas(
+            df,
+            ema_short_period,
+            ema_long_period,
+            rsi_period,
+            volatility_window,
+            atr_window,
+            bollinger_window,
+            bollinger_std,
+            momentum_period,
+            adx_period,
+            True,
+        )
+    else:
+        df, rsi_col, vol_col, atr_col = _compute_features_pandas(
+            df,
+            ema_short_period,
+            ema_long_period,
+            rsi_period,
+            volatility_window,
+            atr_window,
+            bollinger_window,
+            bollinger_std,
+            momentum_period,
+            adx_period,
+            False,
+        )
 
     if df[[rsi_col, vol_col, atr_col]].isna().all().all():
         raise ValueError("Too many NaN values after interpolation")
