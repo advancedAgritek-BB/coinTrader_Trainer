@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import logging
+import os
+import platform
 import re
 import subprocess
 
@@ -55,3 +57,17 @@ def verify_opencl() -> bool:
         return True
 
     raise RuntimeError("Failed to parse rocm-smi output")
+
+
+def has_rocm() -> bool:
+    """Return ``True`` if an AMD ROCm device is available."""
+    try:
+        return verify_opencl()
+    except Exception:
+        pass
+
+    if platform.system() == "Windows":
+        if os.path.exists("C:\\Program Files\\AMD\\ROCm") or "ROCM_PATH" in os.environ:
+            return True
+
+    return False

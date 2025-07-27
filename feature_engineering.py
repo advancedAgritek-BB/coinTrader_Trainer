@@ -11,20 +11,31 @@ import numpy as np
 import pandas as pd
 
 from cache_utils import load_cached_features, store_cached_features
+from opencl_utils import has_rocm as _opencl_has_rocm
 
 try:  # optional dependency for GPU acceleration
     import jax.numpy as jnp  # type: ignore
 except Exception:  # pragma: no cover - jax may be absent
     jnp = None  # type: ignore
 import numba
+try:  # pragma: no cover - optional ROCm support
+    from numba import roc  # type: ignore
+except Exception:  # pragma: no cover - numba without ROCm
+    roc = None  # type: ignore
 
 logger = logging.getLogger(__name__)
 
 
 def has_rocm() -> bool:
-    """Return ``True`` if ROCm is available on Windows."""
+    """Return ``True`` when an AMD ROCm/OpenCL device is present."""
+    try:
+        return _opencl_has_rocm()
+    except Exception:  # pragma: no cover - detection errors
+        pass
+
     if platform.system() != "Windows":
         return False
+
     return "ROCM_PATH" in os.environ or os.path.exists(
         "C:\\Program Files\\AMD\\ROCm"
     )
@@ -86,6 +97,48 @@ def _rsi_nb(arr: np.ndarray, period: int = 14) -> np.ndarray:
             rs = avg_gain / avg_loss
             rsi[i] = 100.0 - 100.0 / (1.0 + rs)
     return rsi
+
+
+if roc is not None:
+    @roc.jit
+    def _rsi_roc(arr, period=14):  # pragma: no cover - requires ROCm
+        n = len(arr)
+        rsi = np.empty(n)
+        rsi[:] = np.nan
+        gains = np.zeros(n)
+        losses = np.zeros(n)
+        for i in range(1, n):
+            diff = arr[i] - arr[i - 1]
+            if diff > 0:
+                gains[i] = diff
+                losses[i] = 0.0
+            else:
+                gains[i] = 0.0
+                losses[i] = -diff
+        avg_gain = 0.0
+        avg_loss = 0.0
+        for i in range(1, period + 1):
+            avg_gain += gains[i]
+            avg_loss += losses[i]
+        avg_gain /= period
+        avg_loss /= period
+        if avg_loss == 0.0:
+            rsi[period] = 100.0
+        else:
+            rs = avg_gain / avg_loss
+            rsi[period] = 100.0 - 100.0 / (1.0 + rs)
+        for i in range(period + 1, n):
+            avg_gain = (avg_gain * (period - 1) + gains[i]) / period
+            avg_loss = (avg_loss * (period - 1) + losses[i]) / period
+            if avg_loss == 0.0:
+                rsi[i] = 100.0
+            else:
+                rs = avg_gain / avg_loss
+                rsi[i] = 100.0 - 100.0 / (1.0 + rs)
+        return rsi
+else:  # pragma: no cover - ROCm unavailable
+    def _rsi_roc(arr, period=14):
+        raise RuntimeError("numba.roc not available")
 
 
 @numba.njit
@@ -254,10 +307,16 @@ def _compute_features_pandas(
     df[mom_col] = _momentum(df["price"], momentum_period)
 
     rsi_col = f"rsi{rsi_period}"
-    if use_numba:
-        df[rsi_col] = pd.Series(
-            _rsi_nb(df["price"].to_numpy(), rsi_period), index=df.index
-        )
+    if use_numba and os.environ.get("NUMBA_DISABLE_JIT") != "1":
+        price_arr = df["price"].to_numpy()
+        if has_rocm() and roc is not None:
+            df[rsi_col] = pd.Series(
+                _rsi_roc(price_arr, rsi_period), index=df.index
+            )
+        else:
+            df[rsi_col] = pd.Series(
+                _rsi_nb(price_arr, rsi_period), index=df.index
+            )
     else:
         df[rsi_col] = _rsi(df["price"], rsi_period)
 
@@ -268,7 +327,7 @@ def _compute_features_pandas(
 
     atr_col = f"atr{atr_window}"
     if {"high", "low"}.issubset(df.columns):
-        if use_numba:
+        if use_numba and os.environ.get("NUMBA_DISABLE_JIT") != "1":
             df[atr_col] = pd.Series(
                 _atr_nb(
                     df["high"].to_numpy(),
@@ -285,7 +344,7 @@ def _compute_features_pandas(
 
     adx_col = f"adx_{adx_period}"
     if {"high", "low"}.issubset(df.columns):
-        if use_numba:
+        if use_numba and os.environ.get("NUMBA_DISABLE_JIT") != "1":
             df[adx_col] = pd.Series(
                 _adx_nb(
                     df["high"].to_numpy(),
@@ -301,7 +360,7 @@ def _compute_features_pandas(
         df[adx_col] = np.nan
 
     if "volume" in df.columns:
-        if use_numba:
+        if use_numba and os.environ.get("NUMBA_DISABLE_JIT") != "1":
             df["obv"] = pd.Series(
                 _obv_nb(df["price"].to_numpy(), df["volume"].fillna(0).to_numpy()),
                 index=df.index,
@@ -449,9 +508,7 @@ def make_features(
             use_gpu,
         )
 
-    if use_gpu:
-        if jnp is None:
-            raise ValueError("jax is required for GPU acceleration")
+    if use_gpu and jnp is not None:
         _ = jnp.asarray(backend_df.select_dtypes(include=[np.number]).to_numpy())
 
     if backend_df[[rsi_col, vol_col, atr_col]].isna().all().all():
