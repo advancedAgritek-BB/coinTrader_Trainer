@@ -402,7 +402,8 @@ def make_features(
     use_dask : bool, optional
         Use Dask to parallelise feature generation.
     generate_target : bool, optional
-        When ``True`` create the ``target`` column if it is missing.
+        Regenerate the ``target`` column when it contains missing values.
+        The column is always created if it does not exist.
 
     Returns
     -------
@@ -411,8 +412,8 @@ def make_features(
         ``ema_short``, ``ema_long``, ``macd`` and parameterized columns
         for RSI, volatility, ATR, Bollinger Bands, momentum, ADX and OBV.
         Missing values are forward-filled and any remaining ``NaN`` rows
-        dropped. The ``target`` column is added when ``generate_target``
-        is ``True`` and not already present.
+        dropped. The ``target`` column is always created when absent and
+        regenerated for NaNs only when ``generate_target`` is ``True``.
     """
 
     if redis_client is not None and cache_key:
@@ -433,8 +434,11 @@ def make_features(
     else:
         backend_df = df
 
-    needs_target = "target" not in df.columns or df.get("target", pd.Series()).isna().any()
-    warn_overwrite = "target" in df.columns and needs_target
+    target_missing = "target" not in df.columns
+    target_has_na = df["target"].isna().any() if not target_missing else False
+    needs_target = target_missing or target_has_na
+    compute_target = target_missing or (generate_target and target_has_na)
+    warn_overwrite = not target_missing and compute_target
 
     if use_dask:
         import dask.dataframe as dd  # type: ignore
@@ -483,15 +487,15 @@ def make_features(
 
     backend_df = backend_df.bfill().ffill()
 
-    if warn_overwrite and generate_target:
+    if warn_overwrite:
         logger.warning("Overwriting existing target column")
-    if generate_target and needs_target:
+    if compute_target:
         backend_df["target"] = (
             np.sign(backend_df["log_ret"].shift(-1)).fillna(0).astype(int)
         )
 
     result = backend_df.dropna()
-    if generate_target and needs_target and "price" in result.columns:
+    if compute_target and "price" in result.columns:
         returns = result["price"].pct_change().shift(-1)
         result["target"] = np.where(
             returns > return_threshold,
