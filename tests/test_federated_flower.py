@@ -58,7 +58,7 @@ def test_start_client_invokes_flower(monkeypatch):
     dummy = DummyFlower()
     monkeypatch.setattr(flmod, "fl", dummy, raising=False)
     monkeypatch.setattr(flmod, "_load_params", fake_load)
-    monkeypatch.setattr(flmod, "_prepare_data", fake_prepare)
+    monkeypatch.setattr(flmod, "prepare_data", fake_prepare)
     monkeypatch.setattr(flmod.fl.client, "start_numpy_client", fake_start)
 
     flmod.start_client("s", "e", server_address="server:1234", params_override={"lr": 0.1})
@@ -94,7 +94,7 @@ def test_start_server_invokes_flower(monkeypatch):
     monkeypatch.setattr(flmod, "fl", dummy, raising=False)
     monkeypatch.setattr(flmod.fl.server, "start_server", fake_start)
     monkeypatch.setattr(flmod, "_load_params", fake_load)
-    monkeypatch.setattr(flmod, "_prepare_data", fake_prepare)
+    monkeypatch.setattr(flmod, "prepare_data", fake_prepare)
     monkeypatch.setattr(flmod.lgb, "Booster", DummyBooster)
     monkeypatch.setattr(flmod.joblib, "dump", lambda *a, **k: called.setdefault("dump", True))
 
