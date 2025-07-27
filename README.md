@@ -589,15 +589,14 @@ can be provided to select a specific OpenCL device.
 python ml_trainer.py train regime --use-gpu --gpu-device-id 0
 ```
 
-Pass ``--profile-gpu`` to log utilisation metrics with ``rocm-smi``.
-The CLI periodically executes ``rocm-smi --showuse`` and prints the
-output so you can monitor GPU load during training.
-Pass ``--profile-gpu`` to capture utilisation metrics with
-[AMD RGP](https://gpuopen.com/rgp/). The CLI attempts to launch
-``rgp.exe --process <PID>`` automatically. If the executable is not found,
-the command to run is printed so you can start the profiler manually.
-When profiling is enabled a ``rocm-smi --showuse --interval 1`` monitor is
-also started and its output logged.
+Pass ``--profile-gpu`` to monitor utilisation. This integration is
+available only on **Linux**.
+On Linux the CLI launches ``rocm-smi --showuse --interval 1`` and
+attempts to start [AMD RGP](https://gpuopen.com/rgp/) with
+``rgp.exe --process <PID>``. If RGP is not found the command is printed so
+you can start the profiler manually.
+On Windows the flag merely checks that an OpenCL device is detected via
+``clinfo``—no ``rocm-smi`` metrics are collected.
 
 After installation, test training with a large dataset to verify the
 OpenCL driver remains stable under load.
