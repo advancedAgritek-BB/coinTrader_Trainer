@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 import logging
+import types
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -249,6 +250,41 @@ def test_make_features_modin_roundtrip(monkeypatch):
 
     result = make_features(df, use_modin=True)
     assert calls["construct"]
+    assert isinstance(result, pd.DataFrame)
+
+
+def test_make_features_dask_roundtrip(monkeypatch):
+    calls = {"from_pandas": False}
+
+    module = types.ModuleType("dask.dataframe")
+
+    class FakeDaskDF:
+        def __init__(self, pdf):
+            self.pdf = pdf
+
+        def map_partitions(self, func):
+            self.func = func
+            return self
+
+        def compute(self):
+            return self.func(self.pdf)
+
+    def from_pandas(df, npartitions=1):
+        calls["from_pandas"] = True
+        return FakeDaskDF(df)
+
+    module.from_pandas = from_pandas
+    monkeypatch.setitem(sys.modules, "dask.dataframe", module)
+
+    df = pd.DataFrame({
+        "ts": pd.date_range("2020-01-01", periods=3, freq="D"),
+        "price": [1.0, 1.1, 1.2],
+        "high": [1.0, 1.1, 1.2],
+        "low": [0.9, 1.0, 1.1],
+    })
+
+    result = make_features(df, use_dask=True)
+    assert calls["from_pandas"]
     assert isinstance(result, pd.DataFrame)
 def test_make_features_warns_when_overwriting_target(caplog):
     prices = [1, 1.02, 0.98, 1.05, 1.06, 1.07]
