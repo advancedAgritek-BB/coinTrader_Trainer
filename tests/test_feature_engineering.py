@@ -5,6 +5,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
+import logging
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -135,7 +136,7 @@ def test_make_features_gpu_generates_columns(monkeypatch):
     assert expected_cols.issubset(result.columns)
 
 
-def test_make_features_adds_columns_and_handles_params(capsys):
+def test_make_features_adds_columns_and_handles_params(caplog):
     df = pd.DataFrame(
         {
             "ts": pd.date_range("2021-01-01", periods=300, freq="1T"),
@@ -146,9 +147,9 @@ def test_make_features_adds_columns_and_handles_params(capsys):
         }
     )
 
-    result = make_features(df, log_time=True)
-    captured = capsys.readouterr().out
-    assert "feature generation took" in captured
+    with caplog.at_level(logging.INFO):
+        result = make_features(df)
+    assert any("make_features took" in r.message for r in caplog.records)
     for col in [
         "log_ret",
         "ema_short",

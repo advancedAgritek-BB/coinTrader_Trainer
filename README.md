@@ -192,8 +192,8 @@ GPU acceleration is possible when the `cudf` package is installed.  Pass
 ``use_gpu=True`` to ``make_features`` to switch to GPU-backed DataFrame
 operations.
 
-Set ``log_time=True`` to print the total processing time for feature
-generation.
+The execution time for feature generation and model training is logged
+at ``INFO`` level automatically so no extra flag is required.
 
 The ``target`` column produced during training is now a three-class label:
 ``1`` for long, ``0`` for flat and ``-1`` for short. These classes are

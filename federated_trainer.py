@@ -15,6 +15,7 @@ import pandas as pd
 import yaml
 from dotenv import load_dotenv
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
+from utils import timed
 from supabase import create_client
 
 from coinTrader_Trainer.data_loader import (
@@ -97,6 +98,7 @@ def _train_client(X: pd.DataFrame, y: pd.Series, params: dict) -> lgb.Booster:
     return booster
 
 
+@timed
 def train_federated_regime(
     start_ts: str | pd.Timestamp,
     end_ts: str | pd.Timestamp,

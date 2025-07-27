@@ -18,6 +18,7 @@ from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_sc
 from sklearn.model_selection import StratifiedKFold
 
 from registry import ModelRegistry
+from utils import timed
 
 # Optional container for capturing training parameters in unit tests
 captured: dict | None = None
@@ -68,6 +69,7 @@ except Exception:
     pass
 
 
+@timed
 def train_regime_lgbm(
     X: pd.DataFrame,
     y: pd.Series,
@@ -305,6 +307,7 @@ def train_regime_lgbm(
     return final_model, metrics
 
 
+@timed
 def train_federated_regime(
     X: pd.DataFrame,
     y: pd.Series,

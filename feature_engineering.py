@@ -1,6 +1,7 @@
 """Feature generation utilities used by coinTrader models."""
 
 import time
+from utils import timed
 
 import numpy as np
 import pandas as pd
@@ -182,6 +183,7 @@ def _compute_features_pandas(
     return df, rsi_col, vol_col, atr_col
 
 
+@timed
 def make_features(
     df: pd.DataFrame,
     *,
@@ -195,7 +197,6 @@ def make_features(
     momentum_period: int = 10,
     adx_period: int = 14,
     use_gpu: bool = False,
-    log_time: bool = False,
     return_threshold: float = 0.01,
 ) -> pd.DataFrame:
     """Generate technical indicator features for trading models.
@@ -225,8 +226,6 @@ def make_features(
         Period for the Average Directional Index.
     use_gpu : bool, optional
         If ``True``, perform a round-trip through ``cudf`` to allow GPU acceleration.
-    log_time : bool, optional
-        Print the elapsed generation time when ``True``.
     return_threshold : float, optional
         Threshold used to generate the ``target`` column when it is missing.
 
@@ -240,7 +239,7 @@ def make_features(
         dropped.
     """
 
-    start_time = time.time() if log_time else None
+
 
     if "ts" not in df.columns or "price" not in df.columns:
         raise ValueError("DataFrame must contain 'ts' and 'price' columns")
@@ -387,9 +386,7 @@ def make_features(
             )
             result["target"] = pd.Series(result["target"], index=result.index).fillna(0)
 
-        if log_time and start_time is not None:
-            elapsed = time.time() - start_time
-            print(f"feature generation took {elapsed:.3f}s")
+
 
         return result
 
@@ -423,9 +420,5 @@ def make_features(
             )
         )
         result["target"] = pd.Series(result["target"], index=result.index).fillna(0)
-
-    if log_time and start_time is not None:
-        elapsed = time.time() - start_time
-        print(f"feature generation took {elapsed:.3f}s")
 
     return result
