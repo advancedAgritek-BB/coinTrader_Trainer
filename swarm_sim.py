@@ -195,6 +195,7 @@ async def run_swarm_search(
     num_agents: int = 50,
     *,
     table: str = "ohlc_data",
+    rounds: int = 3,
 ) -> Dict[str, Any]:
     """Run an asynchronous swarm optimisation simulation.
 
@@ -238,14 +239,19 @@ async def run_swarm_search(
         agents.append(SwarmAgent(i, params))
         graph.nodes[i]["agent"] = agents[-1]
 
-    rounds = 3
-    for _ in range(rounds):
-        await asyncio.gather(
-            *(agent.simulate(X, y, base_params) for agent in agents)
-        )
-        await asyncio.get_running_loop().run_in_executor(
-            None, lambda: evolve_swarm(agents, graph)
-        )
+    async def _run_round() -> None:
+        local_agents = [SwarmAgent(a.id, dict(a.params), a.fitness) for a in agents]
+        await asyncio.gather(*(a.simulate(X, y, base_params) for a in local_agents))
+        async with lock:
+            for src, dst in zip(local_agents, agents):
+                dst.params = src.params
+                dst.fitness = src.fitness
+            await asyncio.get_running_loop().run_in_executor(
+                None, lambda: evolve_swarm(agents, graph)
+            )
+
+    lock = asyncio.Lock()
+    await asyncio.gather(*(_run_round() for _ in range(rounds)))
 
     best = min(agents, key=lambda a: a.fitness)
 
