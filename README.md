@@ -24,10 +24,10 @@ optionally persisted to Supabase Storage and the ``models`` table.
   ``SUPABASE_KEY``).
 * ``PARAMS_BUCKET`` and ``PARAMS_TABLE`` control where swarm optimisation
   parameters are uploaded. Defaults are ``agent_params`` for both.
-* Optional: ``cudf`` and a CUDA capable GPU for accelerated feature
-  generation.
 * Optional: a GPU-enabled LightGBM build for faster training. A helper script
   is provided to compile and upload wheels.
+* GPU feature generation uses [Numba](https://numba.pydata.org/) when
+  ``use_gpu=True`` in ``feature_engineering.make_features``.
 
 ## Integration with coinTrader2.0
 
@@ -96,13 +96,6 @@ train only on the CPU you can remove `pyopencl` from `requirements.txt`.
 
 If you update the repository at a later date, run the installation
 command again so new dependencies such as ``pyyaml``, ``networkx``, ``backtrader`` or ``requests`` are installed.
-For GPU-accelerated feature engineering install
-[`cudf`](https://rapids.ai/). The package requires CUDA
-and is not included in ``requirements.txt`` by default:
-
-```bash
-pip install cudf-cu12 --extra-index-url=https://pypi.nvidia.com
-```
 
 If you prefer to install packages individually:
 
@@ -188,9 +181,8 @@ technical indicators that are produced:
 Installing [TA‑Lib](https://ta-lib.org/) is recommended for more accurate
 technical indicator implementations.
 
-GPU acceleration is possible when the `cudf` package is installed.  Pass
-``use_gpu=True`` to ``make_features`` to switch to GPU-backed DataFrame
-operations.
+GPU acceleration is provided via ``numba`` when ``use_gpu=True`` is passed to
+``make_features``.
 
 Set ``log_time=True`` to print the total processing time for feature
 generation.

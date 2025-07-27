@@ -5,10 +5,7 @@ import time
 import numpy as np
 import pandas as pd
 
-try:
-    import cudf  # type: ignore
-except Exception:  # pragma: no cover - optional dependency may not be installed
-    cudf = None
+import numba
 
 
 def _rsi(series: pd.Series, period: int = 14) -> pd.Series:
@@ -34,6 +31,122 @@ def _atr(df: pd.DataFrame, period: int = 3) -> pd.Series:
     tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
     atr = tr.rolling(window=period, min_periods=period).mean()
     return atr
+
+
+@numba.njit
+def _rsi_nb(arr: np.ndarray, period: int = 14) -> np.ndarray:
+    n = len(arr)
+    rsi = np.empty(n)
+    rsi[:] = np.nan
+    gains = np.zeros(n)
+    losses = np.zeros(n)
+    for i in range(1, n):
+        diff = arr[i] - arr[i - 1]
+        if diff > 0:
+            gains[i] = diff
+            losses[i] = 0.0
+        else:
+            gains[i] = 0.0
+            losses[i] = -diff
+    avg_gain = np.sum(gains[1 : period + 1]) / period
+    avg_loss = np.sum(losses[1 : period + 1]) / period
+    if avg_loss == 0:
+        rsi[period] = 100.0
+    else:
+        rs = avg_gain / avg_loss
+        rsi[period] = 100.0 - 100.0 / (1.0 + rs)
+    for i in range(period + 1, n):
+        avg_gain = (avg_gain * (period - 1) + gains[i]) / period
+        avg_loss = (avg_loss * (period - 1) + losses[i]) / period
+        if avg_loss == 0:
+            rsi[i] = 100.0
+        else:
+            rs = avg_gain / avg_loss
+            rsi[i] = 100.0 - 100.0 / (1.0 + rs)
+    return rsi
+
+
+@numba.njit
+def _atr_nb(high: np.ndarray, low: np.ndarray, close: np.ndarray, period: int = 14) -> np.ndarray:
+    n = len(high)
+    atr = np.empty(n)
+    atr[:] = np.nan
+    tr = np.zeros(n)
+    for i in range(1, n):
+        tr1 = high[i] - low[i]
+        tr2 = abs(high[i] - close[i - 1])
+        tr3 = abs(low[i] - close[i - 1])
+        tr[i] = max(tr1, tr2, tr3)
+    atr_val = np.sum(tr[1 : period + 1]) / period
+    for i in range(period + 1, n):
+        atr_val = (atr_val * (period - 1) + tr[i]) / period
+        atr[i] = atr_val
+    return atr
+
+
+@numba.njit
+def _adx_nb(high: np.ndarray, low: np.ndarray, close: np.ndarray, period: int = 14) -> np.ndarray:
+    n = len(high)
+    adx = np.empty(n)
+    adx[:] = np.nan
+    plus_dm = np.zeros(n)
+    minus_dm = np.zeros(n)
+    tr = np.zeros(n)
+
+    for i in range(1, n):
+        up_move = high[i] - high[i - 1]
+        down_move = low[i - 1] - low[i]
+        plus_dm[i] = up_move if (up_move > down_move and up_move > 0) else 0.0
+        minus_dm[i] = down_move if (down_move > up_move and down_move > 0) else 0.0
+
+        tr1 = high[i] - low[i]
+        tr2 = abs(high[i] - close[i - 1])
+        tr3 = abs(low[i] - close[i - 1])
+        tr[i] = max(tr1, tr2, tr3)
+
+    atr_val = np.sum(tr[1 : period + 1]) / period
+    pdm = np.sum(plus_dm[1 : period + 1]) / period
+    mdm = np.sum(minus_dm[1 : period + 1]) / period
+
+    plus_di = np.zeros(n)
+    minus_di = np.zeros(n)
+    dx = np.zeros(n)
+
+    for i in range(period + 1, n):
+        atr_val = (atr_val * (period - 1) + tr[i]) / period
+        pdm = (pdm * (period - 1) + plus_dm[i]) / period
+        mdm = (mdm * (period - 1) + minus_dm[i]) / period
+
+        if atr_val != 0.0:
+            plus_di[i] = 100.0 * pdm / atr_val
+            minus_di[i] = 100.0 * mdm / atr_val
+        den = plus_di[i] + minus_di[i]
+        if den != 0.0:
+            dx[i] = 100.0 * abs(plus_di[i] - minus_di[i]) / den
+        else:
+            dx[i] = 0.0
+
+    adx_val = np.sum(dx[period + 1 : 2 * period + 1]) / period
+    for i in range(2 * period + 1, n):
+        adx_val = (adx_val * (period - 1) + dx[i]) / period
+        adx[i] = adx_val
+
+    return adx
+
+
+@numba.njit
+def _obv_nb(price: np.ndarray, volume: np.ndarray) -> np.ndarray:
+    n = len(price)
+    obv = np.zeros(n)
+    for i in range(1, n):
+        diff = price[i] - price[i - 1]
+        direction = 0.0
+        if diff > 0:
+            direction = 1.0
+        elif diff < 0:
+            direction = -1.0
+        obv[i] = obv[i - 1] + direction * volume[i]
+    return obv
 
 
 def _bollinger_bands(
@@ -98,6 +211,7 @@ def _compute_features_pandas(
     bollinger_std: float,
     momentum_period: int,
     adx_period: int,
+    use_numba: bool = False,
 ) -> tuple[pd.DataFrame, str, str, str]:
     df = df.sort_values("ts").reset_index(drop=True).copy()
     df["ts"] = pd.to_datetime(df["ts"], errors="coerce")
@@ -118,7 +232,12 @@ def _compute_features_pandas(
     df[mom_col] = _momentum(df["price"], momentum_period)
 
     rsi_col = f"rsi{rsi_period}"
-    df[rsi_col] = _rsi(df["price"], rsi_period)
+    if use_numba:
+        df[rsi_col] = pd.Series(
+            _rsi_nb(df["price"].to_numpy(), rsi_period), index=df.index
+        )
+    else:
+        df[rsi_col] = _rsi(df["price"], rsi_period)
 
     vol_col = f"volatility{volatility_window}"
     df[vol_col] = df["log_ret"].rolling(
@@ -127,17 +246,48 @@ def _compute_features_pandas(
 
     atr_col = f"atr{atr_window}"
     if {"high", "low"}.issubset(df.columns):
-        df[atr_col] = _atr(df, atr_window)
+        if use_numba:
+            df[atr_col] = pd.Series(
+                _atr_nb(
+                    df["high"].to_numpy(),
+                    df["low"].to_numpy(),
+                    df["price"].to_numpy(),
+                    atr_window,
+                ),
+                index=df.index,
+            )
+        else:
+            df[atr_col] = _atr(df, atr_window)
     else:
         df[atr_col] = np.nan
 
     adx_col = f"adx_{adx_period}"
     if {"high", "low"}.issubset(df.columns):
-        df[adx_col] = _adx(df, adx_period)
+        if use_numba:
+            df[adx_col] = pd.Series(
+                _adx_nb(
+                    df["high"].to_numpy(),
+                    df["low"].to_numpy(),
+                    df["price"].to_numpy(),
+                    adx_period,
+                ),
+                index=df.index,
+            )
+        else:
+            df[adx_col] = _adx(df, adx_period)
     else:
         df[adx_col] = np.nan
 
-    df["obv"] = _obv(df) if "volume" in df.columns else np.nan
+    if "volume" in df.columns:
+        if use_numba:
+            df["obv"] = pd.Series(
+                _obv_nb(df["price"].to_numpy(), df["volume"].fillna(0).to_numpy()),
+                index=df.index,
+            )
+        else:
+            df["obv"] = _obv(df)
+    else:
+        df["obv"] = np.nan
     # Bollinger Bands (20 period, 2 std dev)
     rolling_mean = df["price"].rolling(window=20, min_periods=20).mean()
     rolling_std = df["price"].rolling(window=20, min_periods=20).std()
@@ -224,7 +374,8 @@ def make_features(
     adx_period : int, optional
         Period for the Average Directional Index.
     use_gpu : bool, optional
-        If ``True``, perform a round-trip through ``cudf`` to allow GPU acceleration.
+        When ``True`` Numba accelerated functions operate on NumPy arrays
+        for faster computation.
     log_time : bool, optional
         Print the elapsed generation time when ``True``.
     return_threshold : float, optional
@@ -245,153 +396,6 @@ def make_features(
     if "ts" not in df.columns or "price" not in df.columns:
         raise ValueError("DataFrame must contain 'ts' and 'price' columns")
 
-    if use_gpu:
-        import cudf as _cudf  # type: ignore
-
-        if _cudf is None:
-            raise ValueError("cudf is required for GPU acceleration")
-
-        gdf = _cudf.from_pandas(df)
-        # Ensure the cudf DataFrame exposes to_pandas before transformations
-        _ = gdf.to_pandas() if hasattr(gdf, "to_pandas") else None
-
-        try:
-            gdf = gdf.sort_values("ts").reset_index(drop=True)
-            to_dt = getattr(_cudf, "to_datetime", pd.to_datetime)
-            gdf["ts"] = to_dt(gdf["ts"], errors="coerce")
-
-            # interpolation is not always implemented in cudf so fall back to pandas
-            try:
-                gdf = gdf.set_index("ts").interpolate().reset_index()
-            except Exception:
-                pdf = (
-                    gdf.to_pandas() if hasattr(gdf, "to_pandas") else pd.DataFrame(gdf)
-                ).set_index("ts").interpolate(method="time").reset_index()
-                gdf = _cudf.from_pandas(pdf)
-
-            gdf = gdf.ffill()
-
-            gdf["log_ret"] = np.log(gdf["price"] / gdf["price"].shift(1))
-            gdf["ema_short"] = gdf["price"].ewm(span=ema_short_period, adjust=False).mean()
-            gdf["ema_long"] = gdf["price"].ewm(span=ema_long_period, adjust=False).mean()
-            gdf["macd"] = gdf["ema_short"] - gdf["ema_long"]
-
-            rsi_col = f"rsi{rsi_period}"
-            delta = gdf["price"].diff()
-            gain = delta.clip(lower=0)
-            loss = -delta.clip(upper=0)
-            avg_gain = gain.rolling(window=rsi_period, min_periods=rsi_period).mean()
-            avg_loss = loss.rolling(window=rsi_period, min_periods=rsi_period).mean()
-            rs = avg_gain / avg_loss
-            gdf[rsi_col] = 100 - (100 / (1 + rs))
-
-            vol_col = f"volatility{volatility_window}"
-            gdf[vol_col] = gdf["log_ret"].rolling(
-                window=volatility_window, min_periods=volatility_window
-            ).std()
-
-            atr_col = f"atr{atr_window}"
-            if {"high", "low"}.issubset(gdf.columns):
-                high = gdf["high"]
-                low = gdf["low"]
-                close = gdf["price"].shift()
-                tr1 = high - low
-                tr2 = (high - close).abs()
-                tr3 = (low - close).abs()
-                tr = _cudf.concat([tr1, tr2, tr3], axis=1).max(axis=1)
-                gdf[atr_col] = tr.rolling(window=atr_window, min_periods=atr_window).mean()
-            else:
-                gdf[atr_col] = np.nan
-
-            # Bollinger Bands
-            rolling_mean = gdf["price"].rolling(window=20, min_periods=20).mean()
-            rolling_std = gdf["price"].rolling(window=20, min_periods=20).std()
-            gdf["bol_mid"] = rolling_mean
-            gdf["bol_upper"] = rolling_mean + 2 * rolling_std
-            gdf["bol_lower"] = rolling_mean - 2 * rolling_std
-
-            gdf["momentum_10"] = gdf["price"] - gdf["price"].shift(10)
-
-            if {"high", "low"}.issubset(gdf.columns):
-                plus_dm = high.diff().clip(lower=0)
-                minus_dm = (-low.diff()).clip(lower=0)
-                tr1 = high - low
-                tr2 = (high - close).abs()
-                tr3 = (low - close).abs()
-                tr = _cudf.concat([tr1, tr2, tr3], axis=1).max(axis=1)
-                atr = tr.rolling(window=14, min_periods=14).mean()
-                plus_di = 100 * plus_dm.rolling(window=14, min_periods=14).sum() / atr
-                minus_di = 100 * minus_dm.rolling(window=14, min_periods=14).sum() / atr
-                dx = 100 * ((plus_di - minus_di).abs() / (plus_di + minus_di))
-                gdf["adx_14"] = dx.rolling(window=14, min_periods=14).mean()
-            else:
-                gdf["adx_14"] = np.nan
-
-            vol_col_name = None
-            for c in gdf.columns:
-                if c.lower() == "volume" or c.lower().startswith("volume_"):
-                    vol_col_name = c
-                    break
-            if vol_col_name is not None:
-                direction = _cudf.Series(np.sign(gdf["price"].diff().fillna(0)))
-                gdf["obv"] = (direction * gdf[vol_col_name]).fillna(0).cumsum()
-            else:
-                gdf["obv"] = np.nan
-
-            df = gdf.to_pandas() if hasattr(gdf, "to_pandas") else pd.DataFrame(gdf)
-            mid, upper, lower = _bollinger_bands(df["price"], bollinger_window, bollinger_std)
-            df["bol_mid"] = mid
-            df["bol_upper"] = upper
-            df["bol_lower"] = lower
-
-            mom_col = f"momentum_{momentum_period}"
-            df[mom_col] = _momentum(df["price"], momentum_period)
-
-            adx_col = f"adx_{adx_period}"
-            if {"high", "low"}.issubset(df.columns):
-                df[adx_col] = _adx(df, adx_period)
-            else:
-                df[adx_col] = np.nan
-
-            df["obv"] = _obv(df) if "volume" in df.columns else np.nan
-        except Exception:
-            pdf = gdf.to_pandas() if hasattr(gdf, "to_pandas") else pd.DataFrame(gdf)
-            df, rsi_col, vol_col, atr_col = _compute_features_pandas(
-                pdf,
-                ema_short_period,
-                ema_long_period,
-                rsi_period,
-                volatility_window,
-                atr_window,
-                bollinger_window,
-                bollinger_std,
-                momentum_period,
-                adx_period,
-            )
-
-        if df[[f"rsi{rsi_period}", f"volatility{volatility_window}", f"atr{atr_window}"]].isna().all().all():
-            raise ValueError("Too many NaN values after interpolation")
-
-        df = df.bfill().ffill()
-        if "target" not in df.columns:
-            df["target"] = np.sign(df["log_ret"].shift(-1)).fillna(0).astype(int)
-        result = df.dropna()
-        if "target" not in result.columns and "price" in result.columns:
-            returns = result["price"].pct_change().shift(-1)
-            result["target"] = (
-                np.where(
-                    returns > return_threshold,
-                    1,
-                    np.where(returns < -return_threshold, -1, 0),
-                )
-            )
-            result["target"] = pd.Series(result["target"], index=result.index).fillna(0)
-
-        if log_time and start_time is not None:
-            elapsed = time.time() - start_time
-            print(f"feature generation took {elapsed:.3f}s")
-
-        return result
 
     df, rsi_col, vol_col, atr_col = _compute_features_pandas(
         df,
@@ -404,6 +408,7 @@ def make_features(
         bollinger_std,
         momentum_period,
         adx_period,
+        use_gpu,
     )
 
     if df[[rsi_col, vol_col, atr_col]].isna().all().all():

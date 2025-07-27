@@ -1,5 +1,4 @@
 import sys
-import types
 from pathlib import Path
 
 import numpy as np
@@ -50,53 +49,7 @@ def test_make_features_interpolation_and_columns():
     assert not result.isna().any().any()
 
 
-def test_make_features_gpu_uses_cudf(monkeypatch):
-    calls = {"from": False, "to": False}
-
-    class FakeDF(pd.DataFrame):
-        def to_pandas(self):
-            calls["to"] = True
-            return pd.DataFrame(self)
-
-    module = types.ModuleType("cudf")
-
-    def from_pandas(df):
-        calls["from"] = True
-        return FakeDF(df)
-
-    module.from_pandas = from_pandas
-    monkeypatch.setitem(sys.modules, "cudf", module)
-
-    df = pd.DataFrame(
-        {
-            "ts": range(6),
-            "price": [1, 2, 3, 4, 5, 6],
-            "high": [1, 2, 3, 4, 5, 6],
-            "low": [0, 1, 2, 3, 4, 5],
-            "volume": [1, 1, 1, 1, 1, 1],
-        }
-    )
-
-    make_features(df, use_gpu=True, ema_short_period=2, ema_long_period=3)
-
-    assert calls["from"] and calls["to"]
-
-
-def test_make_features_gpu_generates_columns(monkeypatch):
-    module = types.ModuleType("cudf")
-
-    class FakeDF(pd.DataFrame):
-        def to_pandas(self):
-            return pd.DataFrame(self)
-
-    def from_pandas(df):
-        return FakeDF(df)
-
-    module.from_pandas = from_pandas
-    module.concat = pd.concat
-    module.to_datetime = pd.to_datetime
-    monkeypatch.setitem(sys.modules, "cudf", module)
-
+def test_make_features_gpu_matches_cpu():
     df = pd.DataFrame(
         {
             "ts": pd.date_range("2020-01-01", periods=6, freq="D"),
@@ -107,7 +60,16 @@ def test_make_features_gpu_generates_columns(monkeypatch):
         }
     )
 
-    result = make_features(
+    cpu = make_features(
+        df,
+        ema_short_period=2,
+        ema_long_period=3,
+        rsi_period=5,
+        volatility_window=2,
+        atr_window=2,
+        use_gpu=False,
+    )
+    gpu = make_features(
         df,
         ema_short_period=2,
         ema_long_period=3,
@@ -117,22 +79,7 @@ def test_make_features_gpu_generates_columns(monkeypatch):
         use_gpu=True,
     )
 
-    expected_cols = {
-        "ema_short",
-        "ema_long",
-        "macd",
-        "rsi5",
-        "volatility2",
-        "atr2",
-        "bol_upper",
-        "bol_mid",
-        "bol_lower",
-        "momentum_10",
-        "adx_14",
-        "obv",
-    }
-
-    assert expected_cols.issubset(result.columns)
+    pd.testing.assert_frame_equal(cpu, gpu)
 
 
 def test_make_features_adds_columns_and_handles_params(capsys):
