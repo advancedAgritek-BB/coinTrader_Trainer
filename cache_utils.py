@@ -23,7 +23,7 @@ def store_cached_features(
     """Store ``df`` in Redis under ``key`` with optional ``ttl``."""
     if redis_client is None:
         return
-    ttl = ttl or int(os.environ.get("REDIS_TTL", 3600))
+    ttl = ttl or int(os.environ.get("REDIS_TTL", 86400))
     buf = BytesIO()
     df.to_parquet(buf)
     redis_client.setex(key, ttl, buf.getvalue())

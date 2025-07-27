@@ -165,7 +165,7 @@ When Redis is available, trade logs are also cached in Redis using a key
 derived from the time range and symbol. The loader falls back to
 ``localhost`` on port ``6379`` when ``REDIS_HOST`` or ``REDIS_PORT`` are not
 specified. Cached data expires after ``REDIS_TTL`` seconds (default
-``3600``). Passing ``cache_features=True`` to ``fetch_trade_logs`` will
+``86400``). Passing ``cache_features=True`` to ``fetch_trade_logs`` will
 compute ``make_features`` on the returned data and store the result under
 ``features_<key>`` in Redis. Subsequent calls with the same parameters return
 this cached feature set directly.
