@@ -7,6 +7,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import feature_engineering
 from feature_engineering import make_features
 
 
@@ -48,6 +49,46 @@ def test_make_features_interpolation_and_columns():
     assert expected_cols.issubset(result.columns)
     assert not result.isna().any().any()
 
+
+def test_make_features_gpu_uses_jax(monkeypatch):
+    calls = {"asarray": False}
+
+    jnp = types.ModuleType("jax.numpy")
+
+    def asarray(x):
+        calls["asarray"] = True
+        return np.asarray(x)
+
+    jnp.asarray = asarray
+    jax_mod = types.ModuleType("jax")
+    jax_mod.numpy = jnp
+    monkeypatch.setitem(sys.modules, "jax", jax_mod)
+    monkeypatch.setitem(sys.modules, "jax.numpy", jnp)
+    monkeypatch.setattr(feature_engineering, "jnp", jnp, raising=False)
+
+    df = pd.DataFrame(
+        {
+            "ts": range(6),
+            "price": [1, 2, 3, 4, 5, 6],
+            "high": [1, 2, 3, 4, 5, 6],
+            "low": [0, 1, 2, 3, 4, 5],
+            "volume": [1, 1, 1, 1, 1, 1],
+        }
+    )
+
+    make_features(df, use_gpu=True, ema_short_period=2, ema_long_period=3)
+
+    assert calls["asarray"]
+
+
+def test_make_features_gpu_generates_columns(monkeypatch):
+    jnp = types.ModuleType("jax.numpy")
+    jnp.asarray = np.asarray
+    jax_mod = types.ModuleType("jax")
+    jax_mod.numpy = jnp
+    monkeypatch.setitem(sys.modules, "jax", jax_mod)
+    monkeypatch.setitem(sys.modules, "jax.numpy", jnp)
+    monkeypatch.setattr(feature_engineering, "jnp", jnp, raising=False)
 
 def test_make_features_gpu_matches_cpu():
     df = pd.DataFrame(

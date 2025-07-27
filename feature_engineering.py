@@ -5,6 +5,10 @@ import time
 import numpy as np
 import pandas as pd
 
+try:  # optional dependency for GPU acceleration
+    import jax.numpy as jnp  # type: ignore
+except Exception:  # pragma: no cover - jax may be absent
+    jnp = None  # type: ignore
 import numba
 
 
@@ -374,6 +378,7 @@ def make_features(
     adx_period : int, optional
         Period for the Average Directional Index.
     use_gpu : bool, optional
+        If ``True``, JAX and Numba are used to accelerate calculations on the GPU.
         When ``True`` Numba accelerated functions operate on NumPy arrays
         for faster computation.
     log_time : bool, optional
@@ -396,6 +401,49 @@ def make_features(
     if "ts" not in df.columns or "price" not in df.columns:
         raise ValueError("DataFrame must contain 'ts' and 'price' columns")
 
+    if use_gpu:
+        if jnp is None:
+            raise ValueError("jax is required for GPU acceleration")
+
+        df, rsi_col, vol_col, atr_col = _compute_features_pandas(
+            df,
+            ema_short_period,
+            ema_long_period,
+            rsi_period,
+            volatility_window,
+            atr_window,
+            bollinger_window,
+            bollinger_std,
+            momentum_period,
+            adx_period,
+        )
+
+        # Materialise numeric columns on the GPU
+        _ = jnp.asarray(df.select_dtypes(include=[np.number]).to_numpy())
+
+        if df[[rsi_col, vol_col, atr_col]].isna().all().all():
+            raise ValueError("Too many NaN values after interpolation")
+
+        df = df.bfill().ffill()
+        if "target" not in df.columns:
+            df["target"] = np.sign(df["log_ret"].shift(-1)).fillna(0).astype(int)
+        result = df.dropna()
+        if "target" not in result.columns and "price" in result.columns:
+            returns = result["price"].pct_change().shift(-1)
+            result["target"] = (
+                np.where(
+                    returns > return_threshold,
+                    1,
+                    np.where(returns < -return_threshold, -1, 0),
+                )
+            )
+            result["target"] = pd.Series(result["target"], index=result.index).fillna(0)
+
+        if log_time and start_time is not None:
+            elapsed = time.time() - start_time
+            print(f"feature generation took {elapsed:.3f}s")
+
+        return result
 
     df, rsi_col, vol_col, atr_col = _compute_features_pandas(
         df,
