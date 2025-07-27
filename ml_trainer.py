@@ -241,13 +241,18 @@ def main() -> None:  # pragma: no cover - CLI entry
 
     trainer_fn, cfg_key = TRAINERS[args.task]
 
+    federated_enabled = False
     if args.federated:
         if args.task != "regime":
             raise SystemExit("--federated only supported for 'regime' task")
         if train_federated_regime is None:
-            raise SystemExit("Federated training not supported")
-        trainer_fn = train_federated_regime
-        cfg_key = "federated_regime"
+            logger.warning(
+                "Federated training not supported; continuing locally"
+            )
+        else:
+            trainer_fn = train_federated_regime
+            cfg_key = "federated_regime"
+            federated_enabled = True
 
     if trainer_fn is None and not args.federated:
         raise SystemExit(f"Trainer '{args.task}' not available, install LightGBM")
@@ -281,6 +286,8 @@ def main() -> None:  # pragma: no cover - CLI entry
     if args.swarm:
         try:
             import swarm_sim
+        except ImportError:  # pragma: no cover - optional dependency
+            logger.warning("Swarm optimization unavailable; skipping")
         except ImportError as exc:  # pragma: no cover - optional dependency
             logger.warning("Swarm optimization unavailable: %s", exc)
         else:
@@ -294,11 +301,19 @@ def main() -> None:  # pragma: no cover - CLI entry
 
     # Optuna optimisation
     if args.optuna:
+        optuna_mod = None
         try:
             import optuna_search as optuna_mod
         except ImportError:
             try:
                 import optuna_optimizer as optuna_mod  # type: ignore
+            except ImportError:  # pragma: no cover - optional dependency
+                logger.warning("Optuna optimisation unavailable; skipping")
+
+        if optuna_mod is not None:
+            window = cfg.get("default_window_days", 7)
+            defaults = cfg.get("optuna", {})
+
             except ImportError as exc:  # pragma: no cover - optional dependency
                 logger.warning("Optuna optimization unavailable: %s", exc)
                 optuna_mod = None
@@ -332,6 +347,8 @@ def main() -> None:  # pragma: no cover - CLI entry
     # Training dispatch
     try:
         if args.true_federated:
+            if federated_fl is None or not getattr(federated_fl, "_HAVE_FLWR", False):
+                logger.warning("True federated training requires 'flwr'; skipping")
             if federated_fl is None or not getattr(federated_fl, "_HAVE_FLWR", True):
                 logger.warning(
                     "True federated training requires the 'flwr' package. Install it with 'pip install flwr'"
@@ -348,7 +365,7 @@ def main() -> None:  # pragma: no cover - CLI entry
             )
             return
 
-        if args.federated:
+        if federated_enabled:
             if not args.start_ts or not args.end_ts:
                 raise SystemExit("--federated requires --start-ts and --end-ts")
             model, metrics = asyncio.run(
