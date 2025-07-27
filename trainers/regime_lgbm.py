@@ -292,7 +292,12 @@ def train_regime_lgbm(
     if url and key:
         try:
             env_registry = ModelRegistry(url, key)
-            entry = env_registry.upload(final_model, "regime_lgbm", metrics)
+            entry = env_registry.upload(
+                final_model,
+                "regime_lgbm",
+                metrics,
+                conflict_key="name",
+            )
             logging.info("Uploaded model %s", entry.file_path)
         except Exception as exc:
             logging.exception("Failed to upload model: %s", exc)
@@ -300,7 +305,7 @@ def train_regime_lgbm(
         logging.info("SUPABASE credentials not set; skipping upload")
     if registry is not None:
         try:
-            registry.upload(final_model, model_name, metrics)
+            registry.upload(final_model, model_name, metrics, conflict_key="name")
         except Exception:
             pass
 

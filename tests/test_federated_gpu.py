@@ -1,6 +1,7 @@
 import os
 import sys
 import types
+import asyncio
 
 import numpy as np
 import pandas as pd
@@ -63,7 +64,7 @@ def test_federated_gpu_training(monkeypatch, tmp_path):
     monkeypatch.setenv("SUPABASE_URL", "http://localhost")
     monkeypatch.setenv("SUPABASE_KEY", "anon")
 
-    ft.train_federated_regime(None, None, num_clients=1)
+    asyncio.run(ft.train_federated_regime(None, None, num_clients=1))
 
     assert captured.get("device_type") == "gpu"
     assert captured.get("use_gpu") is True

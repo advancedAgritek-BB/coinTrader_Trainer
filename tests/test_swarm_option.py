@@ -1,6 +1,9 @@
 import os
 import sys
 import types
+import logging
+import pytest
+import swarm_sim
 
 import numpy as np
 import pandas as pd
@@ -52,3 +55,17 @@ def test_cli_swarm_merges_params(monkeypatch):
 
     assert captured.get("swarm_called")
     assert captured["params"].get("learning_rate") == 0.1
+
+
+@pytest.mark.asyncio
+async def test_fetch_and_prepare_data_empty(monkeypatch, caplog):
+    async def fake_fetch(table, start, end):
+        return pd.DataFrame()
+
+    monkeypatch.setattr(swarm_sim.data_loader, "fetch_data_range_async", fake_fetch)
+
+    with caplog.at_level(logging.ERROR):
+        with pytest.raises(ValueError, match="No data available"):
+            await swarm_sim.fetch_and_prepare_data("2021-01-01", "2021-01-02")
+
+    assert "No data returned" in caplog.text

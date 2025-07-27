@@ -77,13 +77,19 @@ def fetch_kraken_ohlc(pair: str, interval: int = 1) -> pd.DataFrame:
     return df
 
 def insert_to_supabase(
-    client: Client, df: pd.DataFrame, *, table: str, batch_size: int = 1000
+    client: Client,
+    df: pd.DataFrame,
+    *,
+    table: str,
+    batch_size: int = 1000,
+    conflict_cols: tuple[str, ...] = ("ts", "symbol"),
 ) -> None:
-    """Insert DataFrame rows to Supabase (batches for efficiency)."""
+    """Insert or update DataFrame rows to Supabase (batches for efficiency)."""
     records = df.to_dict(orient="records")
+    on_conflict = ",".join(conflict_cols)
     for i in range(0, len(records), batch_size):
         chunk = records[i : i + batch_size]
-        client.table(table).insert(chunk).execute()  # UNIQUE constraint prevents duplicates
+        client.table(table).upsert(chunk, on_conflict=on_conflict).execute()  # UNIQUE constraint prevents duplicates
 
 def append_kraken_data(
     interval: int = 1, delay_sec: float = 1.0, *, table: str = DEFAULT_TABLE

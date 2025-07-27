@@ -92,12 +92,12 @@ def train_federated_regime(
     if url and key:
         try:
             env_reg = ModelRegistry(url, key)
-            env_reg.upload(models, model_name, metrics)
+            env_reg.upload(models, model_name, metrics, conflict_key="name")
         except Exception:
             pass
     if registry is not None:
         try:
-            registry.upload(models, model_name, metrics)
+            registry.upload(models, model_name, metrics, conflict_key="name")
         except Exception:
             pass
     return ensemble, metrics

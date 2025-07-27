@@ -77,6 +77,30 @@ def _make_dummy_data(n: int = 200) -> Tuple[pd.DataFrame, pd.Series]:
     return df, pd.Series(rng.integers(0, 2, size=n))
 
 
+def _start_rocm_smi_monitor() -> subprocess.Popen | None:
+    """Start a ``rocm-smi`` monitor and log its output."""
+    cmd = ["rocm-smi", "--showuse", "--interval", "1"]
+    try:
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+    except Exception as exc:  # pragma: no cover - command missing
+        logging.warning("Failed to start rocm-smi monitor: %s", exc)
+        return None
+
+    def _forward() -> None:
+        assert proc.stdout is not None
+        for line in proc.stdout:
+            logging.info("rocm-smi: %s", line.rstrip())
+
+    threading.Thread(target=_forward, daemon=True).start()
+    logging.info("Started rocm-smi monitor: %s", " ".join(cmd))
+    return proc
+
+
 def main() -> None:  # pragma: no cover - CLI entry
     parser = argparse.ArgumentParser(description="coinTrader trainer CLI")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -115,7 +139,7 @@ def main() -> None:  # pragma: no cover - CLI entry
     train_p.add_argument("--end-ts", help="Data end timestamp (ISO format)")
     train_p.add_argument("--table", default="ohlc_data", help="Supabase table name")
     train_p.add_argument(
-        "--profile-gpu", action="store_true", help="Profile GPU usage with AMD RGP"
+        "--profile-gpu", action="store_true", help="Log GPU utilisation via rocm-smi"
     )
 
     csv_p = sub.add_parser("import-csv", help="Import historical CSV data")
@@ -262,11 +286,12 @@ def main() -> None:  # pragma: no cover - CLI entry
             params.update(result)
 
     # Training dispatch
+    monitor_proc = None
     if args.profile_gpu:
-        cmd = ["rgp.exe", "--process", str(os.getpid())]
+        cmd = ["rocm-smi", "--showuse"]
         try:
-            subprocess.Popen(cmd)
-            print("Started AMD RGP profiler:", " ".join(cmd))
+            subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            print("Logging GPU utilisation via:", " ".join(cmd))
         except Exception:
             print("GPU profiling enabled. Run: {}".format(" ".join(cmd)))
 
@@ -286,12 +311,23 @@ def main() -> None:  # pragma: no cover - CLI entry
     if args.federated:
         if not args.start_ts or not args.end_ts:
             raise SystemExit("--federated requires --start-ts and --end-ts")
-        model, metrics = trainer_fn(  # type: ignore[assignment]
-            args.start_ts,
-            args.end_ts,
-            config_path=args.cfg,
-            params_override=params,
-            table=args.table,
+        model, metrics = asyncio.run(
+            trainer_fn(  # type: ignore[assignment]
+        monitor_proc = _start_rocm_smi_monitor()
+
+    try:
+        if args.true_federated:
+            if federated_fl is None:
+                raise SystemExit("True federated training not supported")
+            if not args.start_ts or not args.end_ts:
+                raise SystemExit("--true-federated requires --start-ts and --end-ts")
+            federated_fl.start_server(
+                args.start_ts,
+                args.end_ts,
+                config_path=args.cfg,
+                params_override=params,
+                table=args.table,
+            )
         )
     else:
         X, y = _make_dummy_data()
@@ -302,6 +338,29 @@ def main() -> None:  # pragma: no cover - CLI entry
             use_gpu=args.use_gpu,
             profile_gpu=args.profile_gpu,
         )  # type: ignore[arg-type]
+            return
+        if args.federated:
+            if not args.start_ts or not args.end_ts:
+                raise SystemExit("--federated requires --start-ts and --end-ts")
+            model, metrics = trainer_fn(  # type: ignore[assignment]
+                args.start_ts,
+                args.end_ts,
+                config_path=args.cfg,
+                params_override=params,
+                table=args.table,
+            )
+        else:
+            X, y = _make_dummy_data()
+            model, metrics = trainer_fn(
+                X,
+                y,
+                params,
+                use_gpu=args.use_gpu,
+                profile_gpu=args.profile_gpu,
+            )  # type: ignore[arg-type]
+    finally:
+        if monitor_proc:
+            monitor_proc.terminate()
 
     print("Training completed. Metrics:")
     for k, v in metrics.items():

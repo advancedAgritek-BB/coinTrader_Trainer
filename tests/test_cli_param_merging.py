@@ -1,6 +1,7 @@
 import os
 import sys
 import types
+import asyncio
 
 import numpy as np
 import pandas as pd
@@ -102,7 +103,7 @@ def test_swarm_merges_once(monkeypatch):
 def test_federated_param_merge(monkeypatch):
     captured = {}
 
-    def fake_federated(start, end, *, table="ohlc_data", **kwargs):
+    async def fake_federated(start, end, *, table="ohlc_data", **kwargs):
         captured["start"] = start
         captured["end"] = end
         captured["params"] = kwargs.get("params_override", {}).copy()
@@ -116,6 +117,9 @@ def test_federated_param_merge(monkeypatch):
         return FakeBooster(), {}
 
     monkeypatch.setattr(ml_trainer, "train_federated_regime", fake_federated)
+    def fake_train(X, y, params, use_gpu=False, profile_gpu=False):
+        return object(), {}
+    monkeypatch.setitem(ml_trainer.TRAINERS, "regime", (fake_train, "regime_lgbm"))
     monkeypatch.setattr(
         ml_trainer, "load_cfg", lambda p: {"federated_regime": {"objective": "binary"}}
     )

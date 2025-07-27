@@ -43,8 +43,8 @@ def test_insert_to_supabase_custom_table(monkeypatch):
         def __init__(self, name):
             self.name = name
 
-        def insert(self, rows):
-            captured.append(self.name)
+        def upsert(self, rows, *, on_conflict=None):
+            captured.append((self.name, on_conflict))
             return types.SimpleNamespace(execute=lambda: None)
 
     class FakeClient:
@@ -58,6 +58,34 @@ def test_insert_to_supabase_custom_table(monkeypatch):
     client = FakeClient()
     kf.insert_to_supabase(client, df, table="logs", batch_size=1)
     assert all(t == "logs" for t in client.tables)
+    assert all(c == ("logs", "ts,symbol") for c in captured)
+
+
+def test_insert_to_supabase_conflict_cols(monkeypatch):
+    kf = _load_module(monkeypatch)
+    df = _sample_df().iloc[:1]
+
+    captured = []
+
+    class FakeTable:
+        def upsert(self, rows, *, on_conflict=None):
+            captured.append(on_conflict)
+            return types.SimpleNamespace(execute=lambda: None)
+
+    class FakeClient:
+        def table(self, name):
+            return FakeTable()
+
+    client = FakeClient()
+    kf.insert_to_supabase(
+        client,
+        df,
+        table="logs",
+        batch_size=1,
+        conflict_cols=("ts", "symbol", "price"),
+    )
+
+    assert captured == ["ts,symbol,price"]
 
 
 def test_append_kraken_data_passes_table(monkeypatch):
