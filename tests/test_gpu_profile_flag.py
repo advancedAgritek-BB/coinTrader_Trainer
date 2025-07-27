@@ -35,4 +35,4 @@ def test_profile_gpu_prints_message(monkeypatch, capsys):
 
     ml_trainer.main()
     out = capsys.readouterr().out
-    assert "rgp.exe --process" in out or "AMD RGP" in out
+    assert "rocm-smi" in out

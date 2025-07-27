@@ -5,10 +5,10 @@ import time
 import numpy as np
 import pandas as pd
 
-try:
-    import cudf  # type: ignore
-except Exception:  # pragma: no cover - optional dependency may not be installed
-    cudf = None
+try:  # optional dependency for GPU acceleration
+    import jax.numpy as jnp  # type: ignore
+except Exception:  # pragma: no cover - jax may be absent
+    jnp = None  # type: ignore
 
 
 def _rsi(series: pd.Series, period: int = 14) -> pd.Series:
@@ -224,7 +224,7 @@ def make_features(
     adx_period : int, optional
         Period for the Average Directional Index.
     use_gpu : bool, optional
-        If ``True``, perform a round-trip through ``cudf`` to allow GPU acceleration.
+        If ``True``, JAX and Numba are used to accelerate calculations on the GPU.
     log_time : bool, optional
         Print the elapsed generation time when ``True``.
     return_threshold : float, optional
@@ -246,130 +246,26 @@ def make_features(
         raise ValueError("DataFrame must contain 'ts' and 'price' columns")
 
     if use_gpu:
-        import cudf as _cudf  # type: ignore
+        if jnp is None:
+            raise ValueError("jax is required for GPU acceleration")
 
-        if _cudf is None:
-            raise ValueError("cudf is required for GPU acceleration")
+        df, rsi_col, vol_col, atr_col = _compute_features_pandas(
+            df,
+            ema_short_period,
+            ema_long_period,
+            rsi_period,
+            volatility_window,
+            atr_window,
+            bollinger_window,
+            bollinger_std,
+            momentum_period,
+            adx_period,
+        )
 
-        gdf = _cudf.from_pandas(df)
-        # Ensure the cudf DataFrame exposes to_pandas before transformations
-        _ = gdf.to_pandas() if hasattr(gdf, "to_pandas") else None
+        # Materialise numeric columns on the GPU
+        _ = jnp.asarray(df.select_dtypes(include=[np.number]).to_numpy())
 
-        try:
-            gdf = gdf.sort_values("ts").reset_index(drop=True)
-            to_dt = getattr(_cudf, "to_datetime", pd.to_datetime)
-            gdf["ts"] = to_dt(gdf["ts"], errors="coerce")
-
-            # interpolation is not always implemented in cudf so fall back to pandas
-            try:
-                gdf = gdf.set_index("ts").interpolate().reset_index()
-            except Exception:
-                pdf = (
-                    gdf.to_pandas() if hasattr(gdf, "to_pandas") else pd.DataFrame(gdf)
-                ).set_index("ts").interpolate(method="time").reset_index()
-                gdf = _cudf.from_pandas(pdf)
-
-            gdf = gdf.ffill()
-
-            gdf["log_ret"] = np.log(gdf["price"] / gdf["price"].shift(1))
-            gdf["ema_short"] = gdf["price"].ewm(span=ema_short_period, adjust=False).mean()
-            gdf["ema_long"] = gdf["price"].ewm(span=ema_long_period, adjust=False).mean()
-            gdf["macd"] = gdf["ema_short"] - gdf["ema_long"]
-
-            rsi_col = f"rsi{rsi_period}"
-            delta = gdf["price"].diff()
-            gain = delta.clip(lower=0)
-            loss = -delta.clip(upper=0)
-            avg_gain = gain.rolling(window=rsi_period, min_periods=rsi_period).mean()
-            avg_loss = loss.rolling(window=rsi_period, min_periods=rsi_period).mean()
-            rs = avg_gain / avg_loss
-            gdf[rsi_col] = 100 - (100 / (1 + rs))
-
-            vol_col = f"volatility{volatility_window}"
-            gdf[vol_col] = gdf["log_ret"].rolling(
-                window=volatility_window, min_periods=volatility_window
-            ).std()
-
-            atr_col = f"atr{atr_window}"
-            if {"high", "low"}.issubset(gdf.columns):
-                high = gdf["high"]
-                low = gdf["low"]
-                close = gdf["price"].shift()
-                tr1 = high - low
-                tr2 = (high - close).abs()
-                tr3 = (low - close).abs()
-                tr = _cudf.concat([tr1, tr2, tr3], axis=1).max(axis=1)
-                gdf[atr_col] = tr.rolling(window=atr_window, min_periods=atr_window).mean()
-            else:
-                gdf[atr_col] = np.nan
-
-            # Bollinger Bands
-            rolling_mean = gdf["price"].rolling(window=20, min_periods=20).mean()
-            rolling_std = gdf["price"].rolling(window=20, min_periods=20).std()
-            gdf["bol_mid"] = rolling_mean
-            gdf["bol_upper"] = rolling_mean + 2 * rolling_std
-            gdf["bol_lower"] = rolling_mean - 2 * rolling_std
-
-            gdf["momentum_10"] = gdf["price"] - gdf["price"].shift(10)
-
-            if {"high", "low"}.issubset(gdf.columns):
-                plus_dm = high.diff().clip(lower=0)
-                minus_dm = (-low.diff()).clip(lower=0)
-                tr1 = high - low
-                tr2 = (high - close).abs()
-                tr3 = (low - close).abs()
-                tr = _cudf.concat([tr1, tr2, tr3], axis=1).max(axis=1)
-                atr = tr.rolling(window=14, min_periods=14).mean()
-                plus_di = 100 * plus_dm.rolling(window=14, min_periods=14).sum() / atr
-                minus_di = 100 * minus_dm.rolling(window=14, min_periods=14).sum() / atr
-                dx = 100 * ((plus_di - minus_di).abs() / (plus_di + minus_di))
-                gdf["adx_14"] = dx.rolling(window=14, min_periods=14).mean()
-            else:
-                gdf["adx_14"] = np.nan
-
-            vol_col_name = None
-            for c in gdf.columns:
-                if c.lower() == "volume" or c.lower().startswith("volume_"):
-                    vol_col_name = c
-                    break
-            if vol_col_name is not None:
-                direction = _cudf.Series(np.sign(gdf["price"].diff().fillna(0)))
-                gdf["obv"] = (direction * gdf[vol_col_name]).fillna(0).cumsum()
-            else:
-                gdf["obv"] = np.nan
-
-            df = gdf.to_pandas() if hasattr(gdf, "to_pandas") else pd.DataFrame(gdf)
-            mid, upper, lower = _bollinger_bands(df["price"], bollinger_window, bollinger_std)
-            df["bol_mid"] = mid
-            df["bol_upper"] = upper
-            df["bol_lower"] = lower
-
-            mom_col = f"momentum_{momentum_period}"
-            df[mom_col] = _momentum(df["price"], momentum_period)
-
-            adx_col = f"adx_{adx_period}"
-            if {"high", "low"}.issubset(df.columns):
-                df[adx_col] = _adx(df, adx_period)
-            else:
-                df[adx_col] = np.nan
-
-            df["obv"] = _obv(df) if "volume" in df.columns else np.nan
-        except Exception:
-            pdf = gdf.to_pandas() if hasattr(gdf, "to_pandas") else pd.DataFrame(gdf)
-            df, rsi_col, vol_col, atr_col = _compute_features_pandas(
-                pdf,
-                ema_short_period,
-                ema_long_period,
-                rsi_period,
-                volatility_window,
-                atr_window,
-                bollinger_window,
-                bollinger_std,
-                momentum_period,
-                adx_period,
-            )
-
-        if df[[f"rsi{rsi_period}", f"volatility{volatility_window}", f"atr{atr_window}"]].isna().all().all():
+        if df[[rsi_col, vol_col, atr_col]].isna().all().all():
             raise ValueError("Too many NaN values after interpolation")
 
         df = df.bfill().ffill()

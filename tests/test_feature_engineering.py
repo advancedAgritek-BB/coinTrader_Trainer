@@ -8,6 +8,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import feature_engineering
 from feature_engineering import make_features
 
 
@@ -50,22 +51,21 @@ def test_make_features_interpolation_and_columns():
     assert not result.isna().any().any()
 
 
-def test_make_features_gpu_uses_cudf(monkeypatch):
-    calls = {"from": False, "to": False}
+def test_make_features_gpu_uses_jax(monkeypatch):
+    calls = {"asarray": False}
 
-    class FakeDF(pd.DataFrame):
-        def to_pandas(self):
-            calls["to"] = True
-            return pd.DataFrame(self)
+    jnp = types.ModuleType("jax.numpy")
 
-    module = types.ModuleType("cudf")
+    def asarray(x):
+        calls["asarray"] = True
+        return np.asarray(x)
 
-    def from_pandas(df):
-        calls["from"] = True
-        return FakeDF(df)
-
-    module.from_pandas = from_pandas
-    monkeypatch.setitem(sys.modules, "cudf", module)
+    jnp.asarray = asarray
+    jax_mod = types.ModuleType("jax")
+    jax_mod.numpy = jnp
+    monkeypatch.setitem(sys.modules, "jax", jax_mod)
+    monkeypatch.setitem(sys.modules, "jax.numpy", jnp)
+    monkeypatch.setattr(feature_engineering, "jnp", jnp, raising=False)
 
     df = pd.DataFrame(
         {
@@ -79,23 +79,17 @@ def test_make_features_gpu_uses_cudf(monkeypatch):
 
     make_features(df, use_gpu=True, ema_short_period=2, ema_long_period=3)
 
-    assert calls["from"] and calls["to"]
+    assert calls["asarray"]
 
 
 def test_make_features_gpu_generates_columns(monkeypatch):
-    module = types.ModuleType("cudf")
-
-    class FakeDF(pd.DataFrame):
-        def to_pandas(self):
-            return pd.DataFrame(self)
-
-    def from_pandas(df):
-        return FakeDF(df)
-
-    module.from_pandas = from_pandas
-    module.concat = pd.concat
-    module.to_datetime = pd.to_datetime
-    monkeypatch.setitem(sys.modules, "cudf", module)
+    jnp = types.ModuleType("jax.numpy")
+    jnp.asarray = np.asarray
+    jax_mod = types.ModuleType("jax")
+    jax_mod.numpy = jnp
+    monkeypatch.setitem(sys.modules, "jax", jax_mod)
+    monkeypatch.setitem(sys.modules, "jax.numpy", jnp)
+    monkeypatch.setattr(feature_engineering, "jnp", jnp, raising=False)
 
     df = pd.DataFrame(
         {

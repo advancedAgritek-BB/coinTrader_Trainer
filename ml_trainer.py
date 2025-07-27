@@ -115,7 +115,7 @@ def main() -> None:  # pragma: no cover - CLI entry
     train_p.add_argument("--end-ts", help="Data end timestamp (ISO format)")
     train_p.add_argument("--table", default="ohlc_data", help="Supabase table name")
     train_p.add_argument(
-        "--profile-gpu", action="store_true", help="Profile GPU usage with AMD RGP"
+        "--profile-gpu", action="store_true", help="Log GPU utilisation via rocm-smi"
     )
 
     csv_p = sub.add_parser("import-csv", help="Import historical CSV data")
@@ -263,10 +263,10 @@ def main() -> None:  # pragma: no cover - CLI entry
 
     # Training dispatch
     if args.profile_gpu:
-        cmd = ["rgp.exe", "--process", str(os.getpid())]
+        cmd = ["rocm-smi", "--showuse"]
         try:
-            subprocess.Popen(cmd)
-            print("Started AMD RGP profiler:", " ".join(cmd))
+            subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            print("Logging GPU utilisation via:", " ".join(cmd))
         except Exception:
             print("GPU profiling enabled. Run: {}".format(" ".join(cmd)))
 
