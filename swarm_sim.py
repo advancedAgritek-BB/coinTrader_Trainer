@@ -69,8 +69,9 @@ async def fetch_and_prepare_data(
             start_dt = pd.Timestamp.utcnow()
         df["ts"] = pd.date_range(start_dt, periods=len(df), freq="min")
 
+    loop = asyncio.get_running_loop()
     try:
-        df = make_features(df)
+        df = await loop.run_in_executor(None, make_features, df)
     except ValueError:
         pass
 
@@ -225,7 +226,9 @@ async def run_swarm_search(
         await asyncio.gather(
             *(agent.simulate(X, y, base_params) for agent in agents)
         )
-        evolve_swarm(agents, graph)
+        await asyncio.get_running_loop().run_in_executor(
+            None, lambda: evolve_swarm(agents, graph)
+        )
 
     best = min(agents, key=lambda a: a.fitness)
 
