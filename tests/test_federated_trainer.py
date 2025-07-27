@@ -5,6 +5,8 @@ import pytest
 
 import numpy as np
 import pandas as pd
+import asyncio
+import concurrent.futures
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
@@ -73,9 +75,49 @@ def test_train_federated_regime_empty_data_raises(monkeypatch, caplog):
         return pd.DataFrame()
 
     monkeypatch.setattr(ft, "fetch_data_range_async", fake_fetch)
+    monkeypatch.setenv("SUPABASE_URL", "http://localhost")
+    monkeypatch.setenv("SUPABASE_KEY", "anon")
 
     with caplog.at_level(logging.ERROR):
         with pytest.raises(ValueError, match="No data available"):
-            ft.train_federated_regime("2021-01-01", "2021-01-02")
+            asyncio.run(
+                ft.train_federated_regime(
+                    "2021-01-01",
+                    "2021-01-02",
+                    use_processes=False,
+                )
+            )
 
     assert "No data returned" in caplog.text
+
+
+def test_use_processes_invokes_pool(monkeypatch):
+    async def fake_prepare(*a, **k):
+        return pd.DataFrame({"f": [1, 2]}), pd.Series([0, 1])
+
+    def fake_train(X, y, params):
+        return FakeBooster()
+
+    called = {}
+
+    class DummyExecutor(concurrent.futures.ThreadPoolExecutor):
+        def __init__(self, *a, **k):
+            called["created"] = True
+            super().__init__(*a, **k)
+
+    monkeypatch.setattr(ft, "_prepare_data", fake_prepare)
+    monkeypatch.setattr(ft, "_train_client", fake_train)
+    monkeypatch.setattr(concurrent.futures, "ProcessPoolExecutor", DummyExecutor)
+    monkeypatch.setenv("SUPABASE_URL", "http://localhost")
+    monkeypatch.setenv("SUPABASE_KEY", "anon")
+
+    asyncio.run(
+        ft.train_federated_regime(
+            "2021-01-01",
+            "2021-01-02",
+            num_clients=2,
+            use_processes=True,
+        )
+    )
+
+    assert called.get("created") is True

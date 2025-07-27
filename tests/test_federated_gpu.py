@@ -64,7 +64,7 @@ def test_federated_gpu_training(monkeypatch, tmp_path):
     monkeypatch.setenv("SUPABASE_URL", "http://localhost")
     monkeypatch.setenv("SUPABASE_KEY", "anon")
 
-    asyncio.run(ft.train_federated_regime(None, None, num_clients=1))
+    asyncio.run(ft.train_federated_regime(None, None, num_clients=1, use_processes=False))
 
     assert captured.get("device") == "opencl"
     assert captured.get("use_gpu") is True
@@ -92,8 +92,10 @@ def test_balanced_split(monkeypatch):
     monkeypatch.setattr(ft, "fetch_data_range_async", fake_fetch)
     monkeypatch.setattr(ft, "make_features", fake_features)
     monkeypatch.setattr(ft, "_train_client", fake_train_client)
+    monkeypatch.setenv("SUPABASE_URL", "http://localhost")
+    monkeypatch.setenv("SUPABASE_KEY", "anon")
 
-    ft.train_federated_regime(None, None, num_clients=3)
+    asyncio.run(ft.train_federated_regime(None, None, num_clients=3, use_processes=False))
 
     counts = [s.value_counts() for s in captured_y]
     for label in [-1, 0, 1]:
