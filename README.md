@@ -408,6 +408,8 @@ client loads its own data and only the model weights are exchanged with the
 server.  Use this option when coordinating training across multiple
 machines.
 
+If the `flwr` package is not installed, the CLI logs a warning and continues without that feature.
+
 Example local simulation:
 
 ```bash
@@ -468,6 +470,8 @@ performs 50 trials by default before training the final model.
 ```bash
 python ml_trainer.py train regime --optuna
 ```
+
+If the `optuna_search` or `optuna_optimizer` package is not installed, the CLI logs a warning and continues without that feature.
 
 ### Importing Historical Data
 
@@ -709,6 +713,8 @@ it is stored.
 ```bash
 python ml_trainer.py --swarm
 ```
+
+If the `swarm_sim` package is not installed, the CLI logs a warning and continues without that feature.
 
 The script searches for optimal LightGBM parameters during the simulation. Once complete, those values are passed into `train_regime_lgbm` so subsequent training runs start from the tuned configuration.
 
