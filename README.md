@@ -43,6 +43,18 @@ and trains the ``regime_lgbm`` model.  After training the resulting model is
 uploaded back to Supabase where the trading application can fetch it for live
 predictions.
 
+The trading bot must be able to import modules from this repository.
+Either install the package or add the project path to ``PYTHONPATH`` so that
+``from coinTrader_Trainer import ...`` works. An easy approach is to export the
+repository location when launching the bot:
+
+```bash
+export PYTHONPATH=/path/to/coinTrader_Trainer
+```
+
+Otherwise the bot will display a "Machine learning unavailable" warning because
+it cannot import the trainer code.
+
 ## Installation
 
 Create a virtual environment and install the required Python
