@@ -259,3 +259,23 @@ def test_fetch_trade_logs_respects_max_rows(monkeypatch):
     )
 
     assert len(df) == 2
+
+
+def test_fetch_trade_logs_fills_missing_minutes(monkeypatch):
+    monkeypatch.setenv("DISABLE_FEATURES", "1")
+    rows = [
+        {"ts": "2021-01-01T00:00:00Z", "symbol": "BTC", "price": 1},
+        {"ts": "2021-01-01T00:02:00Z", "symbol": "BTC", "price": 3},
+    ]
+
+    monkeypatch.setattr(data_loader, "_get_client", lambda: object())
+    monkeypatch.setattr(data_loader, "_fetch_logs", lambda *a, **k: rows)
+
+    df = data_loader.fetch_trade_logs(
+        datetime(2021, 1, 1), datetime(2021, 1, 2), symbol="BTC"
+    )
+
+    expected_ts = pd.date_range("2021-01-01T00:00:00Z", periods=3, freq="1T")
+    pd.testing.assert_series_equal(df["ts"], pd.Series(expected_ts, name="ts"))
+    assert df["price"].tolist() == [1.0, 2.0, 3.0]
+    assert df["symbol"].tolist() == ["BTC", "BTC", "BTC"]

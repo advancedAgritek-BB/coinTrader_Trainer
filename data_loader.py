@@ -134,6 +134,28 @@ def _maybe_cache_features(
     return make_features(df, **params)
 
 
+def _resample_trade_logs(df: pd.DataFrame) -> pd.DataFrame:
+    """Return ``df`` sorted by ``ts`` and resampled to 1 minute."""
+    if "ts" not in df.columns or df.empty:
+        return df
+
+    df = df.copy()
+    df["ts"] = pd.to_datetime(df["ts"], errors="coerce", utc=True)
+    df = df.sort_values("ts")
+    df = df.set_index("ts")
+
+    numeric_cols = [c for c in df.columns if pd.api.types.is_numeric_dtype(df[c])]
+
+    df_resampled = df.resample("1T").asfreq()
+
+    if numeric_cols:
+        df_resampled[numeric_cols] = df_resampled[numeric_cols].interpolate(method="time")
+
+    df_resampled = df_resampled.ffill()
+
+    return df_resampled.reset_index()
+
+
 def fetch_trade_logs(
     start_ts: datetime,
     end_ts: datetime,
@@ -157,7 +179,8 @@ def fetch_trade_logs(
     """
 
     if cache_path and os.path.exists(cache_path):
-        return pd.read_parquet(cache_path)
+        df = pd.read_parquet(cache_path)
+        return _resample_trade_logs(df)
     if redis_client is not None:
         key = redis_key or f"{table}:{start_ts.isoformat()}:{end_ts.isoformat()}:{symbol or 'all'}"
         if max_rows is not None:
@@ -166,11 +189,13 @@ def fetch_trade_logs(
         if cached:
             if isinstance(cached, (bytes, bytearray)):
                 try:
-                    return pd.read_parquet(BytesIO(cached))
+                    df = pd.read_parquet(BytesIO(cached))
                 except Exception:
                     cached = cached.decode()
-                    return pd.read_json(cached, orient="split")
-            return pd.read_json(cached, orient="split")
+                    df = pd.read_json(cached, orient="split")
+            else:
+                df = pd.read_json(cached, orient="split")
+            return _resample_trade_logs(df)
 
     if start_ts.tzinfo is None:
         start_ts = start_ts.replace(tzinfo=timezone.utc)
@@ -191,6 +216,7 @@ def fetch_trade_logs(
         cached = redis_cache.get(cache_key)
         if cache_only and cached:
             df_cached = pd.read_parquet(BytesIO(cached))
+            df_cached = _resample_trade_logs(df_cached)
             return _maybe_cache_features(
                 df_cached,
                 redis_cache,
@@ -206,6 +232,7 @@ def fetch_trade_logs(
 
     if cache_path and os.path.exists(cache_path):
         df = pd.read_parquet(cache_path)
+        df = _resample_trade_logs(df)
         return _maybe_cache_features(df, redis_cache, cache_key, cache_features, feature_params)
 
     if redis_client is not None:
@@ -223,6 +250,7 @@ def fetch_trade_logs(
                     df = pd.read_json(cached, orient="split")
             else:
                 df = pd.read_json(cached, orient="split")
+            df = _resample_trade_logs(df)
             return _maybe_cache_features(
                 df, redis_cache, cache_key, cache_features, feature_params
             )
@@ -230,6 +258,7 @@ def fetch_trade_logs(
         cached = redis_cache.get(cache_key) if cache_key else None
         if cached:
             df = pd.read_parquet(BytesIO(cached))
+            df = _resample_trade_logs(df)
             return _maybe_cache_features(
                 df, redis_cache, cache_key, cache_features, feature_params
             )
@@ -247,6 +276,8 @@ def fetch_trade_logs(
 
     if max_rows is not None:
         df = df.head(max_rows)
+
+    df = _resample_trade_logs(df)
 
     if cache_path:
         df.to_parquet(cache_path)
