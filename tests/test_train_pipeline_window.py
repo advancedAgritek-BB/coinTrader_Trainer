@@ -61,7 +61,7 @@ def test_default_window_used(monkeypatch, tmp_path):
         def __init__(self, url, key):
             pass
 
-        def upload(self, model, name, metrics):
+        def upload(self, model, name, metrics, conflict_key=None):
             captured["uploaded"] = True
 
     monkeypatch.setattr(train_pipeline, "ModelRegistry", DummyRegistry)
