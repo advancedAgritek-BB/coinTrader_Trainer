@@ -130,3 +130,27 @@ def test_fetch_trade_logs_sets_redis(monkeypatch):
     cached = fake_r.get(key)
     assert cached is not None
     pd.testing.assert_frame_equal(df, pd.read_parquet(io.BytesIO(cached)))
+
+
+def test_fetch_trade_logs_max_rows_in_cache(monkeypatch):
+    fake_r = fakeredis.FakeRedis()
+    monkeypatch.setattr(data_loader, "_get_redis_client", lambda: fake_r)
+
+    rows = [
+        {"timestamp": "2021-01-01T00:00:00Z", "symbol": "BTC", "price": 1},
+        {"timestamp": "2021-01-01T00:01:00Z", "symbol": "BTC", "price": 2},
+    ]
+    monkeypatch.setattr(data_loader, "_get_client", lambda: object())
+    monkeypatch.setattr(data_loader, "_fetch_logs", lambda *a, **k: rows)
+
+    start = datetime(2021, 1, 1)
+    end = datetime(2021, 1, 2)
+
+    df = data_loader.fetch_trade_logs(start, end, symbol="BTC", max_rows=1)
+
+    assert len(df) == 1
+    cache_key = (
+        f"trades_{int(start.replace(tzinfo=data_loader.timezone.utc).timestamp())}_"
+        f"{int(end.replace(tzinfo=data_loader.timezone.utc).timestamp())}_BTC_1"
+    )
+    assert fake_r.get(cache_key) is not None

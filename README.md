@@ -140,7 +140,12 @@ Supabase.  Pass UTC ``datetime`` objects for ``start_ts`` and ``end_ts``—
 naive timestamps are interpreted as UTC.  The optional ``symbol`` argument
 filters rows to a specific pair.  When a ``cache_path`` is supplied the
 function will read from the Parquet file if it exists and write new
-results back to this location, avoiding repeated network requests.
+results back to this location, avoiding repeated network requests.  Use
+``max_rows`` to limit the number of rows returned:
+
+```python
+df = data_loader.fetch_trade_logs(start_ts, end_ts, symbol="BTC", max_rows=1000)
+```
 
 ### Async Data Fetching
 
