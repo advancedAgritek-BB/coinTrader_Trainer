@@ -25,3 +25,4 @@ prometheus_client
 supabase
 tenacity
 modin[ray]
+dask[dataframe]

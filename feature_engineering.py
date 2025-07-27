@@ -364,6 +364,8 @@ def make_features(
     redis_client: Optional[Any] = None,
     cache_key: Optional[str] = None,
     cache_ttl: Optional[int] = None,
+    use_dask: bool = False,
+
 ) -> pd.DataFrame:
     """Generate technical indicator features for trading models.
 
@@ -407,6 +409,8 @@ def make_features(
         Key under which features are cached in Redis.
     cache_ttl : int, optional
         Override TTL in seconds for the cached features.
+    use_dask : bool, optional
+        Use Dask to parallelise feature generation.
 
     Returns
     -------
@@ -432,10 +436,14 @@ def make_features(
     if "ts" not in df.columns or "price" not in df.columns:
         raise ValueError("DataFrame must contain 'ts' and 'price' columns")
 
-    if use_gpu:
     if use_modin:
         import modin.pandas as mpd  # type: ignore
         df = mpd.DataFrame(df)
+    backend_df = df
+    if use_modin:
+        import modin.pandas as mpd  # type: ignore
+        backend_df = mpd.DataFrame(df)
+
     needs_target = "target" not in df.columns or df.get("target", pd.Series()).isna().any()
     warn_overwrite = "target" in df.columns and needs_target
 
@@ -459,37 +467,41 @@ def make_features(
 
         # Materialise numeric columns on the GPU
         _ = jnp.asarray(df.select_dtypes(include=[np.number]).to_numpy())
-
-        if df[[rsi_col, vol_col, atr_col]].isna().all().all():
-            raise ValueError("Too many NaN values after interpolation")
-
-        df = df.bfill().ffill()
-        if warn_overwrite:
-            logger.warning("Overwriting existing target column")
-        if needs_target:
-            df["target"] = np.sign(df["log_ret"].shift(-1)).fillna(0).astype(int)
-        result = df.dropna()
-        if needs_target and "price" in result.columns:
-            returns = result["price"].pct_change().shift(-1)
-            result["target"] = (
-                np.where(
-                    returns > return_threshold,
-                    1,
-                    np.where(returns < -return_threshold, -1, 0),
+    else:
+        if use_modin:
+            old_pd = pd
+            globals()["pd"] = mpd
+            try:
+                df, rsi_col, vol_col, atr_col = _compute_features_pandas(
+                    df,
+                    ema_short_period,
+                    ema_long_period,
+                    rsi_period,
+                    volatility_window,
+                    atr_window,
+                    bollinger_window,
+                    bollinger_std,
+                    momentum_period,
+                    adx_period,
+                    False,
                 )
+            finally:
+                globals()["pd"] = old_pd
+        else:
+            df, rsi_col, vol_col, atr_col = _compute_features_pandas(
+                df,
             )
             result["target"] = pd.Series(result["target"], index=result.index).fillna(0)
 
+    if use_gpu and jnp is None:
+        raise ValueError("jax is required for GPU acceleration")
 
+    if use_dask:
+        import dask.dataframe as dd  # type: ignore
 
-        return result
-
-    if use_modin:
-        old_pd = pd
-        globals()["pd"] = mpd
-        try:
-            df, rsi_col, vol_col, atr_col = _compute_features_pandas(
-                df,
+        def process(pdf: pd.DataFrame) -> pd.DataFrame:
+            result, _, _, _ = _compute_features_pandas(
+                pdf,
                 ema_short_period,
                 ema_long_period,
                 rsi_period,
@@ -499,9 +511,17 @@ def make_features(
                 bollinger_std,
                 momentum_period,
                 adx_period,
+                False,
             )
-        finally:
-            globals()["pd"] = old_pd
+                use_gpu,
+            )
+            return result
+
+        ddf = dd.from_pandas(backend_df, npartitions=2)
+        backend_df = ddf.map_partitions(process).compute()
+        rsi_col = f"rsi{rsi_period}"
+        vol_col = f"volatility{volatility_window}"
+        atr_col = f"atr{atr_window}"
     else:
         df, rsi_col, vol_col, atr_col = _compute_features_pandas(
             df,
@@ -529,16 +549,49 @@ def make_features(
         adx_period,
         use_gpu,
     )
+        if use_modin:
+            old_pd = pd
+            globals()["pd"] = mpd  # type: ignore
+            try:
+                backend_df, rsi_col, vol_col, atr_col = _compute_features_pandas(
+                    backend_df,
+                    ema_short_period,
+                    ema_long_period,
+                    rsi_period,
+                    volatility_window,
+                    atr_window,
+                    bollinger_window,
+                    bollinger_std,
+                    momentum_period,
+                    adx_period,
+                    use_gpu,
+                )
+            finally:
+                globals()["pd"] = old_pd
+        else:
+            backend_df, rsi_col, vol_col, atr_col = _compute_features_pandas(
+                backend_df,
+                ema_short_period,
+                ema_long_period,
+                rsi_period,
+                volatility_window,
+                atr_window,
+                bollinger_window,
+                bollinger_std,
+                momentum_period,
+                adx_period,
+                use_gpu,
+            )
 
-    if df[[rsi_col, vol_col, atr_col]].isna().all().all():
+    if backend_df[[rsi_col, vol_col, atr_col]].isna().all().all():
         raise ValueError("Too many NaN values after interpolation")
 
-    df = df.bfill().ffill()
+    backend_df = backend_df.bfill().ffill()
     if warn_overwrite:
         logger.warning("Overwriting existing target column")
     if needs_target:
-        df["target"] = np.sign(df["log_ret"].shift(-1)).fillna(0).astype(int)
-    result = df.dropna()
+        backend_df["target"] = np.sign(backend_df["log_ret"].shift(-1)).fillna(0).astype(int)
+    result = backend_df.dropna()
     if needs_target and "price" in result.columns:
         returns = result["price"].pct_change().shift(-1)
         result["target"] = (

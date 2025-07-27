@@ -31,8 +31,25 @@ def simulate_signal_pnl(
     Returns
     -------
     dict
-        Dictionary containing ``'sharpe_squared'``, ``'sharpe'`` and ``
-        'sortino'`` ratios for the strategy.
+        Dictionary with strategy performance metrics:
+
+        ``sharpe_squared``
+            Square of the Sharpe ratio.
+        ``sharpe``
+            Annualised Sharpe ratio of the strategy.
+        ``sortino``
+            Annualised Sortino ratio of the strategy.
+        ``max_drawdown``
+            Maximum drawdown over the evaluated period.
+        ``win_rate``
+            Fraction of profitable trades.
+        ``calmar_ratio``
+            Annualised return divided by ``max_drawdown``.
+        ``profit_factor``
+            Ratio of gross profits to gross losses.
+        Dictionary containing metrics for the simulated strategy including
+        ``'sharpe_squared'``, ``'sharpe'``, ``'sortino'``, ``'max_drawdown'``,
+        ``'win_rate'``, ``'calmar_ratio'`` and ``'profit_factor'``.
     """
     if len(df) != len(preds):
         raise ValueError("`preds` length must match `df` length")
@@ -68,10 +85,60 @@ def simulate_signal_pnl(
     else:
         sortino = np.sqrt(365) * (strategy_returns.mean() / downside_std)
 
+    cum_returns = (1.0 + strategy_returns).cumprod()
+    peaks = cum_returns.cummax()
+    drawdown = cum_returns / peaks - 1.0
+    max_drawdown = drawdown.min()
+
+    trade_returns = []
+    current_signal = 0.0
+    current_ret = 0.0
+    for ret, sig in zip(strategy_returns, signals):
+        if sig != current_signal:
+            if current_signal != 0.0:
+                trade_returns.append(current_ret)
+                current_ret = 0.0
+            current_signal = sig
+        if sig != 0.0:
+            current_ret += ret
+    if current_signal != 0.0:
+        trade_returns.append(current_ret)
+
+    wins = [tr for tr in trade_returns if tr > 0]
+    losses = [tr for tr in trade_returns if tr < 0]
+    win_rate = len(wins) / len(trade_returns) if trade_returns else 0.0
+    gross_profit = sum(wins)
+    gross_loss = -sum(losses)
+    profit_factor = gross_profit / gross_loss if gross_loss > 0 else float("inf")
+
+    total_return = cum_returns.iloc[-1]
+    annual_return = total_return ** (365 / len(strategy_returns)) - 1.0
+    calmar = annual_return / abs(max_drawdown) if max_drawdown != 0 else float("inf")
+    cum_returns = (strategy_returns + 1).cumprod()
+    running_max = cum_returns.cummax()
+    drawdowns = (running_max - cum_returns) / running_max
+    max_drawdown = float(drawdowns.max()) if len(drawdowns) > 0 else 0.0
+
+    win_rate = float(np.mean(strategy_returns > 0))
+
+    annual_return = strategy_returns.mean() * 365
+    calmar_ratio = (
+        float(annual_return) / max_drawdown if max_drawdown > 0 else 0.0
+    )
+
+    gains = strategy_returns[strategy_returns > 0].sum()
+    losses = -strategy_returns[strategy_returns < 0].sum()
+    profit_factor = float(gains / losses) if losses > 0 else 0.0
+
     return {
         "sharpe_squared": float(sharpe**2),
         "sharpe": float(sharpe),
         "sortino": float(sortino),
+        "max_drawdown": float(max_drawdown),
+        "win_rate": float(win_rate),
+        "calmar_ratio": float(calmar),
+        "calmar_ratio": float(calmar_ratio),
+        "profit_factor": float(profit_factor),
     }
 
 

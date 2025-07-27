@@ -11,7 +11,11 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 sys.modules.setdefault(
     "supabase",
-    types.SimpleNamespace(Client=object, create_client=lambda *a, **k: object()),
+    types.SimpleNamespace(
+        Client=object,
+        create_client=lambda *a, **k: object(),
+        AuthApiError=Exception,
+    ),
 )
 
 import data_loader
@@ -237,3 +241,19 @@ def test_fetch_trade_logs_caches_features(monkeypatch):
 
     assert cached is not None and fake_r.ttl(feat_key) > 0
     pd.testing.assert_frame_equal(df, pd.read_parquet(io.BytesIO(cached)))
+
+
+def test_fetch_trade_logs_respects_max_rows(monkeypatch):
+    rows = [
+        {"timestamp": "2021-01-01T00:00:00Z", "symbol": "BTC", "price": 1},
+        {"timestamp": "2021-01-01T00:01:00Z", "symbol": "BTC", "price": 2},
+        {"timestamp": "2021-01-01T00:02:00Z", "symbol": "BTC", "price": 3},
+    ]
+    monkeypatch.setattr(data_loader, "_get_client", lambda: object())
+    monkeypatch.setattr(data_loader, "_fetch_logs", lambda *a, **k: rows)
+
+    df = data_loader.fetch_trade_logs(
+        datetime(2021, 1, 1), datetime(2021, 1, 2), symbol="BTC", max_rows=2
+    )
+
+    assert len(df) == 2
