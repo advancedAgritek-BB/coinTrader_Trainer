@@ -10,7 +10,6 @@ import os
 import platform
 import shutil
 import subprocess
-import platform
 from datetime import datetime, timedelta
 from typing import Any, Dict, Tuple
 
@@ -307,16 +306,10 @@ def main() -> None:  # pragma: no cover - CLI entry
         except ImportError:
             try:
                 import optuna_optimizer as optuna_mod  # type: ignore
-            except ImportError:  # pragma: no cover - optional dependency
-                logger.warning("Optuna optimisation unavailable; skipping")
-
-        if optuna_mod is not None:
-            window = cfg.get("default_window_days", 7)
-            defaults = cfg.get("optuna", {})
-
             except ImportError as exc:  # pragma: no cover - optional dependency
                 logger.warning("Optuna optimization unavailable: %s", exc)
                 optuna_mod = None
+
         if optuna_mod:
             window = cfg.get("default_window_days", 7)
             defaults = cfg.get("optuna", {})
@@ -348,8 +341,6 @@ def main() -> None:  # pragma: no cover - CLI entry
     try:
         if args.true_federated:
             if federated_fl is None or not getattr(federated_fl, "_HAVE_FLWR", False):
-                logger.warning("True federated training requires 'flwr'; skipping")
-            if federated_fl is None or not getattr(federated_fl, "_HAVE_FLWR", True):
                 logger.warning(
                     "True federated training requires the 'flwr' package. Install it with 'pip install flwr'"
                 )
