@@ -695,6 +695,9 @@ metrics = simulate_signal_pnl(df, preds)
 ```
 
 ``run_backtest`` returns the final portfolio value while
+``simulate_signal_pnl`` reports a dictionary of metrics for the same
+signals. Those metrics include Sharpe squared, Sharpe, Sortino, maximum
+drawdown, win rate, Calmar ratio and profit factor.
 ``simulate_signal_pnl`` computes Sharpe/Sortino along with drawdown,
 win rate and other trade statistics for the same signals.
 
