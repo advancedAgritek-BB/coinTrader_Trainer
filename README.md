@@ -531,6 +531,8 @@ Pass ``--profile-gpu`` to capture utilisation metrics with
 [AMD RGP](https://gpuopen.com/rgp/). The CLI attempts to launch
 ``rgp.exe --process <PID>`` automatically. If the executable is not found,
 the command to run is printed so you can start the profiler manually.
+When profiling is enabled a ``rocm-smi --showuse --interval 1`` monitor is
+also started and its output logged.
 
 After installation, test training with a large dataset to verify the
 OpenCL driver remains stable under load.
