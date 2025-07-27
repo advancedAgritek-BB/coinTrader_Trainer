@@ -44,18 +44,21 @@ class _LGBClient(fl.client.NumPyClient):
         arr = np.frombuffer(model_str, dtype=np.uint8)
         return [arr]
 
-    def fit(
+    async def fit(
         self, parameters: List[np.ndarray], config: dict
     ) -> Tuple[List[np.ndarray], int, dict]:
         if parameters:
             model_bytes = bytes(parameters[0])
             self.booster = lgb.Booster(model_str=model_bytes.decode("utf-8"))
-        self.booster = _train_client(self.X, self.y, self.params)
+        loop = asyncio.get_running_loop()
+        self.booster = await loop.run_in_executor(
+            None, _train_client, self.X, self.y, self.params
+        )
         model_str = self.booster.model_to_string().encode("utf-8")
         arr = np.frombuffer(model_str, dtype=np.uint8)
         return [arr], len(self.X), {}
 
-    def evaluate(
+    async def evaluate(
         self, parameters: List[np.ndarray], config: dict
     ) -> Tuple[float, int, dict]:
         if self.booster is None and parameters:
@@ -63,7 +66,8 @@ class _LGBClient(fl.client.NumPyClient):
             self.booster = lgb.Booster(model_str=model_bytes.decode("utf-8"))
         if self.booster is None:
             return 0.0, len(self.X), {}
-        preds = self.booster.predict(self.X)
+        loop = asyncio.get_running_loop()
+        preds = await loop.run_in_executor(None, self.booster.predict, self.X)
         y_pred = preds.argmax(axis=1) if preds.ndim > 1 else (preds >= 0.5).astype(int)
         y_enc = self.y.replace(LABEL_MAP).astype(int)
         acc = accuracy_score(y_enc, y_pred)

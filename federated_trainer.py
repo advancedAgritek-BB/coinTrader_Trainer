@@ -122,7 +122,6 @@ def _train_client(X: pd.DataFrame, y: pd.Series, params: dict) -> lgb.Booster:
 
 
 @timed
-def train_federated_regime(
 async def train_federated_regime(
     start_ts: str | pd.Timestamp,
     end_ts: str | pd.Timestamp,

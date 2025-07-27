@@ -17,7 +17,11 @@ except Exception:  # pragma: no cover - optional dependency
 
 import httpx
 import pandas as pd
-from supabase import Client, create_client, AuthApiError
+try:
+    from supabase import Client, create_client, AuthApiError
+except Exception:  # pragma: no cover - fallback for older package
+    from supabase import Client, create_client
+    AuthApiError = Exception
 
 logger = logging.getLogger(__name__)
 from tenacity import retry, stop_after_attempt, wait_exponential
@@ -138,20 +142,16 @@ def fetch_trade_logs(
     redis_client: Optional[Any] = None,
     redis_key: Optional[str] = None,
     cache_only: bool = False,
-) -> pd.DataFrame:
-    """Return trade logs between ``start_ts`` and ``end_ts`` as a DataFrame.
-
-    When ``cache_only`` is ``True`` and a cached result exists in Redis, the
-    cached data is returned without querying the database. Otherwise, the data
-    is fetched and the cache is refreshed.
     max_rows: Optional[int] = None,
     cache_features: bool = False,
     feature_params: Optional[dict] = None,
 ) -> pd.DataFrame:
     """Return trade logs between ``start_ts`` and ``end_ts`` as a DataFrame.
 
-    When ``max_rows`` is provided the DataFrame is truncated to that many rows
-    before any caching occurs.
+    When ``cache_only`` is ``True`` and a cached result exists in Redis,
+    the cached data is returned without querying the database. Otherwise the
+    data is fetched and the cache is refreshed. If ``max_rows`` is provided the
+    DataFrame is truncated to that many rows before any caching occurs.
     """
 
     if cache_path and os.path.exists(cache_path):
