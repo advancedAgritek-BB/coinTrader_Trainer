@@ -203,6 +203,9 @@ using JAX.
 GPU acceleration is provided via ``numba`` when ``use_gpu=True`` is passed to
 ``make_features``.
 
+When the [`modin[ray]`](https://modin.org/) package is available, you can
+set ``use_modin=True`` to distribute the pandas workload across CPU cores.
+
 Set ``log_time=True`` to print the total processing time for feature
 generation.
 

@@ -217,6 +217,35 @@ def test_make_features_generates_target_when_missing():
     pd.testing.assert_series_equal(result["target"], expected)
 
 
+def test_make_features_modin_roundtrip(monkeypatch):
+    calls = {"construct": False}
+
+    module = types.ModuleType("modin.pandas")
+
+    class FakeDF(pd.DataFrame):
+        def __init__(self, *args, **kwargs):
+            calls["construct"] = True
+            super().__init__(*args, **kwargs)
+
+        def to_pandas(self):
+            return pd.DataFrame(self)
+
+    module.DataFrame = FakeDF
+    module.concat = pd.concat
+    module.Series = pd.Series
+    module.to_datetime = pd.to_datetime
+    monkeypatch.setitem(sys.modules, "modin.pandas", module)
+
+    df = pd.DataFrame({
+        "ts": pd.date_range("2020-01-01", periods=3, freq="D"),
+        "price": [1.0, 1.1, 1.2],
+        "high": [1.0, 1.1, 1.2],
+        "low": [0.9, 1.0, 1.1],
+    })
+
+    result = make_features(df, use_modin=True)
+    assert calls["construct"]
+    assert isinstance(result, pd.DataFrame)
 def test_make_features_warns_when_overwriting_target(caplog):
     prices = [1, 1.02, 0.98, 1.05, 1.06, 1.07]
     df = pd.DataFrame(
