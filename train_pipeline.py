@@ -7,19 +7,17 @@ import glob
 import logging
 import os
 import platform
-import shutil
 import subprocess
 from datetime import datetime, timedelta
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 import yaml
 from config import load_config
 from supabase import create_client
 
 from data_loader import fetch_trade_logs, _get_redis_client
-from evaluation import full_strategy_eval, simulate_signal_pnl
+from evaluation import simulate_signal_pnl
 from sklearn.utils import resample
 from feature_engineering import make_features
 from utils import validate_schema
@@ -117,30 +115,12 @@ def main() -> None:
 
     cache_key = getattr(args, "feature_cache_key", None)
     redis_client = _get_redis_client() if cache_key else None
+
+    feature_kwargs = {}
     if redis_client is not None:
-        try:
-            df = make_features(
-                df,
-                redis_client=redis_client,
-                cache_key=args.feature_cache_key,
-                generate_target=args.generate_target,
-            )
-        except TypeError:
-            df = make_features(
-                df,
-                redis_client=redis_client,
-                cache_key=args.feature_cache_key,
-            )
-        df = make_features(
-            df,
-            redis_client=redis_client,
-            cache_key=cache_key,
-        )
-    else:
-        try:
-            df = make_features(df, generate_target=args.generate_target)
-        except TypeError:
-            df = make_features(df)
+        feature_kwargs.update({"redis_client": redis_client, "cache_key": cache_key})
+
+    df = make_features(df, generate_target=args.generate_target, **feature_kwargs)
     if "target" not in df.columns:
         raise ValueError("Data must contain a 'target' column for training")
 
@@ -196,10 +176,10 @@ def check_clinfo_gpu() -> bool:
         logger.warning("OpenCL detection failed: %s", exc)
         return False
 
-    for platform in platforms:
-        names = [getattr(platform, "name", "")]
+    for plat in platforms:
+        names = [getattr(plat, "name", "")]
         try:
-            devices = platform.get_devices()
+            devices = plat.get_devices()
         except Exception:
             devices = []
         names.extend(getattr(dev, "name", "") for dev in devices)
