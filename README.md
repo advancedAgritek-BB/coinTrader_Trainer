@@ -24,12 +24,15 @@ optionally persisted to Supabase Storage and the ``models`` table.
   ``SUPABASE_KEY``).
 * ``PARAMS_BUCKET`` and ``PARAMS_TABLE`` control where swarm optimisation
   parameters are uploaded. Defaults are ``agent_params`` for both.
-* Optional: ``numba`` and ``jax`` for GPU-accelerated feature
-  generation.
+* Optional: ``numba`` for faster CPU feature generation and ``jax`` to enable
+  GPU acceleration when available.
 * Optional: a GPU-enabled LightGBM build for faster training. A helper script
   is provided to compile and upload wheels.
-* GPU feature generation uses [Numba](https://numba.pydata.org/) when
-  ``use_gpu=True`` in ``feature_engineering.make_features``.
+* Feature generation always relies on
+  [Numba](https://numba.pydata.org/) on the CPU. When
+  ``jax`` is installed and ``use_gpu=True`` is passed to
+  ``feature_engineering.make_features`` compatible GPUs are used to accelerate
+  calculations.
 * Optional: set ``REDIS_URL`` (or ``REDIS_TLS_URL``) to cache trade log queries
   in Redis.
 
@@ -241,11 +244,11 @@ technical indicators that are produced:
 Installing [TA‑Lib](https://ta-lib.org/) is recommended for more accurate
 technical indicator implementations.
 
-GPU acceleration is possible when ``numba`` and ``jax`` are installed.
-Pass ``use_gpu=True`` to ``make_features`` to compute features on the GPU
-using JAX. When ``use_gpu`` is enabled, the internal call to
-``_compute_features_pandas`` sets ``use_numba=True`` to take advantage of
-Numba-accelerated indicator calculations.
+Feature generation now always relies on Numba running on the CPU. When
+``jax`` is installed, ``make_features`` can accelerate calculations on
+compatible CUDA or ROCm/HIP GPUs by passing ``use_gpu=True``. The internal
+call to ``_compute_features_pandas`` still sets ``use_numba=True`` so the
+indicator calculations remain optimised on the CPU.
 
 When the [`modin[ray]`](https://modin.org/) package is available, you can
 set ``use_modin=True`` to distribute the pandas workload across CPU cores.
