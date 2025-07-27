@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import os
 import time
+import logging
 from typing import Optional
 
 import ccxt
@@ -13,6 +14,8 @@ from dotenv import load_dotenv
 from supabase import Client, create_client
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY") or os.environ.get(
@@ -51,7 +54,7 @@ def get_last_ts(client: Client, symbol: str, table: str) -> Optional[int]:
         .execute()
     )
     if resp.data:
-        return int(pd.to_datetime(resp.data[0]["ts"]).timestamp())
+        return int(pd.to_datetime(resp.data[0]["ts"], utc=True).timestamp())
     return None
 
 
@@ -62,6 +65,8 @@ def fetch_ccxt_ohlc(
     ohlc = exchange.fetch_ohlcv(symbol, timeframe=timeframe, limit=720)
     df = pd.DataFrame(ohlc, columns=["ts", "open", "high", "low", "close", "volume"])
     df["ts"] = pd.to_datetime(df["ts"], unit="ms", utc=True)
+    if not df["ts"].diff().iloc[1:].eq(pd.Timedelta(minutes=1)).all():
+        logger.warning("Gaps detected in OHLC")
     df["symbol"] = symbol
     df["exchange"] = exchange.id
     df["price"] = df["close"]

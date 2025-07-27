@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import os
 import time
+import logging
 from typing import Optional
 from io import BytesIO
 
@@ -22,6 +23,8 @@ import argparse
 from data_loader import _get_redis_client
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 # Supabase client (using service key for writes)
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
@@ -56,7 +59,7 @@ def get_last_ts(client: Client, symbol: str, table: str) -> Optional[int]:
         .execute()
     )
     if resp.data:
-        return int(pd.to_datetime(resp.data[0]["ts"]).timestamp())
+        return int(pd.to_datetime(resp.data[0]["ts"], utc=True).timestamp())
     return None
 
 
@@ -81,6 +84,8 @@ def fetch_kraken_ohlc(pair: str, interval: int = 1) -> pd.DataFrame:
         columns=["ts", "open", "high", "low", "close", "vwap", "volume", "trades"],
     )
     df["ts"] = pd.to_datetime(df["ts"], unit="s", utc=True)
+    if not df["ts"].diff().iloc[1:].eq(pd.Timedelta(minutes=1)).all():
+        logger.warning("Gaps detected in OHLC")
     df["symbol"] = pair
     df["price"] = df["close"]  # Alias for code compatibility
     # Convert types

@@ -193,3 +193,59 @@ def test_fetch_kraken_ohlc_sets_redis(monkeypatch):
     cached = fake_r.get("kraken_BTCUSD_1")
     assert cached is not None
     pd.testing.assert_frame_equal(df, pd.read_parquet(io.BytesIO(cached)))
+def test_get_last_ts_parses_naive_timestamp(monkeypatch):
+    kf = _load_module(monkeypatch)
+
+    naive_ts = "2021-01-01 00:00:00"
+
+    class FakeTable:
+        def select(self, *a, **k):
+            return self
+
+        def eq(self, *a, **k):
+            return self
+
+        def order(self, *a, **k):
+            return self
+
+        def limit(self, *a, **k):
+            return self
+
+        def execute(self):
+            return types.SimpleNamespace(data=[{"ts": naive_ts}])
+
+    class FakeClient:
+        def table(self, name):
+            return FakeTable()
+
+    ts = kf.get_last_ts(FakeClient(), "BTCUSD", "logs")
+
+    assert ts == int(pd.Timestamp(naive_ts, tz="UTC").timestamp())
+def test_fetch_gap_warning(monkeypatch, caplog):
+    import logging
+    kf = _load_module(monkeypatch)
+
+    sample = {
+        "result": {
+            "BTCUSD": [
+                [1609459200, 1, 1, 1, 1, 1, 1, 1],
+                [1609459320, 1, 1, 1, 1, 1, 1, 1],
+            ]
+        }
+    }
+
+    class FakeResp:
+        def json(self):
+            return sample
+
+        def raise_for_status(self):
+            pass
+
+    monkeypatch.setattr(kf.requests, "get", lambda *a, **k: FakeResp())
+
+    with caplog.at_level(logging.WARNING):
+        kf.fetch_kraken_ohlc("BTCUSD", interval=1)
+
+    assert any("Gaps detected in OHLC" in r.message for r in caplog.records)
+
+

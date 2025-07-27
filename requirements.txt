@@ -12,7 +12,7 @@ optuna
 pandas
 backtrader
 pyarrow
-pyopencl  # optional for GPU; needs Visual Studio Build Tools on Windows
+pyopencl
 pytest
 pytest-asyncio
 python-dotenv
