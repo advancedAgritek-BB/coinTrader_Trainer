@@ -114,14 +114,29 @@ class SwarmAgent:
         train_params.setdefault("device_type", "gpu")
         dataset = lgb.Dataset(X, label=y)
         loop = asyncio.get_running_loop()
-        booster = await loop.run_in_executor(
-            None,
-            lambda: lgb.train(
-                train_params,
-                dataset,
-                num_boost_round=train_params.get("num_boost_round", 10),
-            ),
-        )
+        try:
+            booster = await loop.run_in_executor(
+                None,
+                lambda: lgb.train(
+                    train_params,
+                    dataset,
+                    num_boost_round=train_params.get("num_boost_round", 10),
+                ),
+            )
+        except Exception as exc:
+            if "OpenCL" in str(exc):
+                logging.exception("LightGBM GPU training failed: %s", exc)
+                train_params["device_type"] = "cpu"
+                booster = await loop.run_in_executor(
+                    None,
+                    lambda: lgb.train(
+                        train_params,
+                        dataset,
+                        num_boost_round=train_params.get("num_boost_round", 10),
+                    ),
+                )
+            else:
+                raise
         preds = booster.predict(X)
         error = np.mean((preds - y) ** 2)
         self.fitness = float(error)
