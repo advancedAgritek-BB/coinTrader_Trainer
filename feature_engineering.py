@@ -417,7 +417,6 @@ def make_features(
     if "ts" not in df.columns or "price" not in df.columns:
         raise ValueError("DataFrame must contain 'ts' and 'price' columns")
 
-    if use_gpu:
     if use_modin:
         import modin.pandas as mpd  # type: ignore
         df = mpd.DataFrame(df)
@@ -440,7 +439,6 @@ def make_features(
             momentum_period,
             adx_period,
             True,
-        )
         )
 
         # Materialise numeric columns on the GPU
@@ -501,7 +499,6 @@ def make_features(
             momentum_period,
             adx_period,
             False,
-        )
         )
     df, rsi_col, vol_col, atr_col = _compute_features_pandas(
         df,
