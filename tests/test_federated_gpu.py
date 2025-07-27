@@ -69,3 +69,34 @@ def test_federated_gpu_training(monkeypatch, tmp_path):
     assert captured.get("device_type") == "gpu"
     assert captured.get("use_gpu") is True
     assert uploads == ["federated_model.pkl"]
+
+
+def test_balanced_split(monkeypatch):
+    df = pd.DataFrame({
+        "ts": range(10),
+        "target": [-1] + [0] * 2 + [1] * 7,
+        "f": range(10),
+    })
+    captured_y = []
+
+    async def fake_fetch(table, start, end):
+        return df
+
+    def fake_features(data, *a, **k):
+        return data
+
+    def fake_train_client(X, y, params):
+        captured_y.append(y.reset_index(drop=True))
+        return FakeBooster()
+
+    monkeypatch.setattr(ft, "fetch_data_range_async", fake_fetch)
+    monkeypatch.setattr(ft, "make_features", fake_features)
+    monkeypatch.setattr(ft, "_train_client", fake_train_client)
+
+    ft.train_federated_regime(None, None, num_clients=3)
+
+    counts = [s.value_counts() for s in captured_y]
+    for label in [-1, 0, 1]:
+        label_counts = [c.get(label, 0) for c in counts]
+        assert max(label_counts) - min(label_counts) <= 3
+
