@@ -21,6 +21,15 @@ import numba
 logger = logging.getLogger(__name__)
 
 
+def has_rocm() -> bool:
+    """Return ``True`` if ROCm is available on Windows."""
+    if platform.system() != "Windows":
+        return False
+    return "ROCM_PATH" in os.environ or os.path.exists(
+        "C:\\Program Files\\AMD\\ROCm"
+    )
+
+
 def _rsi(series: pd.Series, period: int = 14) -> pd.Series:
     """Return the Relative Strength Index for ``series``."""
     delta = series.diff()
@@ -387,11 +396,7 @@ def make_features(
         if cached is not None:
             return cached
 
-    use_gpu = (
-        use_gpu
-        and "ROCM_PATH" in os.environ
-        and platform.system() == "Windows"
-    )
+    use_gpu = use_gpu and has_rocm()
 
     if "ts" not in df.columns or "price" not in df.columns:
         raise ValueError("DataFrame must contain 'ts' and 'price' columns")
