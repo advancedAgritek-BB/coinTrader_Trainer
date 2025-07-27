@@ -29,7 +29,11 @@ def test_get_dml_device_directml(monkeypatch, caplog):
         def __init__(self):
             self.type = "dml"
 
-    dml_module.device = lambda: FakeDevice()
+    def fake_device(index):
+        assert index == 0
+        return FakeDevice()
+
+    dml_module.device = fake_device
     monkeypatch.setitem(sys.modules, "torch_directml", dml_module)
 
     torch_module = types.ModuleType("torch")
