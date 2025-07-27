@@ -6,9 +6,19 @@ import pandas as pd
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 import swarm_sim
+import utils
 
 
-async def fake_fetch(start, end, *, table="ohlc_data", return_threshold=0.01):
+async def fake_fetch(
+    start,
+    end,
+    *,
+    table="ohlc_data",
+    return_threshold=0.01,
+    min_rows=1,
+    balance=False,
+    **_,
+):
     return pd.DataFrame({"f": [1, 2, 3]}), pd.Series([0, 1, 0])
 
 
@@ -17,7 +27,7 @@ async def fake_simulate(self, X, y, base_params):
 
 
 def test_run_swarm_search_returns_params(monkeypatch):
-    monkeypatch.setattr(swarm_sim, "fetch_and_prepare_data", fake_fetch)
+    monkeypatch.setattr(utils, "prepare_data", fake_fetch)
     monkeypatch.setattr(swarm_sim.SwarmAgent, "simulate", fake_simulate)
     monkeypatch.setattr(swarm_sim.yaml, "safe_load", lambda fh: {})
     monkeypatch.delenv("SUPABASE_URL", raising=False)

@@ -17,7 +17,7 @@ import yaml
 from dotenv import load_dotenv
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
 from sklearn.utils import resample, shuffle
-from utils import timed
+from utils import timed, prepare_data
 from supabase import SupabaseException, create_client
 import httpx
 
@@ -26,7 +26,6 @@ from coinTrader_Trainer.data_loader import (
     fetch_trade_aggregates,
     _get_redis_client,
 )
-from coinTrader_Trainer.feature_engineering import make_features
 
 load_dotenv()
 
@@ -76,37 +75,18 @@ def _prepare_data(
         Minimum number of rows required. A ``ValueError`` is raised when fewer
         rows are returned.
     """
-    start = (
-        start_ts.isoformat() if isinstance(start_ts, pd.Timestamp) else str(start_ts)
-    )
-    end = end_ts.isoformat() if isinstance(end_ts, pd.Timestamp) else str(end_ts)
-
-    df = asyncio.run(_fetch_async(start, end, table=table))
-    if df.empty:
-        logging.error("No data returned for %s - %s", start, end)
-        raise ValueError("No data available")
-
-    if df.empty or len(df) < min_rows:
-        raise ValueError(
-            f"Expected at least {min_rows} rows of data, got {len(df)}"
+    return asyncio.run(
+        prepare_data(
+            start_ts,
+            end_ts,
+            table=table,
+            min_rows=min_rows,
+            symbols=symbols,
+            use_gpu=True,
+            redis_client=redis_client,
+            cache_key=cache_key,
         )
-
-    if "timestamp" in df.columns and "ts" not in df.columns:
-        df = df.rename(columns={"timestamp": "ts"})
-    if symbols is not None and "symbol" in df.columns:
-        df = df[df["symbol"].isin(set(symbols))]
-
-    df = make_features(
-        df,
-        use_gpu=True,
-        redis_client=redis_client,
-        cache_key=cache_key,
     )
-    if "target" not in df.columns:
-        raise ValueError("Data must contain a 'target' column for training")
-    X = df.drop(columns=["target"])
-    y = df["target"]
-    return X, y
 
 
 @dataclass

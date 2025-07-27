@@ -13,16 +13,13 @@ import numpy as np
 import pandas as pd
 import yaml
 from dotenv import load_dotenv
-from utils import timed
+from utils import timed, prepare_data
 import httpx
 from supabase import SupabaseException
 
-import data_loader
-from feature_engineering import make_features
 from registry import ModelRegistry
 from train_pipeline import check_clinfo_gpu
 from train_pipeline import check_clinfo_gpu, verify_lightgbm_gpu
-from sklearn.utils import resample
 
 load_dotenv()
 
@@ -35,77 +32,16 @@ async def fetch_and_prepare_data(
     return_threshold: float = 0.01,
     min_rows: int = 1,
 ) -> tuple[pd.DataFrame, pd.Series]:
-    """Fetch trade data and return feature matrix ``X`` and targets ``y``.
+    """Fetch trade data and return feature matrix ``X`` and targets ``y``."""
 
-    Parameters
-    ----------
-    return_threshold : float, optional
-        Threshold used to generate the ``target`` column when it is missing.
-    min_rows : int, optional
-        Minimum number of rows required. A ``ValueError`` is raised when fewer
-        rows are returned.
-    """
-
-    if isinstance(start_ts, datetime):
-        start_ts = start_ts.isoformat()
-    if isinstance(end_ts, datetime):
-        end_ts = end_ts.isoformat()
-
-    df = await data_loader.fetch_data_range_async(table, str(start_ts), str(end_ts))
-    if df.empty:
-        logging.error("No data returned for %s - %s", start_ts, end_ts)
-        raise ValueError("No data available")
-
-    if df.empty or len(df) < min_rows:
-        raise ValueError(
-            f"Expected at least {min_rows} rows of data, got {len(df)}"
-        )
-
-    if "timestamp" in df.columns and "ts" not in df.columns:
-        df = df.rename(columns={"timestamp": "ts"})
-    if "ts" not in df.columns:
-        try:
-            start_dt = pd.to_datetime(start_ts)
-        except (TypeError, ValueError):
-            start_dt = pd.Timestamp.utcnow()
-        df["ts"] = pd.date_range(start_dt, periods=len(df), freq="min")
-
-    loop = asyncio.get_running_loop()
-    try:
-        df = await loop.run_in_executor(None, make_features, df)
-    except ValueError:
-        pass
-
-    if "target" not in df.columns:
-        returns = df["price"].pct_change().shift(-1)
-        df["target"] = pd.Series(
-            np.where(
-                returns > return_threshold,
-                1,
-                np.where(returns < -return_threshold, -1, 0),
-            ),
-            index=df.index,
-        ).fillna(0)
-
-    try:
-        counts = df["target"].value_counts()
-        max_count = counts.max()
-        if len(counts) > 1 and max_count > 0:
-            frames = [
-                resample(g, replace=True, n_samples=max_count, random_state=42)
-                for _, g in df.groupby("target")
-            ]
-            df = (
-                pd.concat(frames)
-                .sample(frac=1.0, random_state=42)
-                .reset_index(drop=True)
-            )
-    except Exception:
-        logging.exception("Failed to balance labels")
-
-    X = df.drop(columns=["target"])
-    y = df["target"]
-    return X, y
+    return await prepare_data(
+        start_ts,
+        end_ts,
+        table=table,
+        min_rows=min_rows,
+        return_threshold=return_threshold,
+        balance=True,
+    )
 
 
 @dataclass
