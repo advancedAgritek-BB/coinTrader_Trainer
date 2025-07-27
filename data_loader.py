@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 from tenacity import retry, stop_after_attempt, wait_exponential
 from feature_engineering import make_features
 from cache_utils import load_cached_features
+from utils.normalise import normalize_ohlc
 
 
 _REDIS_CLIENT = None
@@ -191,6 +192,7 @@ def fetch_trade_logs(
         cached = redis_cache.get(cache_key)
         if cache_only and cached:
             df_cached = pd.read_parquet(BytesIO(cached))
+            df_cached = normalize_ohlc(df_cached)
             return _maybe_cache_features(
                 df_cached,
                 redis_cache,
@@ -206,6 +208,7 @@ def fetch_trade_logs(
 
     if cache_path and os.path.exists(cache_path):
         df = pd.read_parquet(cache_path)
+        df = normalize_ohlc(df)
         return _maybe_cache_features(df, redis_cache, cache_key, cache_features, feature_params)
 
     if redis_client is not None:
@@ -223,6 +226,7 @@ def fetch_trade_logs(
                     df = pd.read_json(cached, orient="split")
             else:
                 df = pd.read_json(cached, orient="split")
+            df = normalize_ohlc(df)
             return _maybe_cache_features(
                 df, redis_cache, cache_key, cache_features, feature_params
             )
@@ -230,6 +234,7 @@ def fetch_trade_logs(
         cached = redis_cache.get(cache_key) if cache_key else None
         if cached:
             df = pd.read_parquet(BytesIO(cached))
+            df = normalize_ohlc(df)
             return _maybe_cache_features(
                 df, redis_cache, cache_key, cache_features, feature_params
             )
@@ -268,7 +273,7 @@ def fetch_trade_logs(
         buf = BytesIO()
         df.to_parquet(buf)
         redis_cache.setex(cache_key, ttl, buf.getvalue())
-
+    df = normalize_ohlc(df)
     return _maybe_cache_features(df, redis_cache, cache_key, cache_features, feature_params)
 
 

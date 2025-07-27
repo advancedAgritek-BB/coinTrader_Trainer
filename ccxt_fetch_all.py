@@ -13,6 +13,8 @@ import pandas as pd
 from dotenv import load_dotenv
 from supabase import Client, create_client
 
+from utils.normalise import normalize_ohlc
+
 load_dotenv()
 
 logger = logging.getLogger(__name__)
@@ -75,6 +77,7 @@ def fetch_ccxt_ohlc(
     numeric_cols = ["open", "high", "low", "close", "price", "vwap", "volume"]
     df[numeric_cols] = df[numeric_cols].apply(pd.to_numeric)
     df["trades"] = df["trades"].astype(int)
+    df = normalize_ohlc(df)
     return df
 
 
