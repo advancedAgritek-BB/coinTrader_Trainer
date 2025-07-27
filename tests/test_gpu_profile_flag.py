@@ -3,13 +3,14 @@ import sys
 
 import numpy as np
 import pandas as pd
+import types
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-import ml_trainer
-
 
 def test_profile_gpu_prints_message(monkeypatch, capsys):
+    sys.modules['train_pipeline'] = types.SimpleNamespace(check_clinfo_gpu=lambda: True)
+    import ml_trainer
     def fake_train(X, y, params, use_gpu=False, profile_gpu=False):
         class FakeBooster:
             best_iteration = 1
@@ -32,9 +33,11 @@ def test_profile_gpu_prints_message(monkeypatch, capsys):
         ),
     )
 
+    terminated = {"called": False}
+
     class DummyProc:
         def terminate(self):
-            pass
+            terminated["called"] = True
 
     def fake_monitor():
         print("rocm-smi --showuse --interval 1")
@@ -47,3 +50,4 @@ def test_profile_gpu_prints_message(monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "rgp.exe --process" in out or "AMD RGP" in out
     assert "rocm-smi" in out
+    assert terminated["called"]
