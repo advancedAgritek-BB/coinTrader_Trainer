@@ -454,6 +454,6 @@ def test_make_features_logs_cpu_fallback(monkeypatch, caplog):
         make_features(df, use_gpu=True)
 
     assert any(
-        "ROCm not detected; using CPU for features." in r.getMessage()
+        "GPU acceleration unavailable; using CPU." in r.getMessage()
         for r in caplog.records
     )

@@ -18,10 +18,6 @@ try:  # optional dependency for GPU acceleration
 except Exception:  # pragma: no cover - jax may be absent
     jnp = None  # type: ignore
 import numba
-try:  # pragma: no cover - optional ROCm support
-    from numba import roc  # type: ignore
-except Exception:  # pragma: no cover - numba without ROCm
-    roc = None  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -101,46 +97,6 @@ def _rsi_nb(arr: np.ndarray, period: int = 14) -> np.ndarray:
     return rsi
 
 
-if roc is not None:
-    @roc.jit
-    def _rsi_roc(arr, period=14):  # pragma: no cover - requires ROCm
-        n = len(arr)
-        rsi = np.empty(n)
-        rsi[:] = np.nan
-        gains = np.zeros(n)
-        losses = np.zeros(n)
-        for i in range(1, n):
-            diff = arr[i] - arr[i - 1]
-            if diff > 0:
-                gains[i] = diff
-                losses[i] = 0.0
-            else:
-                gains[i] = 0.0
-                losses[i] = -diff
-        avg_gain = 0.0
-        avg_loss = 0.0
-        for i in range(1, period + 1):
-            avg_gain += gains[i]
-            avg_loss += losses[i]
-        avg_gain /= period
-        avg_loss /= period
-        if avg_loss == 0.0:
-            rsi[period] = 100.0
-        else:
-            rs = avg_gain / avg_loss
-            rsi[period] = 100.0 - 100.0 / (1.0 + rs)
-        for i in range(period + 1, n):
-            avg_gain = (avg_gain * (period - 1) + gains[i]) / period
-            avg_loss = (avg_loss * (period - 1) + losses[i]) / period
-            if avg_loss == 0.0:
-                rsi[i] = 100.0
-            else:
-                rs = avg_gain / avg_loss
-                rsi[i] = 100.0 - 100.0 / (1.0 + rs)
-        return rsi
-else:  # pragma: no cover - ROCm unavailable
-    def _rsi_roc(arr, period=14):
-        raise RuntimeError("numba.roc not available")
 
 
 @numba.njit
@@ -315,14 +271,9 @@ def _compute_features_pandas(
     rsi_col = f"rsi{rsi_period}"
     if use_numba and os.environ.get("NUMBA_DISABLE_JIT") != "1":
         price_arr = df["price"].to_numpy()
-        if has_rocm() and roc is not None:
-            df[rsi_col] = pd.Series(
-                _rsi_roc(price_arr, rsi_period), index=df.index
-            )
-        else:
-            df[rsi_col] = pd.Series(
-                _rsi_nb(price_arr, rsi_period), index=df.index
-            )
+        df[rsi_col] = pd.Series(
+            _rsi_nb(price_arr, rsi_period), index=df.index
+        )
     else:
         df[rsi_col] = _rsi(df["price"], rsi_period)
 
@@ -470,9 +421,8 @@ def make_features(
             return cached
 
     orig_use_gpu = use_gpu
-    use_gpu = use_gpu and has_rocm()
-    if orig_use_gpu and not use_gpu:
-        logger.info("ROCm not detected; using CPU for features.")
+    if orig_use_gpu and not has_rocm():
+        logger.info("GPU acceleration unavailable; using CPU.")
 
     if "ts" not in df.columns or "price" not in df.columns:
         raise ValueError("DataFrame must contain 'ts' and 'price' columns")
