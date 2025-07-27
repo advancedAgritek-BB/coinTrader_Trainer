@@ -2,6 +2,7 @@ import os
 import sys
 import types
 import asyncio
+import logging
 
 import numpy as np
 import pandas as pd
@@ -10,7 +11,14 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 # Provide a minimal supabase stub to satisfy imports during testing
-sys.modules.setdefault("supabase", types.SimpleNamespace(create_client=lambda *a, **k: object(), Client=object))
+sys.modules.setdefault(
+    "supabase",
+    types.SimpleNamespace(
+        create_client=lambda *a, **k: object(),
+        Client=object,
+        SupabaseException=Exception,
+    ),
+)
 _pg_exc = types.SimpleNamespace(APIError=Exception)
 sys.modules.setdefault("postgrest", types.SimpleNamespace(exceptions=_pg_exc))
 sys.modules.setdefault("postgrest.exceptions", _pg_exc)
@@ -203,4 +211,86 @@ def test_true_federated_requires_range(monkeypatch):
 
     with pytest.raises(SystemExit, match="--true-federated requires --start-ts and --end-ts"):
         ml_trainer.main()
+
+
+def test_federated_missing_support_warns(monkeypatch, caplog):
+    monkeypatch.setattr(ml_trainer, "train_federated_regime", None, raising=False)
+
+    called = {}
+
+    def fake_train(X, y, params, use_gpu=False, profile_gpu=False):
+        called["train"] = True
+        return object(), {}
+
+    monkeypatch.setitem(ml_trainer.TRAINERS, "regime", (fake_train, "regime_lgbm"))
+    monkeypatch.setattr(ml_trainer, "load_cfg", lambda p: {"regime_lgbm": {}})
+    monkeypatch.setattr(ml_trainer, "check_clinfo_gpu", lambda: True)
+    monkeypatch.setattr(ml_trainer, "verify_lightgbm_gpu", lambda p: True)
+    monkeypatch.setattr(
+        ml_trainer,
+        "_make_dummy_data",
+        lambda n=200: (pd.DataFrame({"f": [1]}), pd.Series([0])),
+    )
+    argv = [
+        "prog",
+        "train",
+        "regime",
+        "--federated",
+        "--start-ts",
+        "2021-01-01",
+        "--end-ts",
+        "2021-01-02",
+    ]
+    monkeypatch.setattr(sys, "argv", argv)
+
+    with caplog.at_level(logging.WARNING):
+        ml_trainer.main()
+
+    assert called.get("train")
+    assert any(
+        "Federated training not supported" in r.message for r in caplog.records
+    )
+
+
+def test_true_federated_missing_flwr_warns(monkeypatch, caplog):
+    module = types.SimpleNamespace(_HAVE_FLWR=False)
+    monkeypatch.setitem(sys.modules, "federated_fl", module)
+    monkeypatch.setattr(ml_trainer, "federated_fl", module, raising=False)
+
+    called = {}
+
+    def fake_train(X, y, params, use_gpu=False, profile_gpu=False):
+        called["train"] = True
+        return object(), {}
+
+    monkeypatch.setitem(ml_trainer.TRAINERS, "regime", (fake_train, "regime_lgbm"))
+    monkeypatch.setattr(ml_trainer, "load_cfg", lambda p: {"regime_lgbm": {}})
+    monkeypatch.setattr(ml_trainer, "check_clinfo_gpu", lambda: True)
+    monkeypatch.setattr(ml_trainer, "verify_lightgbm_gpu", lambda p: True)
+    monkeypatch.setattr(
+        ml_trainer,
+        "_make_dummy_data",
+        lambda n=200: (pd.DataFrame({"f": [1]}), pd.Series([0])),
+    )
+
+    argv = [
+        "prog",
+        "train",
+        "regime",
+        "--true-federated",
+        "--start-ts",
+        "2021-01-01",
+        "--end-ts",
+        "2021-01-02",
+    ]
+    monkeypatch.setattr(sys, "argv", argv)
+
+    with caplog.at_level(logging.WARNING):
+        ml_trainer.main()
+
+    assert not called.get("train")
+    assert any(
+        "True federated training requires 'flwr'" in r.message
+        for r in caplog.records
+    )
 

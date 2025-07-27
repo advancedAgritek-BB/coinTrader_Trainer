@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
+import multiprocessing
 import logging
 import os
 from dataclasses import dataclass
@@ -198,8 +200,16 @@ async def train_federated_regime(
     params_override: Optional[dict] = None,
     table: str = "ohlc_data",
     feature_cache_key: str | None = None,
+    use_processes: bool = True,
 ) -> Tuple[FederatedEnsemble, dict]:
-    """Train LightGBM models across ``num_clients`` and aggregate their predictions."""
+    """Train LightGBM models across ``num_clients`` and aggregate their predictions.
+
+    Parameters
+    ----------
+    use_processes : bool
+        When ``True`` (default), train each client in a separate process. Set to
+        ``False`` to run the clients in threads instead.
+    """
 
     params = _load_params(config_path)
     if params_override:
@@ -227,11 +237,25 @@ async def train_federated_regime(
     y_enc = y.replace(LABEL_MAP).astype(int)
 
     indices = np.array_split(np.arange(len(X)), num_clients)
-    tasks = [
-        asyncio.to_thread(_train_client, X.iloc[idx], y.iloc[idx], params)
-        for idx in indices
-    ]
-    models: List[lgb.Booster] = list(await asyncio.gather(*tasks))
+    loop = asyncio.get_running_loop()
+    if use_processes:
+        ctx = multiprocessing.get_context("spawn")
+        with concurrent.futures.ProcessPoolExecutor(
+            max_workers=num_clients, mp_context=ctx
+        ) as executor:
+            tasks = [
+                loop.run_in_executor(
+                    executor, _train_client, X.iloc[idx], y.iloc[idx], params
+                )
+                for idx in indices
+            ]
+            models: List[lgb.Booster] = list(await asyncio.gather(*tasks))
+    else:
+        tasks = [
+            asyncio.to_thread(_train_client, X.iloc[idx], y.iloc[idx], params)
+            for idx in indices
+        ]
+        models: List[lgb.Booster] = list(await asyncio.gather(*tasks))
 
     ensemble = FederatedEnsemble(models)
 

@@ -409,6 +409,8 @@ client loads its own data and only the model weights are exchanged with the
 server.  Use this option when coordinating training across multiple
 machines.
 
+If the `flwr` package is not installed, the CLI logs a warning and continues without that feature.
+
 Example local simulation:
 
 ```bash
@@ -438,6 +440,13 @@ ensemble, metrics = federated_trainer.train_federated_regime(
     "2023-01-01T00:00:00Z", "2023-01-02T00:00:00Z",
     use_processes=False,  # disable multiprocessing when resources are limited
 )
+```
+By default each client is trained in a separate process. Pass
+``use_processes=False`` to fall back to threading when spawning processes is
+undesirable.
+
+For the Flower-based variant, call ``federated_fl.start_server`` on the
+aggregation host and ``federated_fl.start_client`` on each participant:
 
 ```
 from coinTrader_Trainer import federated_fl
@@ -463,6 +472,8 @@ performs 50 trials by default before training the final model.
 ```bash
 python ml_trainer.py train regime --optuna
 ```
+
+If the `optuna_search` or `optuna_optimizer` package is not installed, the CLI logs a warning and continues without that feature.
 
 ### Importing Historical Data
 
@@ -704,6 +715,8 @@ it is stored.
 ```bash
 python ml_trainer.py --swarm
 ```
+
+If the `swarm_sim` package is not installed, the CLI logs a warning and continues without that feature.
 
 The script searches for optimal LightGBM parameters during the simulation. Once complete, those values are passed into `train_regime_lgbm` so subsequent training runs start from the tuned configuration.
 
