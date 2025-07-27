@@ -24,12 +24,15 @@ optionally persisted to Supabase Storage and the ``models`` table.
   ``SUPABASE_KEY``).
 * ``PARAMS_BUCKET`` and ``PARAMS_TABLE`` control where swarm optimisation
   parameters are uploaded. Defaults are ``agent_params`` for both.
-* Optional: ``numba`` and ``jax`` for GPU-accelerated feature
-  generation.
+* Optional: ``numba`` for faster CPU feature generation and ``jax`` to enable
+  GPU acceleration when available.
 * Optional: a GPU-enabled LightGBM build for faster training. A helper script
   is provided to compile and upload wheels.
-* GPU feature generation uses [Numba](https://numba.pydata.org/) when
-  ``use_gpu=True`` in ``feature_engineering.make_features``.
+* Feature generation always relies on
+  [Numba](https://numba.pydata.org/) on the CPU. When
+  ``jax`` is installed and ``use_gpu=True`` is passed to
+  ``feature_engineering.make_features`` compatible GPUs are used to accelerate
+  calculations.
 * Optional: set ``REDIS_URL`` (or ``REDIS_TLS_URL``) to cache trade log queries
   in Redis.
 
@@ -241,11 +244,11 @@ technical indicators that are produced:
 Installing [TA‑Lib](https://ta-lib.org/) is recommended for more accurate
 technical indicator implementations.
 
-GPU acceleration is possible when ``numba`` and ``jax`` are installed.
-Pass ``use_gpu=True`` to ``make_features`` to compute features on the GPU
-using JAX. When ``use_gpu`` is enabled, the internal call to
-``_compute_features_pandas`` sets ``use_numba=True`` to take advantage of
-Numba-accelerated indicator calculations.
+Feature generation now always relies on Numba running on the CPU. When
+``jax`` is installed, ``make_features`` can accelerate calculations on
+compatible CUDA or ROCm/HIP GPUs by passing ``use_gpu=True``. The internal
+call to ``_compute_features_pandas`` still sets ``use_numba=True`` so the
+indicator calculations remain optimised on the CPU.
 
 When the [`modin[ray]`](https://modin.org/) package is available, you can
 set ``use_modin=True`` to distribute the pandas workload across CPU cores.
@@ -292,7 +295,7 @@ wheel is installed, the script will run automatically to build and install it.
 git clone --recursive https://github.com/microsoft/LightGBM
 cd LightGBM
 mkdir build && cd build
-cmake .. -DUSE_GPU=1
+cmake .. -DUSE_OPENCL=ON
 make -j$(nproc)
 cd ../python-package
 python setup.py install --precompile
@@ -301,7 +304,7 @@ python setup.py install --precompile
 Alternatively LightGBM can be compiled during installation using ``pip``.
 
 ```bash
-pip install lightgbm --config-settings=cmake_args="-DUSE_GPU=1"
+pip install lightgbm --config-settings=cmake_args="-DUSE_OPENCL=ON"
 ```
 
 See the [GPU tutorial](https://lightgbm.readthedocs.io/en/latest/GPU-Tutorial.html)
@@ -323,7 +326,7 @@ configuration:
 import yaml
 with open("cfg.yaml") as f:
     params = yaml.safe_load(f)["regime_lgbm"]
-params.setdefault("device_type", "gpu")
+params.setdefault("device", "opencl")
 ```
 
 ### ROCm on Windows for RX 7900 XTX
@@ -571,13 +574,13 @@ as a Radeon RX 7900 XTX. Before building, open a Windows or WSL shell and
 run ``clinfo`` to verify that the GPU is detected. The helper script
 ``build_lightgbm_gpu.ps1`` also invokes ``clinfo`` and aborts if no
 OpenCL device is available. Clone the LightGBM repository and build with
-the ``USE_GPU`` flag enabled:
+``-DUSE_OPENCL=ON``:
 
 ```bash
 git clone --recursive https://github.com/microsoft/LightGBM
 cd LightGBM
 mkdir build && cd build
-cmake -DUSE_GPU=1 ..
+cmake -DUSE_OPENCL=ON ..
 make -j$(nproc)
 ```
 
@@ -589,15 +592,14 @@ can be provided to select a specific OpenCL device.
 python ml_trainer.py train regime --use-gpu --gpu-device-id 0
 ```
 
-Pass ``--profile-gpu`` to log utilisation metrics with ``rocm-smi``.
-The CLI periodically executes ``rocm-smi --showuse`` and prints the
-output so you can monitor GPU load during training.
-Pass ``--profile-gpu`` to capture utilisation metrics with
-[AMD RGP](https://gpuopen.com/rgp/). The CLI attempts to launch
-``rgp.exe --process <PID>`` automatically. If the executable is not found,
-the command to run is printed so you can start the profiler manually.
-When profiling is enabled a ``rocm-smi --showuse --interval 1`` monitor is
-also started and its output logged.
+Pass ``--profile-gpu`` to monitor utilisation. This integration is
+available only on **Linux**.
+On Linux the CLI launches ``rocm-smi --showuse --interval 1`` and
+attempts to start [AMD RGP](https://gpuopen.com/rgp/) with
+``rgp.exe --process <PID>``. If RGP is not found the command is printed so
+you can start the profiler manually.
+On Windows the flag merely checks that an OpenCL device is detected via
+``clinfo``—no ``rocm-smi`` metrics are collected.
 
 After installation, test training with a large dataset to verify the
 OpenCL driver remains stable under load.

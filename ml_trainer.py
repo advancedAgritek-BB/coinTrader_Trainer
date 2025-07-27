@@ -7,8 +7,10 @@ import asyncio
 import inspect
 import logging
 import os
+import platform
 import shutil
 import subprocess
+import platform
 from datetime import datetime, timedelta
 from typing import Any, Dict, Tuple
 
@@ -62,7 +64,7 @@ def load_cfg(path: str) -> Dict[str, Any]:
     for key in ("regime_lgbm", "federated_regime"):
         section = cfg.get(key)
         if isinstance(section, dict):
-            section.setdefault("device_type", "gpu")
+            section.setdefault("device", "opencl")
     cfg.setdefault("backtest", {"slippage": 0.005, "costs": 0.002})
     return cfg
 
@@ -82,6 +84,9 @@ def _make_dummy_data(n: int = 200) -> Tuple[pd.DataFrame, pd.Series]:
 
 def _start_rocm_smi_monitor() -> subprocess.Popen | None:
     """Start a ``rocm-smi`` monitor and log its output."""
+    if platform.system() == "Windows":
+        logging.info("ROCm SMI monitor not supported on Windows")
+        return None
     cmd = ["rocm-smi", "--showuse", "--interval", "1"]
     try:
         proc = subprocess.Popen(
@@ -113,7 +118,10 @@ def _launch_rgp(pid: int) -> None:
             subprocess.Popen([exe, "--process", str(pid)])
             print(f"AMD RGP launched: {' '.join(cmd)}")
             return
-        except (FileNotFoundError, OSError) as exc:  # pragma: no cover - unexpected failures
+        except (
+            FileNotFoundError,
+            OSError,
+        ) as exc:  # pragma: no cover - unexpected failures
             logging.warning("Failed to launch AMD RGP: %s", exc)
     print(" ".join(cmd))
 
@@ -251,19 +259,21 @@ def main() -> None:  # pragma: no cover - CLI entry
 
     # GPU parameter overrides
     if args.use_gpu:
-        params["device_type"] = "gpu"
+        params["device"] = "opencl"
     if args.gpu_platform_id is not None:
         params["gpu_platform_id"] = args.gpu_platform_id
     if args.gpu_device_id is not None:
         params["gpu_device_id"] = args.gpu_device_id
 
     if check_clinfo_gpu() and verify_lightgbm_gpu(params):
-        params.setdefault("device_type", "gpu")
+        params.setdefault("device", "opencl")
         params.setdefault("gpu_platform_id", 0)
         params.setdefault("gpu_device_id", 0)
+        params.pop("device_type", None)
         use_gpu_flag = True
     else:
-        params["device_type"] = "cpu"
+        params["device"] = "cpu"
+        params.pop("device_type", None)
         logger.warning("GPU not detected; falling back to CPU")
         use_gpu_flag = False
 
@@ -316,8 +326,12 @@ def main() -> None:  # pragma: no cover - CLI entry
 
     monitor_proc = None
     if args.profile_gpu:
-        monitor_proc = _start_rocm_smi_monitor()
+        if platform.system() != "Windows":
+            monitor_proc = _start_rocm_smi_monitor()
         _launch_rgp(os.getpid())
+            _launch_rgp(os.getpid())
+        else:
+            logger.warning("ROCm profiling tools are unavailable on Windows")
 
     # Training dispatch
     try:
@@ -368,4 +382,3 @@ def main() -> None:  # pragma: no cover - CLI entry
 
 if __name__ == "__main__":  # pragma: no cover - CLI entry
     asyncio.run(main())
-

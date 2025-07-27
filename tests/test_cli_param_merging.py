@@ -61,7 +61,7 @@ def test_gpu_flag_merges_params(monkeypatch):
     ml_trainer.main()
 
     assert captured["gpu"]
-    assert captured["params"].get("device_type") == "gpu"
+    assert captured["params"].get("device") == "opencl"
     assert captured["params"].get("gpu_platform_id") == 1
     assert captured["params"].get("gpu_device_id") == 2
 
@@ -145,7 +145,7 @@ def test_federated_param_merge(monkeypatch):
 
     assert captured["start"] == "2021-01-01"
     assert captured["end"] == "2021-01-02"
-    assert captured["params"].get("device_type") == "gpu"
+    assert captured["params"].get("device") == "opencl"
 
 
 def test_true_federated_param_merge(monkeypatch):
@@ -184,7 +184,7 @@ def test_true_federated_param_merge(monkeypatch):
 
     assert captured["start"] == "2021-01-01"
     assert captured["end"] == "2021-01-02"
-    assert captured["params"].get("device_type") == "gpu"
+    assert captured["params"].get("device") == "opencl"
 
 
 def test_true_federated_requires_range(monkeypatch):
