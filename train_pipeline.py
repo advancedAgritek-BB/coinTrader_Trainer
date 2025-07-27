@@ -15,13 +15,14 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import yaml
-from dotenv import load_dotenv
+from config import load_config
 from supabase import create_client
 
 from data_loader import fetch_trade_logs, _get_redis_client
 from evaluation import full_strategy_eval, simulate_signal_pnl
 from sklearn.utils import resample
 from feature_engineering import make_features
+from utils import validate_schema
 from registry import ModelRegistry
 from trainers.regime_lgbm import train_regime_lgbm
 
@@ -30,8 +31,6 @@ try:  # optional dependency
 except ImportError as exc:  # pragma: no cover - pyopencl may be absent
     cl = None  # type: ignore
     logging.getLogger(__name__).warning("pyopencl not available: %s", exc)
-
-load_dotenv()
 
 
 logger = logging.getLogger(__name__)
@@ -57,6 +56,12 @@ def parse_args() -> argparse.Namespace:
         "--feature-cache-key",
         help="Redis key for caching generated features",
     )
+    parser.add_argument(
+        "--no-generate-target",
+        dest="generate_target",
+        action="store_false",
+        help="Do not create the target column automatically",
+    )
     return parser.parse_args()
 
 
@@ -65,8 +70,9 @@ def main() -> None:
     cfg = load_cfg(args.cfg)
     params = cfg.get("regime_lgbm", {})
 
-    url = os.environ.get("SUPABASE_URL")
-    key = os.environ.get("SUPABASE_KEY") or os.environ.get("SUPABASE_SERVICE_KEY")
+    cfg_env = load_config()
+    url = cfg_env.supabase_url
+    key = cfg_env.supabase_key or cfg_env.supabase_service_key
     if not url or not key:
         raise ValueError(
             "SUPABASE_URL and SUPABASE_KEY environment variables must be set"
@@ -105,16 +111,34 @@ def main() -> None:
     df = fetch_trade_logs(start_ts, end_ts, table=args.table)
     if "timestamp" in df.columns and "ts" not in df.columns:
         df = df.rename(columns={"timestamp": "ts"})
+    validate_schema(df, ["ts"])
 
-    redis_client = _get_redis_client() if args.feature_cache_key else None
+    cache_key = getattr(args, "feature_cache_key", None)
+    redis_client = _get_redis_client() if cache_key else None
     if redis_client is not None:
+        try:
+            df = make_features(
+                df,
+                redis_client=redis_client,
+                cache_key=args.feature_cache_key,
+                generate_target=args.generate_target,
+            )
+        except TypeError:
+            df = make_features(
+                df,
+                redis_client=redis_client,
+                cache_key=args.feature_cache_key,
+            )
         df = make_features(
             df,
             redis_client=redis_client,
-            cache_key=args.feature_cache_key,
+            cache_key=cache_key,
         )
     else:
-        df = make_features(df)
+        try:
+            df = make_features(df, generate_target=args.generate_target)
+        except TypeError:
+            df = make_features(df)
     if "target" not in df.columns:
         raise ValueError("Data must contain a 'target' column for training")
 

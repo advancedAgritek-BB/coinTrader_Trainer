@@ -8,11 +8,11 @@ from typing import Optional, Tuple, List
 try:  # pragma: no cover - optional dependency
     import flwr as fl
     from flwr.server import ServerConfig
-except ImportError as exc:  # pragma: no cover - missing dependency
-    raise SystemExit(
-        "True federated training requires the 'flwr' package."
-        " Install it with 'pip install flwr'"
-    ) from exc
+    _HAVE_FLWR = True
+except ImportError:  # pragma: no cover - missing dependency
+    fl = None
+    ServerConfig = None
+    _HAVE_FLWR = False
 import joblib
 import lightgbm as lgb
 import numpy as np
@@ -25,7 +25,7 @@ from federated_trainer import (
     FederatedEnsemble,
     LABEL_MAP,
     _load_params,
-    _prepare_data,
+    prepare_data,
     _train_client,
 )
 
@@ -103,11 +103,16 @@ def launch(
 ) -> Tuple[FederatedEnsemble, dict]:
     """Run a Flower-based federated LightGBM training simulation."""
 
+    if not _HAVE_FLWR:  # pragma: no cover - missing dependency
+        raise ImportError(
+            "True federated training requires the 'flwr' package. Install it with 'pip install flwr'"
+        )
+
     params = _load_params(config_path)
     if params_override:
         params.update(params_override)
 
-    X, y = _prepare_data(start_ts, end_ts, table=table)
+    X, y = prepare_data(start_ts, end_ts, table=table)
     indices = np.array_split(np.arange(len(X)), num_clients)
     splits = [(X.iloc[idx], y.iloc[idx]) for idx in indices]
 
@@ -166,6 +171,11 @@ def start_server(
 ) -> Tuple[FederatedEnsemble, dict]:
     """Start a Flower server and return the aggregated model and metrics."""
 
+    if not _HAVE_FLWR:  # pragma: no cover - missing dependency
+        raise ImportError(
+            "True federated training requires the 'flwr' package. Install it with 'pip install flwr'"
+        )
+
     strategy = _SaveModelStrategy()
     fl.server.start_server(
         server_address,
@@ -177,7 +187,7 @@ def start_server(
     if params_override:
         params.update(params_override)
 
-    X, y = _prepare_data(start_ts, end_ts, table=table)
+    X, y = prepare_data(start_ts, end_ts, table=table)
 
     models = [lgb.Booster(model_str=m.decode("utf-8")) for m in strategy.models]
     ensemble = FederatedEnsemble(models)
@@ -220,11 +230,16 @@ def start_client(
 ) -> None:
     """Start a Flower client for federated training."""
 
+    if not _HAVE_FLWR:  # pragma: no cover - missing dependency
+        raise ImportError(
+            "True federated training requires the 'flwr' package. Install it with 'pip install flwr'"
+        )
+
     params = _load_params(config_path)
     if params_override:
         params.update(params_override)
 
-    X, y = _prepare_data(start_ts, end_ts, table=table)
+    X, y = prepare_data(start_ts, end_ts, table=table)
     client = _LGBClient(X, y, params)
 
     fl.client.start_numpy_client(server_address, client)
