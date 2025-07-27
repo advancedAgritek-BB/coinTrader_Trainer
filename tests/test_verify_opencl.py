@@ -30,6 +30,7 @@ def test_verify_opencl_success(monkeypatch):
     cl_module = types.SimpleNamespace(get_platforms=lambda: [fake_platform])
     monkeypatch.setitem(sys.modules, "pyopencl", cl_module)
     importlib.reload(opencl_utils)
+    monkeypatch.setattr(opencl_utils.platform, "system", lambda: "Linux")
 
     def fake_run(cmd, capture_output=True, text=True, check=False):
         assert cmd == ["rocm-smi", "--showproductname"]
@@ -54,6 +55,7 @@ def test_verify_opencl_bad_rocm_output(monkeypatch):
     cl_module = types.SimpleNamespace(get_platforms=lambda: [fake_platform])
     monkeypatch.setitem(sys.modules, "pyopencl", cl_module)
     importlib.reload(opencl_utils)
+    monkeypatch.setattr(opencl_utils.platform, "system", lambda: "Linux")
 
     def fake_run(cmd, capture_output=True, text=True, check=False):
         return types.SimpleNamespace(stdout="no gpu", stderr="")
@@ -62,6 +64,24 @@ def test_verify_opencl_bad_rocm_output(monkeypatch):
 
     with pytest.raises(RuntimeError):
         opencl_utils.verify_opencl()
+
+
+def test_verify_opencl_windows_skips_rocm(monkeypatch):
+    fake_platform = FakePlatform([FakeDevice("Advanced Micro Devices, Inc.")])
+    cl_module = types.SimpleNamespace(get_platforms=lambda: [fake_platform])
+    monkeypatch.setitem(sys.modules, "pyopencl", cl_module)
+    importlib.reload(opencl_utils)
+    monkeypatch.setattr(opencl_utils.platform, "system", lambda: "Windows")
+
+    called = {"run": False}
+
+    def fake_run(*args, **kwargs):
+        called["run"] = True
+        raise AssertionError("subprocess.run should not be called")
+
+    monkeypatch.setattr(opencl_utils.subprocess, "run", fake_run)
+    assert opencl_utils.verify_opencl() is True
+    assert not called["run"]
 
 
 def test_has_rocm_uses_verify(monkeypatch):

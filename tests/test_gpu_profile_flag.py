@@ -9,11 +9,14 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 
 def test_profile_gpu_prints_message(monkeypatch, capsys):
-    sys.modules['train_pipeline'] = types.SimpleNamespace(
+    sys.modules["train_pipeline"] = types.SimpleNamespace(
         check_clinfo_gpu=lambda: True,
         verify_lightgbm_gpu=lambda p: True,
     )
     import ml_trainer
+
+    monkeypatch.setattr(ml_trainer.platform, "system", lambda: "Linux")
+
     def fake_train(X, y, params, use_gpu=False, profile_gpu=False):
         class FakeBooster:
             best_iteration = 1
@@ -54,3 +57,37 @@ def test_profile_gpu_prints_message(monkeypatch, capsys):
     assert "rgp.exe --process" in out or "AMD RGP" in out
     assert "rocm-smi" in out
     assert terminated["called"]
+
+
+def test_profile_gpu_windows_no_monitor(monkeypatch, capsys):
+    sys.modules["train_pipeline"] = types.SimpleNamespace(
+        check_clinfo_gpu=lambda: True,
+        verify_lightgbm_gpu=lambda p: True,
+    )
+    import ml_trainer
+
+    monkeypatch.setattr(ml_trainer.platform, "system", lambda: "Windows")
+
+    def fake_train(X, y, params, use_gpu=False, profile_gpu=False):
+        class FakeBooster:
+            best_iteration = 1
+
+            def predict(self, data, num_iteration=None):
+                return np.zeros(len(data))
+
+        return FakeBooster(), {}
+
+    called = {"monitor": False}
+
+    def fake_monitor():
+        called["monitor"] = True
+        print("rocm-smi --showuse --interval 1")
+
+    monkeypatch.setitem(ml_trainer.TRAINERS, "regime", (fake_train, "regime_lgbm"))
+    monkeypatch.setattr(ml_trainer, "_start_rocm_smi_monitor", fake_monitor)
+    monkeypatch.setattr(sys, "argv", ["ml_trainer", "train", "regime", "--profile-gpu"])
+
+    ml_trainer.main()
+    out = capsys.readouterr().out
+    assert "rocm-smi" not in out
+    assert not called["monitor"]

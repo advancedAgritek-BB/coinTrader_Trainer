@@ -7,6 +7,7 @@ import asyncio
 import inspect
 import logging
 import os
+import platform
 import shutil
 import subprocess
 from datetime import datetime, timedelta
@@ -82,6 +83,9 @@ def _make_dummy_data(n: int = 200) -> Tuple[pd.DataFrame, pd.Series]:
 
 def _start_rocm_smi_monitor() -> subprocess.Popen | None:
     """Start a ``rocm-smi`` monitor and log its output."""
+    if platform.system() == "Windows":
+        logging.info("ROCm SMI monitor not supported on Windows")
+        return None
     cmd = ["rocm-smi", "--showuse", "--interval", "1"]
     try:
         proc = subprocess.Popen(
@@ -113,7 +117,10 @@ def _launch_rgp(pid: int) -> None:
             subprocess.Popen([exe, "--process", str(pid)])
             print(f"AMD RGP launched: {' '.join(cmd)}")
             return
-        except (FileNotFoundError, OSError) as exc:  # pragma: no cover - unexpected failures
+        except (
+            FileNotFoundError,
+            OSError,
+        ) as exc:  # pragma: no cover - unexpected failures
             logging.warning("Failed to launch AMD RGP: %s", exc)
     print(" ".join(cmd))
 
@@ -316,7 +323,8 @@ def main() -> None:  # pragma: no cover - CLI entry
 
     monitor_proc = None
     if args.profile_gpu:
-        monitor_proc = _start_rocm_smi_monitor()
+        if platform.system() != "Windows":
+            monitor_proc = _start_rocm_smi_monitor()
         _launch_rgp(os.getpid())
 
     # Training dispatch
@@ -368,4 +376,3 @@ def main() -> None:  # pragma: no cover - CLI entry
 
 if __name__ == "__main__":  # pragma: no cover - CLI entry
     asyncio.run(main())
-
