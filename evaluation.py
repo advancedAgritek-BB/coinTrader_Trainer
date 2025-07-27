@@ -120,7 +120,7 @@ def simulate_signal_pnl(
     losses = -strategy_returns[strategy_returns < 0].sum()
     profit_factor = float(gains / losses) if losses > 0 else 0.0
 
-    return {
+    metrics = {
         "sharpe_squared": float(sharpe**2),
         "sharpe": float(sharpe),
         "sortino": float(sortino),
@@ -129,6 +129,8 @@ def simulate_signal_pnl(
         "calmar_ratio": float(calmar_ratio),
         "profit_factor": float(profit_factor),
     }
+
+    return metrics
 
 
 def run_backtest(
