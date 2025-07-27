@@ -8,7 +8,11 @@ from typing import Any, Dict, List
 import asyncio
 
 import lightgbm as lgb
-import networkx as nx
+try:
+    import networkx as nx
+except Exception as exc:  # pragma: no cover - optional dependency
+    nx = None  # type: ignore
+    logging.getLogger(__name__).warning("networkx import failed: %s", exc)
 import numpy as np
 import pandas as pd
 import yaml
@@ -20,7 +24,6 @@ from supabase import SupabaseException
 import data_loader
 from feature_engineering import make_features
 from registry import ModelRegistry
-from train_pipeline import check_clinfo_gpu
 from train_pipeline import check_clinfo_gpu, verify_lightgbm_gpu
 from sklearn.utils import resample
 
@@ -212,6 +215,8 @@ async def run_swarm_search(
     Dict[str, Any]
         Parameter dictionary from the best-performing agent.
     """
+    if nx is None:
+        raise SystemExit("networkx is required for run_swarm_search")
     X, y = await fetch_and_prepare_data(start_ts, end_ts, table=table)
 
     with open("cfg.yaml", "r") as fh:
