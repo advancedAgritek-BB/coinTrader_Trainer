@@ -222,10 +222,15 @@ def full_strategy_eval(
     costs = bt_kwargs.setdefault("costs", 0.002)
 
     pnl_metrics = simulate_signal_pnl(df, preds, costs=costs, slippage=slippage)
+    calmar_ratio = float(pnl_metrics.get("calmar_ratio", 0.0))
+
     stats = bt_run(df, preds, **bt_kwargs)
     if isinstance(stats, dict):
         final_val = float(stats.get("final_value", 0.0))
     else:
         final_val = float(stats)
-    pnl_metrics["final_portfolio_value"] = final_val
-    return pnl_metrics
+
+    metrics = dict(pnl_metrics)
+    metrics["calmar_ratio"] = calmar_ratio
+    metrics["final_portfolio_value"] = final_val
+    return metrics

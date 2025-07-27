@@ -68,4 +68,6 @@ def test_full_strategy_eval_returns_value():
 
     assert "final_portfolio_value" in metrics
     assert isinstance(metrics["final_portfolio_value"], float)
+    assert "calmar_ratio" in metrics
+    assert isinstance(metrics["calmar_ratio"], float)
 
