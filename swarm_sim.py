@@ -192,6 +192,7 @@ async def run_swarm_search(
                 best.params,
                 "swarm_params",
                 {"fitness": best.fitness},
+                conflict_key="name",
             )
             logging.info("Uploaded swarm parameters %s", entry_id)
         except Exception as exc:

@@ -35,7 +35,7 @@ def test_train_federated_regime_returns_callable_and_uploads(monkeypatch):
         def __init__(self, url, key):
             calls["registry_init"] = (url, key)
 
-        def upload(self, model, name, metrics):
+        def upload(self, model, name, metrics, conflict_key=None):
             calls["uploaded"] = metrics
 
     monkeypatch.setattr(federated, "fetch_data_range_async", fake_fetch)

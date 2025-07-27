@@ -20,7 +20,7 @@ class DummyRegistry:
     def __init__(self, *a):
         pass
 
-    def upload(self, model, name, metrics):
+    def upload(self, model, name, metrics, conflict_key=None):
         pass
 
 
