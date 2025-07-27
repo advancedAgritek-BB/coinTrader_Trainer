@@ -30,6 +30,9 @@ def test_simulate_signal_pnl_metrics():
         assert isinstance(metrics[key], float)
         assert np.isfinite(metrics[key])
 
+    # ensure metric names are unique
+    assert len(metrics) == 7
+
 
 def test_simulate_signal_pnl_zero_variance():
     df = pd.DataFrame({"returns": [0.0, 0.0, 0.0, 0.0]})

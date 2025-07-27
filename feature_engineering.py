@@ -366,6 +366,10 @@ def make_features(
         When enabled, JAX and Numba are used for faster indicator computation.
         The underlying ``_compute_features_pandas`` call receives ``use_numba=True``
         to activate the Numba-optimised implementations.
+        If ``True``, calculations are accelerated on the GPU using JAX and Numba.
+        OpenCL/ROCm are used when available to provide GPU support.
+        When ``True`` Numba accelerated functions operate on NumPy arrays
+        for faster computation.
     log_time : bool, optional
         Print the elapsed generation time when ``True``.
     return_threshold : float, optional
