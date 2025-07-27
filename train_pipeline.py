@@ -118,7 +118,7 @@ def main() -> None:
         pred_labels = (preds >= 0.5).astype(int)
 
     bt_params = cfg.get("backtest", {})
-    eval_metrics = full_strategy_eval(df, pred_labels, **bt_params)
+    eval_metrics = simulate_signal_pnl(df, pred_labels, **bt_params)
 
     registry = ModelRegistry(url, key)
     registry.upload(model, "regime_model", {**metrics, **eval_metrics})
