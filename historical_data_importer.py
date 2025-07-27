@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from datetime import datetime
 from typing import Optional
@@ -68,6 +69,8 @@ def download_historical_data(
 
     # Drop duplicate columns if any
     if df.columns.duplicated().any():
+        dupes = list(df.columns[df.columns.duplicated()])
+        logging.warning("Dropping duplicate columns: %s", dupes)
         df = df.loc[:, ~df.columns.duplicated()]
 
     if ("unix" not in df.columns and "date" not in df.columns) or "close" not in df.columns:

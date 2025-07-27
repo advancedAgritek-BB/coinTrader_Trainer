@@ -11,6 +11,7 @@ import pandas as pd
 
 from data_loader import fetch_data_range_async
 from feature_engineering import make_features
+from utils import validate_schema
 
 
 DEFAULT_PARAMS: Dict[str, Any] = {
@@ -27,7 +28,13 @@ DEFAULT_PARAMS: Dict[str, Any] = {
 }
 
 
-async def load_data(start_ts: datetime | str, end_ts: datetime | str, table: str = "ohlc_data") -> Tuple[pd.DataFrame, pd.Series]:
+async def load_data(
+    start_ts: datetime | str,
+    end_ts: datetime | str,
+    table: str = "ohlc_data",
+    *,
+    generate_target: bool = True,
+) -> Tuple[pd.DataFrame, pd.Series]:
     """Fetch data between ``start_ts`` and ``end_ts`` and return ``(X, y)``."""
 
     if isinstance(start_ts, datetime):
@@ -38,8 +45,14 @@ async def load_data(start_ts: datetime | str, end_ts: datetime | str, table: str
     df = await fetch_data_range_async(table, str(start_ts), str(end_ts))
     if "timestamp" in df.columns and "ts" not in df.columns:
         df = df.rename(columns={"timestamp": "ts"})
+    validate_schema(df, ["ts"])
     loop = asyncio.get_running_loop()
-    df = await loop.run_in_executor(None, make_features, df)
+    try:
+        df = await loop.run_in_executor(
+            None, lambda: make_features(df, generate_target=generate_target)
+        )
+    except TypeError:
+        df = await loop.run_in_executor(None, lambda: make_features(df))
     if "target" not in df.columns:
         df["target"] = df["price"].shift(-1).fillna(df["price"]).astype(float)
 

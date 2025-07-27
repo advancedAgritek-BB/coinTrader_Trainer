@@ -51,7 +51,7 @@ def test_prepare_data_empty(monkeypatch):
     monkeypatch.setattr(federated_trainer, "prepare_data", fake_prepare)
 
     with pytest.raises(ValueError):
-        federated_trainer._prepare_data("s", "e", min_rows=1)
+        federated_trainer.prepare_data("s", "e", min_rows=1)
 
 
 def test_prepare_data_too_few(monkeypatch):
@@ -61,4 +61,4 @@ def test_prepare_data_too_few(monkeypatch):
     monkeypatch.setattr(federated_trainer, "prepare_data", fake_prepare)
 
     with pytest.raises(ValueError):
-        federated_trainer._prepare_data("s", "e", min_rows=3)
+        federated_trainer.prepare_data("s", "e", min_rows=3)

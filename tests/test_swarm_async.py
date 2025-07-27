@@ -1,9 +1,51 @@
 import asyncio
 import os
 import sys
+import types
 import pandas as pd
+import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+
+# Stub heavy optional dependency used during import
+class DummyBroker:
+    def getvalue(self):
+        return 0
+
+    def setcommission(self, commission):
+        pass
+
+    def set_slippage_perc(self, slippage):
+        pass
+
+
+class DummyCerebro:
+    def __init__(self):
+        self.broker = DummyBroker()
+
+    def adddata(self, data):
+        pass
+
+    def addstrategy(self, strategy, **kwargs):
+        pass
+
+    def run(self):
+        pass
+
+
+class DummyFeeds:
+    class PandasData:
+        def __init__(self, dataname=None):
+            pass
+
+
+sys.modules.setdefault(
+    "backtrader",
+    types.SimpleNamespace(
+        Strategy=object, Cerebro=DummyCerebro, feeds=DummyFeeds
+    ),
+)
+sys.modules.setdefault("optuna", types.SimpleNamespace())
 
 import swarm_sim
 import utils
@@ -41,4 +83,15 @@ def test_run_swarm_search_returns_params(monkeypatch):
     )
 
     assert isinstance(params, dict)
+
+
+def test_run_swarm_search_requires_networkx(monkeypatch):
+    monkeypatch.setattr(swarm_sim, "nx", None)
+    with pytest.raises(SystemExit):
+        asyncio.run(
+            swarm_sim.run_swarm_search(
+                pd.Timestamp("2021-01-01"),
+                pd.Timestamp("2021-01-02"),
+            )
+        )
 

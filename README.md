@@ -138,11 +138,13 @@ pip install pandas numpy lightgbm scikit-learn supabase tenacity pyarrow pytz ne
 
 Copy `.env.example` to `.env` and populate your Supabase credentials. The
 optional `PARAMS_BUCKET` and `PARAMS_TABLE` variables default to
-`agent_params`.
+`agent_params`. After editing the file run `python bootstrap_env.py` to
+verify the configuration is complete.
 
 ```bash
 cp .env.example .env
 # edit .env with your credentials
+python bootstrap_env.py
 ```
 
 All modules reside directly in the project root rather than under a
@@ -234,6 +236,7 @@ technical indicators that are produced:
 * ``mom_window`` – momentum calculation window (default ``10``)
 * ``adx_window`` – lookback window for the Average Directional Index (default ``14``)
 * ``obv_window`` – period used to smooth On‑Balance Volume (default ``20``)
+* ``generate_target`` – create the ``target`` column when missing (default ``True``)
 
 Installing [TA‑Lib](https://ta-lib.org/) is recommended for more accurate
 technical indicator implementations.
@@ -266,6 +269,9 @@ engineering parameters like ``rsi_period`` and ``volatility_window`` reside unde
 Configuration also includes an ``optuna`` section controlling hyperparameter
 tuning—``n_trials`` defaults to ``100`` and ``direction`` is ``minimize``.
 Adjust these values to customise the standard training behaviour.
+
+Input data is validated to contain ``ts`` and ``price`` columns after any
+renaming. Missing columns raise a ``ValueError``.
 
 ## GPU Setup
 
@@ -347,6 +353,9 @@ interface.  Use ``--help`` to see all available options.
 ```bash
 python ml_trainer.py --help
 ```
+
+Use ``--no-generate-target`` if your dataset already includes a ``target``
+column and you do not want the pipeline to create one.
 
 To import historical trades from a CSV and upload them to Supabase run:
 

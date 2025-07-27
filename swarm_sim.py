@@ -1,27 +1,30 @@
 from __future__ import annotations
 
 import logging
-import os
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List
 import asyncio
 
 import lightgbm as lgb
-import networkx as nx
+try:
+    import networkx as nx
+except Exception as exc:  # pragma: no cover - optional dependency
+    nx = None  # type: ignore
+    logging.getLogger(__name__).warning("networkx import failed: %s", exc)
 import numpy as np
 import pandas as pd
 import yaml
 from dotenv import load_dotenv
 from utils import timed, prepare_data
+from utils import timed, validate_schema
+from config import load_config
+from utils import timed
 import httpx
 from supabase import SupabaseException
 
 from registry import ModelRegistry
-from train_pipeline import check_clinfo_gpu
 from train_pipeline import check_clinfo_gpu, verify_lightgbm_gpu
-
-load_dotenv()
 
 
 async def fetch_and_prepare_data(
@@ -31,6 +34,7 @@ async def fetch_and_prepare_data(
     table: str = "ohlc_data",
     return_threshold: float = 0.01,
     min_rows: int = 1,
+    generate_target: bool = True,
 ) -> tuple[pd.DataFrame, pd.Series]:
     """Fetch trade data and return feature matrix ``X`` and targets ``y``."""
 
@@ -42,6 +46,83 @@ async def fetch_and_prepare_data(
         return_threshold=return_threshold,
         balance=True,
     )
+    """Fetch trade data and return feature matrix ``X`` and targets ``y``.
+
+    Parameters
+    ----------
+    return_threshold : float, optional
+        Threshold used to generate the ``target`` column when it is missing.
+    min_rows : int, optional
+        Minimum number of rows required. A ``ValueError`` is raised when fewer
+        rows are returned.
+    """
+
+    if isinstance(start_ts, datetime):
+        start_ts = start_ts.isoformat()
+    if isinstance(end_ts, datetime):
+        end_ts = end_ts.isoformat()
+
+    df = await data_loader.fetch_data_range_async(table, str(start_ts), str(end_ts))
+    if df.empty:
+        logging.error("No data returned for %s - %s", start_ts, end_ts)
+        raise ValueError("No data available")
+
+    if df.empty or len(df) < min_rows:
+        raise ValueError(
+            f"Expected at least {min_rows} rows of data, got {len(df)}"
+        )
+
+    if "timestamp" in df.columns and "ts" not in df.columns:
+        df = df.rename(columns={"timestamp": "ts"})
+    if "ts" not in df.columns:
+        try:
+            start_dt = pd.to_datetime(start_ts)
+        except (TypeError, ValueError):
+            start_dt = pd.Timestamp.utcnow()
+        df["ts"] = pd.date_range(start_dt, periods=len(df), freq="min")
+    validate_schema(df, ["ts"])
+
+    loop = asyncio.get_running_loop()
+    try:
+        df = await loop.run_in_executor(
+            None,
+            lambda: make_features(df, generate_target=generate_target),
+        )
+    except TypeError:
+        df = await loop.run_in_executor(None, lambda: make_features(df))
+    except ValueError:
+        pass
+
+    if "target" not in df.columns:
+        returns = df["price"].pct_change().shift(-1)
+        df["target"] = pd.Series(
+            np.where(
+                returns > return_threshold,
+                1,
+                np.where(returns < -return_threshold, -1, 0),
+            ),
+            index=df.index,
+        ).fillna(0)
+
+    try:
+        counts = df["target"].value_counts()
+        max_count = counts.max()
+        if len(counts) > 1 and max_count > 0:
+            frames = [
+                resample(g, replace=True, n_samples=max_count, random_state=42)
+                for _, g in df.groupby("target")
+            ]
+            df = (
+                pd.concat(frames)
+                .sample(frac=1.0, random_state=42)
+                .reset_index(drop=True)
+            )
+    except Exception:
+        logging.exception("Failed to balance labels")
+
+    X = df.drop(columns=["target"])
+    y = df["target"]
+    return X, y
 
 
 @dataclass
@@ -148,6 +229,8 @@ async def run_swarm_search(
     Dict[str, Any]
         Parameter dictionary from the best-performing agent.
     """
+    if nx is None:
+        raise SystemExit("networkx is required for run_swarm_search")
     X, y = await fetch_and_prepare_data(start_ts, end_ts, table=table)
 
     with open("cfg.yaml", "r") as fh:
@@ -185,10 +268,11 @@ async def run_swarm_search(
 
     best = min(agents, key=lambda a: a.fitness)
 
-    url = os.environ.get("SUPABASE_URL")
-    key = os.environ.get("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABASE_KEY")
-    bucket = os.environ.get("PARAMS_BUCKET", "agent_params")
-    table = os.environ.get("PARAMS_TABLE", "agent_params")
+    cfg = load_config()
+    url = cfg.supabase_url
+    key = cfg.supabase_service_key or cfg.supabase_key
+    bucket = cfg.params_bucket or "agent_params"
+    table = cfg.params_table or "agent_params"
     if url and key:
         try:
             reg = ModelRegistry(url, key, bucket=bucket, table=table)

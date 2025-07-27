@@ -18,6 +18,7 @@ from dotenv import load_dotenv
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
 from sklearn.utils import resample, shuffle
 from utils import timed, prepare_data
+from utils import timed, validate_schema
 from supabase import SupabaseException, create_client
 import httpx
 
@@ -57,7 +58,7 @@ def _load_params(cfg_path: str) -> dict:
     return params
 
 
-def _prepare_data(
+async def _prepare_data(
     start_ts: str | pd.Timestamp,
     end_ts: str | pd.Timestamp,
     symbols: Optional[Iterable[str]] = None,
@@ -66,6 +67,7 @@ def _prepare_data(
     min_rows: int = 1,
     redis_client: Any | None = None,
     cache_key: str | None = None,
+    generate_target: bool = True,
 ) -> Tuple[pd.DataFrame, pd.Series]:
     """Return feature matrix and targets between ``start_ts`` and ``end_ts``.
 
@@ -74,6 +76,8 @@ def _prepare_data(
     min_rows : int, optional
         Minimum number of rows required. A ``ValueError`` is raised when fewer
         rows are returned.
+    generate_target : bool, optional
+        Whether to create the ``target`` column when it is missing.
     """
     return asyncio.run(
         prepare_data(
@@ -83,6 +87,72 @@ def _prepare_data(
             min_rows=min_rows,
             symbols=symbols,
             use_gpu=True,
+            redis_client=redis_client,
+            cache_key=cache_key,
+        )
+    )
+    start = (
+        start_ts.isoformat() if isinstance(start_ts, pd.Timestamp) else str(start_ts)
+    )
+    end = end_ts.isoformat() if isinstance(end_ts, pd.Timestamp) else str(end_ts)
+
+    df = await _fetch_async(start, end, table=table)
+    if df.empty:
+        logging.error("No data returned for %s - %s", start, end)
+        raise ValueError("No data available")
+
+    if df.empty or len(df) < min_rows:
+        raise ValueError(
+            f"Expected at least {min_rows} rows of data, got {len(df)}"
+        )
+
+    if "timestamp" in df.columns and "ts" not in df.columns:
+        df = df.rename(columns={"timestamp": "ts"})
+    if symbols is not None and "symbol" in df.columns:
+        df = df[df["symbol"].isin(set(symbols))]
+    validate_schema(df, ["ts"])
+
+    try:
+        df = make_features(
+            df,
+            use_gpu=True,
+            redis_client=redis_client,
+            cache_key=cache_key,
+            generate_target=generate_target,
+        )
+    except TypeError:
+        df = make_features(
+            df,
+            use_gpu=True,
+            redis_client=redis_client,
+            cache_key=cache_key,
+        )
+    if "target" not in df.columns:
+        raise ValueError("Data must contain a 'target' column for training")
+    X = df.drop(columns=["target"])
+    y = df["target"]
+    return X, y
+
+
+def prepare_data(
+    start_ts: str | pd.Timestamp,
+    end_ts: str | pd.Timestamp,
+    symbols: Optional[Iterable[str]] = None,
+    *,
+    table: str = "ohlc_data",
+    min_rows: int = 1,
+    redis_client: Any | None = None,
+    cache_key: str | None = None,
+) -> Tuple[pd.DataFrame, pd.Series]:
+    """Synchronous wrapper around ``_prepare_data`` for convenience."""
+
+    return asyncio.run(
+        _prepare_data(
+            start_ts,
+            end_ts,
+            symbols,
+            table=table,
+            min_rows=min_rows,
             redis_client=redis_client,
             cache_key=cache_key,
         )
@@ -145,12 +215,13 @@ async def train_federated_regime(
         logging.exception("Failed to fetch aggregates: %s", exc)
 
     redis_client = _get_redis_client() if feature_cache_key else None
-    X, y = _prepare_data(
+    X, y = await _prepare_data(
         start_ts,
         end_ts,
         table=table,
         redis_client=redis_client,
         cache_key=feature_cache_key,
+        generate_target=True,
     )
     y_enc = y.replace(LABEL_MAP).astype(int)
 
