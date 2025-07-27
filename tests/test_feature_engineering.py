@@ -417,3 +417,26 @@ def test_make_features_cache_bypass(monkeypatch):
     monkeypatch.setattr(feature_engineering, "_compute_features_pandas", spy)
     make_features(df, ema_short_period=1, ema_long_period=1, rsi_period=2, volatility_window=2, atr_window=2)
     assert called.get("run")
+
+
+def test_make_features_logs_cpu_fallback(monkeypatch, caplog):
+    monkeypatch.delenv("ROCM_PATH", raising=False)
+    monkeypatch.setattr(feature_engineering.platform, "system", lambda: "Linux")
+
+    df = pd.DataFrame(
+        {
+            "ts": pd.date_range("2023-01-01", periods=3, freq="D"),
+            "price": [1.0, 1.1, 1.2],
+            "high": [1.0, 1.1, 1.2],
+            "low": [0.9, 1.0, 1.1],
+            "volume": [1, 1, 1],
+        }
+    )
+
+    with caplog.at_level("INFO", logger="feature_engineering"):
+        make_features(df, use_gpu=True)
+
+    assert any(
+        "ROCm not detected; using CPU for features." in r.getMessage()
+        for r in caplog.records
+    )
