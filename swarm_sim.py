@@ -5,6 +5,7 @@ import os
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List
+import asyncio
 
 import lightgbm as lgb
 import networkx as nx
@@ -189,8 +190,9 @@ async def run_swarm_search(
 
     rounds = 3
     for _ in range(rounds):
-        for agent in agents:
-            agent.simulate(X, y, base_params)
+        await asyncio.gather(
+            *(asyncio.to_thread(agent.simulate, X, y, base_params) for agent in agents)
+        )
         evolve_swarm(agents, graph)
 
     best = min(agents, key=lambda a: a.fitness)

@@ -116,7 +116,7 @@ def _train_client(X: pd.DataFrame, y: pd.Series, params: dict) -> lgb.Booster:
     return booster
 
 
-def train_federated_regime(
+async def train_federated_regime(
     start_ts: str | pd.Timestamp,
     end_ts: str | pd.Timestamp,
     *,
@@ -133,19 +133,27 @@ def train_federated_regime(
 
     # Optionally fetch aggregated stats before downloading the full dataset
     try:
+        await asyncio.to_thread(
+            fetch_trade_aggregates,
+            pd.to_datetime(start_ts),
+            pd.to_datetime(end_ts),
+        )
+    except Exception:
+        pass
         fetch_trade_aggregates(pd.to_datetime(start_ts), pd.to_datetime(end_ts))
     except (httpx.HTTPError, SupabaseException, ValueError, TypeError, AttributeError) as exc:  # pragma: no cover
         logging.exception("Failed to fetch aggregates: %s", exc)
 
-    X, y = _prepare_data(start_ts, end_ts, table=table)
+    X, y = await asyncio.to_thread(_prepare_data, start_ts, end_ts, table=table)
     label_map = {-1: 0, 0: 1, 1: 2}
     y_enc = y.replace(label_map).astype(int)
 
     indices = np.array_split(np.arange(len(X)), num_clients)
-    models: List[lgb.Booster] = []
-    for idx in indices:
-        booster = _train_client(X.iloc[idx], y.iloc[idx], params)
-        models.append(booster)
+    tasks = [
+        asyncio.to_thread(_train_client, X.iloc[idx], y.iloc[idx], params)
+        for idx in indices
+    ]
+    models: List[lgb.Booster] = list(await asyncio.gather(*tasks))
 
     ensemble = FederatedEnsemble(models)
 

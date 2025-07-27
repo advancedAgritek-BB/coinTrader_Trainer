@@ -294,6 +294,25 @@ def main() -> None:  # pragma: no cover - CLI entry
             print("Logging GPU utilisation via:", " ".join(cmd))
         except Exception:
             print("GPU profiling enabled. Run: {}".format(" ".join(cmd)))
+
+    if args.true_federated:
+        if federated_fl is None:
+            raise SystemExit("True federated training not supported")
+        if not args.start_ts or not args.end_ts:
+            raise SystemExit("--true-federated requires --start-ts and --end-ts")
+        federated_fl.start_server(
+            args.start_ts,
+            args.end_ts,
+            config_path=args.cfg,
+            params_override=params,
+            table=args.table,
+        )
+        return
+    if args.federated:
+        if not args.start_ts or not args.end_ts:
+            raise SystemExit("--federated requires --start-ts and --end-ts")
+        model, metrics = asyncio.run(
+            trainer_fn(  # type: ignore[assignment]
         monitor_proc = _start_rocm_smi_monitor()
 
     try:
@@ -309,6 +328,16 @@ def main() -> None:  # pragma: no cover - CLI entry
                 params_override=params,
                 table=args.table,
             )
+        )
+    else:
+        X, y = _make_dummy_data()
+        model, metrics = trainer_fn(
+            X,
+            y,
+            params,
+            use_gpu=args.use_gpu,
+            profile_gpu=args.profile_gpu,
+        )  # type: ignore[arg-type]
             return
         if args.federated:
             if not args.start_ts or not args.end_ts:
