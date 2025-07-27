@@ -8,11 +8,11 @@ from typing import Optional, Tuple, List
 try:  # pragma: no cover - optional dependency
     import flwr as fl
     from flwr.server import ServerConfig
-except ImportError as exc:  # pragma: no cover - missing dependency
-    raise SystemExit(
-        "True federated training requires the 'flwr' package."
-        " Install it with 'pip install flwr'"
-    ) from exc
+    _HAVE_FLWR = True
+except ImportError:  # pragma: no cover - missing dependency
+    fl = None
+    ServerConfig = None
+    _HAVE_FLWR = False
 import joblib
 import lightgbm as lgb
 import numpy as np
@@ -103,6 +103,11 @@ def launch(
 ) -> Tuple[FederatedEnsemble, dict]:
     """Run a Flower-based federated LightGBM training simulation."""
 
+    if not _HAVE_FLWR:  # pragma: no cover - missing dependency
+        raise ImportError(
+            "True federated training requires the 'flwr' package. Install it with 'pip install flwr'"
+        )
+
     params = _load_params(config_path)
     if params_override:
         params.update(params_override)
@@ -166,6 +171,11 @@ def start_server(
 ) -> Tuple[FederatedEnsemble, dict]:
     """Start a Flower server and return the aggregated model and metrics."""
 
+    if not _HAVE_FLWR:  # pragma: no cover - missing dependency
+        raise ImportError(
+            "True federated training requires the 'flwr' package. Install it with 'pip install flwr'"
+        )
+
     strategy = _SaveModelStrategy()
     fl.server.start_server(
         server_address,
@@ -219,6 +229,11 @@ def start_client(
     params_override: Optional[dict] = None,
 ) -> None:
     """Start a Flower client for federated training."""
+
+    if not _HAVE_FLWR:  # pragma: no cover - missing dependency
+        raise ImportError(
+            "True federated training requires the 'flwr' package. Install it with 'pip install flwr'"
+        )
 
     params = _load_params(config_path)
     if params_override:
