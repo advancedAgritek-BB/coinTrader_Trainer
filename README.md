@@ -292,7 +292,7 @@ wheel is installed, the script will run automatically to build and install it.
 git clone --recursive https://github.com/microsoft/LightGBM
 cd LightGBM
 mkdir build && cd build
-cmake .. -DUSE_GPU=1
+cmake .. -DUSE_OPENCL=ON
 make -j$(nproc)
 cd ../python-package
 python setup.py install --precompile
@@ -301,7 +301,7 @@ python setup.py install --precompile
 Alternatively LightGBM can be compiled during installation using ``pip``.
 
 ```bash
-pip install lightgbm --config-settings=cmake_args="-DUSE_GPU=1"
+pip install lightgbm --config-settings=cmake_args="-DUSE_OPENCL=ON"
 ```
 
 See the [GPU tutorial](https://lightgbm.readthedocs.io/en/latest/GPU-Tutorial.html)
@@ -323,7 +323,7 @@ configuration:
 import yaml
 with open("cfg.yaml") as f:
     params = yaml.safe_load(f)["regime_lgbm"]
-params.setdefault("device_type", "gpu")
+params.setdefault("device", "opencl")
 ```
 
 ### ROCm on Windows for RX 7900 XTX
@@ -571,13 +571,13 @@ as a Radeon RX 7900 XTX. Before building, open a Windows or WSL shell and
 run ``clinfo`` to verify that the GPU is detected. The helper script
 ``build_lightgbm_gpu.ps1`` also invokes ``clinfo`` and aborts if no
 OpenCL device is available. Clone the LightGBM repository and build with
-the ``USE_GPU`` flag enabled:
+``-DUSE_OPENCL=ON``:
 
 ```bash
 git clone --recursive https://github.com/microsoft/LightGBM
 cd LightGBM
 mkdir build && cd build
-cmake -DUSE_GPU=1 ..
+cmake -DUSE_OPENCL=ON ..
 make -j$(nproc)
 ```
 
