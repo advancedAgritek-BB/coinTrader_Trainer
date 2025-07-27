@@ -229,3 +229,18 @@ def verify_opencl():
     from opencl_utils import verify_opencl as _verify
 
     return _verify()
+
+
+def verify_lightgbm_gpu(params: dict) -> bool:
+    """Return ``True`` if LightGBM can train using the GPU with ``params``."""
+    try:
+        from sklearn.datasets import make_classification
+        import lightgbm as lgb
+
+        X, y = make_classification(n_samples=10, n_features=5, n_informative=3, random_state=0)
+        dataset = lgb.Dataset(X, label=y)
+        lgb.train(params, dataset, num_boost_round=1)
+        return True
+    except Exception as exc:  # pragma: no cover - depends on local hardware
+        logger.warning("LightGBM GPU verification failed: %s", exc)
+        return False

@@ -21,7 +21,7 @@ from dotenv import load_dotenv
 
 import historical_data_importer
 from data_import import download_historical_data, insert_to_supabase
-from train_pipeline import check_clinfo_gpu
+from train_pipeline import check_clinfo_gpu, verify_lightgbm_gpu
 
 load_dotenv()
 
@@ -257,7 +257,7 @@ def main() -> None:  # pragma: no cover - CLI entry
     if args.gpu_device_id is not None:
         params["gpu_device_id"] = args.gpu_device_id
 
-    if check_clinfo_gpu():
+    if check_clinfo_gpu() and verify_lightgbm_gpu(params):
         params.setdefault("device_type", "gpu")
         params.setdefault("gpu_platform_id", 0)
         params.setdefault("gpu_device_id", 0)
