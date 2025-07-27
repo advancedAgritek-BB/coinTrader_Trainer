@@ -56,8 +56,44 @@ def test_make_features_interpolation_and_columns():
 
 def test_make_features_gpu_matches_cpu(monkeypatch):
     monkeypatch.setenv("ROCM_PATH", "1")
+    monkeypatch.setattr(feature_engineering.platform, "system", lambda: "Windows")
+    monkeypatch.setenv("NUMBA_DISABLE_JIT", "1")
+    orig_compute = feature_engineering._compute_features_pandas
+    def _no_numba(*args, **kwargs):
+        return orig_compute(*args[:10], use_numba=False)
+
+    monkeypatch.setattr(feature_engineering, "_rsi_nb", lambda arr, period=14: feature_engineering._rsi(pd.Series(arr), period).to_numpy())
+    monkeypatch.setattr(feature_engineering, "_atr_nb", lambda h, l, c, period=14: feature_engineering._atr(pd.DataFrame({"high": h, "low": l, "price": c}), period).to_numpy())
+    monkeypatch.setattr(feature_engineering, "_adx_nb", lambda h, l, c, period=14: feature_engineering._adx(pd.DataFrame({"high": h, "low": l, "price": c}), period).to_numpy())
+    monkeypatch.setattr(feature_engineering, "_obv_nb", lambda price, volume: feature_engineering._obv(pd.DataFrame({"price": price, "volume": volume})).to_numpy())
+
+    monkeypatch.setattr(feature_engineering, "_compute_features_pandas", _no_numba)
+    jnp = types.ModuleType("jax.numpy")
+    jnp.asarray = np.asarray
+    jax_mod = types.ModuleType("jax")
+    jax_mod.numpy = jnp
+    monkeypatch.setitem(sys.modules, "jax", jax_mod)
+    monkeypatch.setitem(sys.modules, "jax.numpy", jnp)
+    monkeypatch.setattr(feature_engineering, "jnp", jnp, raising=False)
+
 def test_make_features_gpu_uses_jax(monkeypatch):
     calls = {"asarray": False}
+    monkeypatch.setenv("ROCM_PATH", "1")
+    monkeypatch.setattr(feature_engineering.platform, "system", lambda: "Windows")
+    monkeypatch.setenv("NUMBA_DISABLE_JIT", "1")
+    orig_compute = feature_engineering._compute_features_pandas
+    def _no_numba2(*args, **kwargs):
+        return orig_compute(*args[:10], use_numba=False)
+
+    monkeypatch.setattr(feature_engineering, "_rsi_nb", lambda arr, period=14: feature_engineering._rsi(pd.Series(arr), period).to_numpy())
+    monkeypatch.setattr(feature_engineering, "_atr_nb", lambda h, l, c, period=14: feature_engineering._atr(pd.DataFrame({"high": h, "low": l, "price": c}), period).to_numpy())
+    monkeypatch.setattr(feature_engineering, "_adx_nb", lambda h, l, c, period=14: feature_engineering._adx(pd.DataFrame({"high": h, "low": l, "price": c}), period).to_numpy())
+    monkeypatch.setattr(feature_engineering, "_obv_nb", lambda price, volume: feature_engineering._obv(pd.DataFrame({"price": price, "volume": volume})).to_numpy())
+
+    monkeypatch.setattr(feature_engineering, "_compute_features_pandas", _no_numba2)
+    monkeypatch.setattr(feature_engineering, "_atr_nb", lambda h, l, c, period=14: feature_engineering._atr(pd.DataFrame({"high": h, "low": l, "price": c}), period).to_numpy())
+    monkeypatch.setattr(feature_engineering, "_adx_nb", lambda h, l, c, period=14: feature_engineering._adx(pd.DataFrame({"high": h, "low": l, "price": c}), period).to_numpy())
+    monkeypatch.setattr(feature_engineering, "_obv_nb", lambda price, volume: feature_engineering._obv(pd.DataFrame({"price": price, "volume": volume})).to_numpy())
 
     jnp = types.ModuleType("jax.numpy")
 
@@ -96,7 +132,10 @@ def test_make_features_gpu_generates_columns(monkeypatch):
     monkeypatch.setitem(sys.modules, "jax.numpy", jnp)
     monkeypatch.setattr(feature_engineering, "jnp", jnp, raising=False)
 
-def test_make_features_gpu_matches_cpu():
+def test_make_features_gpu_matches_cpu(monkeypatch):
+    monkeypatch.setenv("ROCM_PATH", "1")
+    monkeypatch.setattr(feature_engineering.platform, "system", lambda: "Windows")
+    monkeypatch.setenv("NUMBA_DISABLE_JIT", "1")
     df = pd.DataFrame(
         {
             "ts": pd.date_range("2020-01-01", periods=6, freq="D"),
