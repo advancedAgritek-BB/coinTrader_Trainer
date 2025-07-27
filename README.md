@@ -437,6 +437,9 @@ ensemble, metrics = federated_trainer.train_federated_regime(
     "2023-01-01T00:00:00Z", "2023-01-02T00:00:00Z"
 )
 ```
+By default each client is trained in a separate process. Pass
+``use_processes=False`` to fall back to threading when spawning processes is
+undesirable.
 
 For the Flower-based variant, call ``federated_fl.start_server`` on the
 aggregation host and ``federated_fl.start_client`` on each participant:

@@ -288,6 +288,8 @@ def main() -> None:  # pragma: no cover - CLI entry
             import swarm_sim
         except ImportError:  # pragma: no cover - optional dependency
             logger.warning("Swarm optimization unavailable; skipping")
+        except ImportError as exc:  # pragma: no cover - optional dependency
+            logger.warning("Swarm optimization unavailable: %s", exc)
         else:
             end_ts = datetime.utcnow()
             start_ts = end_ts - timedelta(days=7)
@@ -312,6 +314,12 @@ def main() -> None:  # pragma: no cover - CLI entry
             window = cfg.get("default_window_days", 7)
             defaults = cfg.get("optuna", {})
 
+            except ImportError as exc:  # pragma: no cover - optional dependency
+                logger.warning("Optuna optimization unavailable: %s", exc)
+                optuna_mod = None
+        if optuna_mod:
+            window = cfg.get("default_window_days", 7)
+            defaults = cfg.get("optuna", {})
             run_func = optuna_mod.run_optuna_search
             sig = inspect.signature(run_func)
             param_names = set(sig.parameters.keys())
@@ -341,6 +349,10 @@ def main() -> None:  # pragma: no cover - CLI entry
         if args.true_federated:
             if federated_fl is None or not getattr(federated_fl, "_HAVE_FLWR", False):
                 logger.warning("True federated training requires 'flwr'; skipping")
+            if federated_fl is None or not getattr(federated_fl, "_HAVE_FLWR", True):
+                logger.warning(
+                    "True federated training requires the 'flwr' package. Install it with 'pip install flwr'"
+                )
                 return
             if not args.start_ts or not args.end_ts:
                 raise SystemExit("--true-federated requires --start-ts and --end-ts")
