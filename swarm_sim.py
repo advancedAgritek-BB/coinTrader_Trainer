@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 import yaml
 from dotenv import load_dotenv
+from utils import timed
 import httpx
 from supabase import SupabaseException
 
@@ -148,6 +149,7 @@ def evolve_swarm(agents: List[SwarmAgent], graph: nx.Graph) -> None:
         agent.params = new_params
 
 
+@timed
 async def run_swarm_search(
     start_ts: datetime,
     end_ts: datetime,
