@@ -182,9 +182,16 @@ def fetch_trade_logs(
         cache_key = f"trades_{int(start_ts.timestamp())}_{int(end_ts.timestamp())}_{symbol or ''}"
         if max_rows is not None:
             cache_key = f"{cache_key}_{max_rows}"
-        cached = redis_client.get(cache_key)
+        cached = redis_cache.get(cache_key)
         if cache_only and cached:
-            return pd.read_parquet(BytesIO(cached))
+            df_cached = pd.read_parquet(BytesIO(cached))
+            return _maybe_cache_features(
+                df_cached,
+                redis_cache,
+                cache_key,
+                cache_features,
+                feature_params,
+            )
         if cache_features:
             feat_key = f"features_{cache_key}"
             cached_feat = load_cached_features(redis_cache, feat_key)
@@ -232,10 +239,9 @@ def fetch_trade_logs(
         key = redis_key or f"{table}:{start_ts.isoformat()}:{end_ts.isoformat()}:{symbol or 'all'}"
         if max_rows is not None:
             key = f"{key}:{max_rows}"
-        redis_client.set(key, df.to_json(orient="split"))
-
-    if redis_client is not None and cache_key is not None:
         ttl = int(os.environ.get("REDIS_TTL", 86400))
+        redis_client.setex(key, ttl, df.to_json(orient="split"))
+
     if redis_cache is not None and cache_key is not None:
         ttl = int(os.environ.get("REDIS_TTL", 3600))
         buf = BytesIO()
