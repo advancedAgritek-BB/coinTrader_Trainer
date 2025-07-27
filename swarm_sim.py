@@ -294,6 +294,7 @@ async def run_swarm_search(
             logging.info("Uploaded swarm parameters %s", entry_id)
         except (httpx.HTTPError, SupabaseException) as exc:  # pragma: no cover
             logging.exception("Failed to upload parameters: %s", exc)
+            raise
     else:
         logging.info("SUPABASE credentials not set; skipping parameter upload")
 

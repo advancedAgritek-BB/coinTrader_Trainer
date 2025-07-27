@@ -214,6 +214,7 @@ async def train_federated_regime(
         )
     except (httpx.HTTPError, SupabaseException, ValueError, TypeError, AttributeError) as exc:  # pragma: no cover
         logging.exception("Failed to fetch aggregates: %s", exc)
+        raise
 
     redis_client = _get_redis_client() if feature_cache_key else None
     X, y = await _prepare_data(
@@ -260,5 +261,6 @@ async def train_federated_regime(
                 bucket.upload("federated_model.pkl", fh)
         except (httpx.HTTPError, SupabaseException) as exc:  # pragma: no cover
             logging.exception("Failed to upload model: %s", exc)
+            raise
 
     return ensemble, metrics

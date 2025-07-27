@@ -319,13 +319,15 @@ def train_regime_lgbm(
             logging.info("Uploaded model %s", entry.file_path)
         except (httpx.HTTPError, SupabaseException) as exc:
             logging.exception("Failed to upload model: %s", exc)
+            raise
     else:
         logging.info("SUPABASE credentials not set; skipping upload")
     if registry is not None:
         try:
             registry.upload(final_model, model_name, metrics, conflict_key="name")
-        except (httpx.HTTPError, SupabaseException):
-            pass
+        except (httpx.HTTPError, SupabaseException) as exc:
+            logging.exception("Failed to upload model: %s", exc)
+            raise
 
     return final_model, metrics
 
