@@ -301,46 +301,6 @@ def _compute_features_pandas(
             df["obv"] = _obv(df)
     else:
         df["obv"] = np.nan
-    # Bollinger Bands (20 period, 2 std dev)
-    rolling_mean = df["price"].rolling(window=20, min_periods=20).mean()
-    rolling_std = df["price"].rolling(window=20, min_periods=20).std()
-    df["bol_mid"] = rolling_mean
-    df["bol_upper"] = rolling_mean + 2 * rolling_std
-    df["bol_lower"] = rolling_mean - 2 * rolling_std
-
-    # Momentum over 10 periods
-    df["momentum_10"] = df["price"] - df["price"].shift(10)
-
-    # ADX indicator
-    if {"high", "low"}.issubset(df.columns):
-        high = df["high"]
-        low = df["low"]
-        close = df["price"]
-        plus_dm = high.diff().clip(lower=0)
-        minus_dm = (-low.diff()).clip(lower=0)
-        tr1 = high - low
-        tr2 = (high - close.shift()).abs()
-        tr3 = (low - close.shift()).abs()
-        tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
-        atr = tr.rolling(window=14, min_periods=14).mean()
-        plus_di = 100 * plus_dm.rolling(window=14, min_periods=14).sum() / atr
-        minus_di = 100 * minus_dm.rolling(window=14, min_periods=14).sum() / atr
-        dx = 100 * (plus_di.subtract(minus_di).abs() / (plus_di + minus_di))
-        df["adx_14"] = dx.rolling(window=14, min_periods=14).mean()
-    else:
-        df["adx_14"] = np.nan
-
-    # On Balance Volume
-    vol_col_name = None
-    for c in df.columns:
-        if c.lower() == "volume" or c.lower().startswith("volume_"):
-            vol_col_name = c
-            break
-    if vol_col_name:
-        direction = np.sign(df["price"].diff().fillna(0))
-        df["obv"] = (direction * df[vol_col_name]).fillna(0).cumsum()
-    else:
-        df["obv"] = np.nan
 
     return df, rsi_col, vol_col, atr_col
 
@@ -438,63 +398,12 @@ def make_features(
 
     if use_modin:
         import modin.pandas as mpd  # type: ignore
-        df = mpd.DataFrame(df)
-    backend_df = df
-    if use_modin:
-        import modin.pandas as mpd  # type: ignore
         backend_df = mpd.DataFrame(df)
+    else:
+        backend_df = df
 
     needs_target = "target" not in df.columns or df.get("target", pd.Series()).isna().any()
     warn_overwrite = "target" in df.columns and needs_target
-
-    if use_gpu:
-        if jnp is None:
-            raise ValueError("jax is required for GPU acceleration")
-
-        df, rsi_col, vol_col, atr_col = _compute_features_pandas(
-            df,
-            ema_short_period,
-            ema_long_period,
-            rsi_period,
-            volatility_window,
-            atr_window,
-            bollinger_window,
-            bollinger_std,
-            momentum_period,
-            adx_period,
-            True,
-        )
-
-        # Materialise numeric columns on the GPU
-        _ = jnp.asarray(df.select_dtypes(include=[np.number]).to_numpy())
-    else:
-        if use_modin:
-            old_pd = pd
-            globals()["pd"] = mpd
-            try:
-                df, rsi_col, vol_col, atr_col = _compute_features_pandas(
-                    df,
-                    ema_short_period,
-                    ema_long_period,
-                    rsi_period,
-                    volatility_window,
-                    atr_window,
-                    bollinger_window,
-                    bollinger_std,
-                    momentum_period,
-                    adx_period,
-                    False,
-                )
-            finally:
-                globals()["pd"] = old_pd
-        else:
-            df, rsi_col, vol_col, atr_col = _compute_features_pandas(
-                df,
-            )
-            result["target"] = pd.Series(result["target"], index=result.index).fillna(0)
-
-    if use_gpu and jnp is None:
-        raise ValueError("jax is required for GPU acceleration")
 
     if use_dask:
         import dask.dataframe as dd  # type: ignore
@@ -511,8 +420,6 @@ def make_features(
                 bollinger_std,
                 momentum_period,
                 adx_period,
-                False,
-            )
                 use_gpu,
             )
             return result
@@ -523,8 +430,8 @@ def make_features(
         vol_col = f"volatility{volatility_window}"
         atr_col = f"atr{atr_window}"
     else:
-        df, rsi_col, vol_col, atr_col = _compute_features_pandas(
-            df,
+        backend_df, rsi_col, vol_col, atr_col = _compute_features_pandas(
+            backend_df,
             ema_short_period,
             ema_long_period,
             rsi_period,
@@ -534,81 +441,36 @@ def make_features(
             bollinger_std,
             momentum_period,
             adx_period,
-            False,
+            use_gpu,
         )
-    df, rsi_col, vol_col, atr_col = _compute_features_pandas(
-        df,
-        ema_short_period,
-        ema_long_period,
-        rsi_period,
-        volatility_window,
-        atr_window,
-        bollinger_window,
-        bollinger_std,
-        momentum_period,
-        adx_period,
-        use_gpu,
-    )
-        if use_modin:
-            old_pd = pd
-            globals()["pd"] = mpd  # type: ignore
-            try:
-                backend_df, rsi_col, vol_col, atr_col = _compute_features_pandas(
-                    backend_df,
-                    ema_short_period,
-                    ema_long_period,
-                    rsi_period,
-                    volatility_window,
-                    atr_window,
-                    bollinger_window,
-                    bollinger_std,
-                    momentum_period,
-                    adx_period,
-                    use_gpu,
-                )
-            finally:
-                globals()["pd"] = old_pd
-        else:
-            backend_df, rsi_col, vol_col, atr_col = _compute_features_pandas(
-                backend_df,
-                ema_short_period,
-                ema_long_period,
-                rsi_period,
-                volatility_window,
-                atr_window,
-                bollinger_window,
-                bollinger_std,
-                momentum_period,
-                adx_period,
-                use_gpu,
-            )
+
+    if use_gpu:
+        if jnp is None:
+            raise ValueError("jax is required for GPU acceleration")
+        _ = jnp.asarray(backend_df.select_dtypes(include=[np.number]).to_numpy())
 
     if backend_df[[rsi_col, vol_col, atr_col]].isna().all().all():
         raise ValueError("Too many NaN values after interpolation")
 
     backend_df = backend_df.bfill().ffill()
+
     if warn_overwrite:
         logger.warning("Overwriting existing target column")
     if needs_target:
         backend_df["target"] = np.sign(backend_df["log_ret"].shift(-1)).fillna(0).astype(int)
+
     result = backend_df.dropna()
     if needs_target and "price" in result.columns:
         returns = result["price"].pct_change().shift(-1)
-        result["target"] = (
-            np.where(
-                returns > return_threshold,
-                1,
-                np.where(returns < -return_threshold, -1, 0),
-            )
+        result["target"] = np.where(
+            returns > return_threshold,
+            1,
+            np.where(returns < -return_threshold, -1, 0),
         )
         result["target"] = pd.Series(result["target"], index=result.index).fillna(0)
 
     if use_modin:
         result = result.to_pandas() if hasattr(result, "to_pandas") else pd.DataFrame(result)
-
-    if log_time and start_time is not None:
-        elapsed = time.time() - start_time
-        print(f"feature generation took {elapsed:.3f}s")
 
     if redis_client is not None and cache_key:
         store_cached_features(redis_client, cache_key, result, cache_ttl)
