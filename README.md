@@ -151,6 +151,13 @@ filters rows to a specific pair.  When a ``cache_path`` is supplied the
 function will read from the Parquet file if it exists and write new
 results back to this location, avoiding repeated network requests.
 
+When ``REDIS_HOST`` is configured, trade logs are also cached in Redis using
+a key derived from the time range and symbol. Cached data expires after
+``REDIS_TTL`` seconds (default ``3600``). Passing ``cache_features=True`` to
+``fetch_trade_logs`` will compute ``make_features`` on the returned data and
+store the result under ``features_<key>`` in Redis. Subsequent calls with the
+same parameters return this cached feature set directly.
+
 ### Async Data Fetching
 
 `data_loader` now provides asynchronous helpers for retrieving trade logs

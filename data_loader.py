@@ -21,6 +21,7 @@ from supabase import Client, create_client, AuthApiError
 
 logger = logging.getLogger(__name__)
 from tenacity import retry, stop_after_attempt, wait_exponential
+from feature_engineering import make_features
 
 load_dotenv()
 
@@ -100,6 +101,28 @@ def _fetch_logs(
     return resp.data
 
 
+def _maybe_cache_features(
+    df: pd.DataFrame,
+    redis_client: Optional[Any],
+    cache_key: Optional[str],
+    cache_features: bool,
+    feature_params: Optional[dict],
+) -> pd.DataFrame:
+    """Return ``df`` or cached features depending on ``cache_features``."""
+    if not cache_features or redis_client is None or cache_key is None:
+        return df
+    feat_key = f"features_{cache_key}"
+    cached = redis_client.get(feat_key)
+    if cached:
+        return pd.read_parquet(BytesIO(cached))
+    features_df = make_features(df, **(feature_params or {}))
+    ttl = int(os.environ.get("REDIS_TTL", 3600))
+    buf = BytesIO()
+    features_df.to_parquet(buf)
+    redis_client.setex(feat_key, ttl, buf.getvalue())
+    return features_df
+
+
 def fetch_trade_logs(
     start_ts: datetime,
     end_ts: datetime,
@@ -109,21 +132,10 @@ def fetch_trade_logs(
     cache_path: Optional[str] = None,
     redis_client: Optional[Any] = None,
     redis_key: Optional[str] = None,
+    cache_features: bool = False,
+    feature_params: Optional[dict] = None,
 ) -> pd.DataFrame:
     """Return trade logs between ``start_ts`` and ``end_ts`` as a DataFrame."""
-
-    if cache_path and os.path.exists(cache_path):
-        return pd.read_parquet(cache_path)
-    if redis_client is not None:
-        key = (
-            redis_key
-            or f"{table}:{start_ts.isoformat()}:{end_ts.isoformat()}:{symbol or 'all'}"
-        )
-        cached = redis_client.get(key)
-        if cached:
-            if isinstance(cached, bytes):
-                cached = cached.decode()
-            return pd.read_json(cached, orient="split")
 
     if start_ts.tzinfo is None:
         start_ts = start_ts.replace(tzinfo=timezone.utc)
@@ -135,13 +147,36 @@ def fetch_trade_logs(
     else:
         end_ts = end_ts.astimezone(timezone.utc)
 
-    redis_client = _get_redis_client()
+    redis_cache = _get_redis_client()
     cache_key = None
-    if redis_client is not None:
+    if redis_cache is not None:
         cache_key = f"trades_{int(start_ts.timestamp())}_{int(end_ts.timestamp())}_{symbol or ''}"
-        cached = redis_client.get(cache_key)
+        if cache_features:
+            feat_key = f"features_{cache_key}"
+            cached_feat = redis_cache.get(feat_key)
+            if cached_feat:
+                return pd.read_parquet(BytesIO(cached_feat))
+
+    if cache_path and os.path.exists(cache_path):
+        df = pd.read_parquet(cache_path)
+        return _maybe_cache_features(df, redis_cache, cache_key, cache_features, feature_params)
+
+    if redis_client is not None:
+        key = (
+            redis_key
+            or f"{table}:{start_ts.isoformat()}:{end_ts.isoformat()}:{symbol or 'all'}"
+        )
+        cached = redis_client.get(key)
         if cached:
-            return pd.read_parquet(BytesIO(cached))
+            if isinstance(cached, bytes):
+                cached = cached.decode()
+            df = pd.read_json(cached, orient="split")
+            return _maybe_cache_features(df, redis_cache, cache_key, cache_features, feature_params)
+    if redis_cache is not None:
+        cached = redis_cache.get(cache_key) if cache_key else None
+        if cached:
+            df = pd.read_parquet(BytesIO(cached))
+            return _maybe_cache_features(df, redis_cache, cache_key, cache_features, feature_params)
 
     client = _get_client()
 
@@ -163,13 +198,13 @@ def fetch_trade_logs(
         )
         redis_client.set(key, df.to_json(orient="split"))
 
-    if redis_client is not None and cache_key is not None:
+    if redis_cache is not None and cache_key is not None:
         ttl = int(os.environ.get("REDIS_TTL", 3600))
         buf = BytesIO()
         df.to_parquet(buf)
-        redis_client.setex(cache_key, ttl, buf.getvalue())
+        redis_cache.setex(cache_key, ttl, buf.getvalue())
 
-    return df
+    return _maybe_cache_features(df, redis_cache, cache_key, cache_features, feature_params)
 
 
 def fetch_trade_aggregates(
