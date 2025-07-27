@@ -144,11 +144,7 @@ def fetch_trade_logs(
 
     When ``cache_only`` is ``True`` and a cached result exists in Redis, the
     cached data is returned without querying the database. Otherwise, the data
-    is fetched and the cache is refreshed.
-
-    When ``cache_only`` is ``True`` and a cached result exists in Redis,
-    the cached data is returned without querying the database. Otherwise the
-    data is fetched and the cache is refreshed. If ``max_rows`` is provided the
+    is fetched and the cache is refreshed. If ``max_rows`` is provided the
     DataFrame is truncated to that many rows before any caching occurs.
     """
 
