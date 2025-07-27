@@ -205,14 +205,7 @@ def ensure_lightgbm_gpu(
 
 
 def verify_opencl():
-    if cl is None:
-        raise ValueError("pyopencl not installed")
+    """Delegates to :func:`opencl_utils.verify_opencl`."""
+    from opencl_utils import verify_opencl as _verify
 
-    platforms = cl.get_platforms()
-    for plat in platforms:
-        if "AMD" in plat.name:
-            devices = plat.get_devices(cl.device_type.GPU)
-            if devices:
-                print(f"AMD GPU detected: {devices[0].name}")
-                return True
-    raise ValueError("No AMD OpenCL GPU detected")
+    return _verify()
