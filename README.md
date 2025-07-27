@@ -92,6 +92,7 @@ After activation run:
 
 ```bash
 pip install -r requirements.txt
+pip install -e .
 ```
 
 The requirements file now includes [Flower](https://flower.ai) for
