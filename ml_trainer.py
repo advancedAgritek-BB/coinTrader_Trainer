@@ -286,12 +286,14 @@ def main() -> None:  # pragma: no cover - CLI entry
     if args.federated:
         if not args.start_ts or not args.end_ts:
             raise SystemExit("--federated requires --start-ts and --end-ts")
-        model, metrics = trainer_fn(  # type: ignore[assignment]
-            args.start_ts,
-            args.end_ts,
-            config_path=args.cfg,
-            params_override=params,
-            table=args.table,
+        model, metrics = asyncio.run(
+            trainer_fn(  # type: ignore[assignment]
+                args.start_ts,
+                args.end_ts,
+                config_path=args.cfg,
+                params_override=params,
+                table=args.table,
+            )
         )
     else:
         X, y = _make_dummy_data()
