@@ -51,3 +51,24 @@ def test_get_dml_device_directml(monkeypatch, caplog):
     assert getattr(dev, "type", None) == "dml"
     assert tensor.device is dev
     assert any("Using DirectML device" in r.message for r in caplog.records)
+
+
+def test_get_dml_device_rocm(monkeypatch, caplog):
+    if "torch_directml" in sys.modules:
+        monkeypatch.delitem(sys.modules, "torch_directml", raising=False)
+
+    torch_module = types.ModuleType("torch")
+
+    class Version:
+        hip = "5.7.1"
+
+    torch_module.version = Version()
+    torch_module.device = lambda name=None: types.SimpleNamespace(type=name)
+    monkeypatch.setitem(sys.modules, "torch", torch_module)
+
+    importlib.reload(dml_utils)
+    with caplog.at_level(logging.INFO):
+        dev = dml_utils.get_dml_device()
+
+    assert getattr(dev, "type", None) == "cuda"
+    assert any("ROCm" in r.message for r in caplog.records)
