@@ -7,6 +7,7 @@ import asyncio
 import inspect
 import logging
 import os
+import platform
 import shutil
 import subprocess
 import platform
@@ -83,6 +84,9 @@ def _make_dummy_data(n: int = 200) -> Tuple[pd.DataFrame, pd.Series]:
 
 def _start_rocm_smi_monitor() -> subprocess.Popen | None:
     """Start a ``rocm-smi`` monitor and log its output."""
+    if platform.system() == "Windows":
+        logging.info("ROCm SMI monitor not supported on Windows")
+        return None
     cmd = ["rocm-smi", "--showuse", "--interval", "1"]
     try:
         proc = subprocess.Popen(
@@ -324,6 +328,7 @@ def main() -> None:  # pragma: no cover - CLI entry
     if args.profile_gpu:
         if platform.system() != "Windows":
             monitor_proc = _start_rocm_smi_monitor()
+        _launch_rgp(os.getpid())
             _launch_rgp(os.getpid())
         else:
             logger.warning("ROCm profiling tools are unavailable on Windows")
