@@ -111,19 +111,9 @@ def simulate_signal_pnl(
     gross_loss = -sum(losses)
     profit_factor = gross_profit / gross_loss if gross_loss > 0 else float("inf")
 
-    total_return = cum_returns.iloc[-1]
-    annual_return = total_return ** (365 / len(strategy_returns)) - 1.0
-    calmar = annual_return / abs(max_drawdown) if max_drawdown != 0 else float("inf")
-    cum_returns = (strategy_returns + 1).cumprod()
-    running_max = cum_returns.cummax()
-    drawdowns = (running_max - cum_returns) / running_max
-    max_drawdown = float(drawdowns.max()) if len(drawdowns) > 0 else 0.0
-
-    win_rate = float(np.mean(strategy_returns > 0))
-
     annual_return = strategy_returns.mean() * 365
     calmar_ratio = (
-        float(annual_return) / max_drawdown if max_drawdown > 0 else 0.0
+        float(annual_return) / abs(max_drawdown) if max_drawdown != 0 else 0.0
     )
 
     gains = strategy_returns[strategy_returns > 0].sum()
@@ -136,7 +126,6 @@ def simulate_signal_pnl(
         "sortino": float(sortino),
         "max_drawdown": float(max_drawdown),
         "win_rate": float(win_rate),
-        "calmar_ratio": float(calmar),
         "calmar_ratio": float(calmar_ratio),
         "profit_factor": float(profit_factor),
     }

@@ -20,6 +20,8 @@ from supabase import SupabaseException
 import data_loader
 from feature_engineering import make_features
 from registry import ModelRegistry
+from train_pipeline import check_clinfo_gpu
+from train_pipeline import check_clinfo_gpu, verify_lightgbm_gpu
 
 load_dotenv()
 
@@ -114,14 +116,29 @@ class SwarmAgent:
         train_params.setdefault("device_type", "gpu")
         dataset = lgb.Dataset(X, label=y)
         loop = asyncio.get_running_loop()
-        booster = await loop.run_in_executor(
-            None,
-            lambda: lgb.train(
-                train_params,
-                dataset,
-                num_boost_round=train_params.get("num_boost_round", 10),
-            ),
-        )
+        try:
+            booster = await loop.run_in_executor(
+                None,
+                lambda: lgb.train(
+                    train_params,
+                    dataset,
+                    num_boost_round=train_params.get("num_boost_round", 10),
+                ),
+            )
+        except Exception as exc:
+            if "OpenCL" in str(exc):
+                logging.exception("LightGBM GPU training failed: %s", exc)
+                train_params["device_type"] = "cpu"
+                booster = await loop.run_in_executor(
+                    None,
+                    lambda: lgb.train(
+                        train_params,
+                        dataset,
+                        num_boost_round=train_params.get("num_boost_round", 10),
+                    ),
+                )
+            else:
+                raise
         preds = booster.predict(X)
         error = np.mean((preds - y) ** 2)
         self.fitness = float(error)
@@ -182,7 +199,16 @@ async def run_swarm_search(
     with open("cfg.yaml", "r") as fh:
         cfg = yaml.safe_load(fh) or {}
     base_params: Dict[str, Any] = cfg.get("regime_lgbm", {})
-    base_params.setdefault("device_type", "gpu")
+    if check_clinfo_gpu():
+        base_params.setdefault("device_type", "gpu")
+
+    if check_clinfo_gpu() and verify_lightgbm_gpu(base_params):
+        base_params.setdefault("device_type", "gpu")
+        base_params.setdefault("gpu_platform_id", 0)
+        base_params.setdefault("gpu_device_id", 0)
+    else:
+        base_params["device_type"] = "cpu"
+        logging.warning("GPU not detected; falling back to CPU")
 
     graph = nx.complete_graph(num_agents)
     agents: List[SwarmAgent] = []

@@ -174,5 +174,31 @@ def test_get_last_ts_parses_naive_timestamp(monkeypatch):
     ts = kf.get_last_ts(FakeClient(), "BTCUSD", "logs")
 
     assert ts == int(pd.Timestamp(naive_ts, tz="UTC").timestamp())
+def test_fetch_gap_warning(monkeypatch, caplog):
+    import logging
+    kf = _load_module(monkeypatch)
+
+    sample = {
+        "result": {
+            "BTCUSD": [
+                [1609459200, 1, 1, 1, 1, 1, 1, 1],
+                [1609459320, 1, 1, 1, 1, 1, 1, 1],
+            ]
+        }
+    }
+
+    class FakeResp:
+        def json(self):
+            return sample
+
+        def raise_for_status(self):
+            pass
+
+    monkeypatch.setattr(kf.requests, "get", lambda *a, **k: FakeResp())
+
+    with caplog.at_level(logging.WARNING):
+        kf.fetch_kraken_ohlc("BTCUSD", interval=1)
+
+    assert any("Gaps detected in OHLC" in r.message for r in caplog.records)
 
 

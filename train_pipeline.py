@@ -106,11 +106,14 @@ def main() -> None:
         df = df.rename(columns={"timestamp": "ts"})
 
     redis_client = _get_redis_client() if args.feature_cache_key else None
-    df = make_features(
-        df,
-        redis_client=redis_client,
-        cache_key=args.feature_cache_key,
-    )
+    if redis_client is not None:
+        df = make_features(
+            df,
+            redis_client=redis_client,
+            cache_key=args.feature_cache_key,
+        )
+    else:
+        df = make_features(df)
     if "target" not in df.columns:
         raise ValueError("Data must contain a 'target' column for training")
 
@@ -138,20 +141,30 @@ if __name__ == "__main__":
 
 
 def check_clinfo_gpu() -> bool:
-    """Return ``True`` if ``clinfo`` reports a GPU device."""
-    exe = shutil.which("clinfo") or shutil.which("rocminfo")
-    if not exe:
-        logger.warning("clinfo not found; skipping GPU check")
+    """Return ``True`` if an AMD GPU OpenCL device is available."""
+    if cl is None:
+        logger.warning("pyopencl not installed; skipping GPU check")
         return False
+
     try:
-        result = subprocess.run([exe], capture_output=True, text=True)
-    except Exception as exc:  # pragma: no cover - subprocess errors are unlikely
-        logger.warning("failed to run %s: %s", exe, exc)
+        platforms = cl.get_platforms()
+    except Exception as exc:  # pragma: no cover - OpenCL query failures are rare
+        logger.warning("OpenCL detection failed: %s", exc)
         return False
-    output = result.stdout + result.stderr
-    if "GPU" in output.upper():
-        return True
-    logger.warning("No GPU device detected via clinfo")
+
+    for platform in platforms:
+        names = [getattr(platform, "name", "")]
+        try:
+            devices = platform.get_devices()
+        except Exception:
+            devices = []
+        names.extend(getattr(dev, "name", "") for dev in devices)
+        for name in names:
+            lname = str(name).lower()
+            if "amd" in lname or "radeon" in lname:
+                return True
+
+    logger.warning("No AMD GPU device found")
     return False
 
 
@@ -229,3 +242,18 @@ def verify_opencl():
     from opencl_utils import verify_opencl as _verify
 
     return _verify()
+
+
+def verify_lightgbm_gpu(params: dict) -> bool:
+    """Return ``True`` if LightGBM can train using the GPU with ``params``."""
+    try:
+        from sklearn.datasets import make_classification
+        import lightgbm as lgb
+
+        X, y = make_classification(n_samples=10, n_features=5, n_informative=3, random_state=0)
+        dataset = lgb.Dataset(X, label=y)
+        lgb.train(params, dataset, num_boost_round=1)
+        return True
+    except Exception as exc:  # pragma: no cover - depends on local hardware
+        logger.warning("LightGBM GPU verification failed: %s", exc)
+        return False

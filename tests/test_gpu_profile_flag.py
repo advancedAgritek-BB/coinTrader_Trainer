@@ -9,7 +9,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 
 def test_profile_gpu_prints_message(monkeypatch, capsys):
-    sys.modules['train_pipeline'] = types.SimpleNamespace(check_clinfo_gpu=lambda: True)
+    sys.modules['train_pipeline'] = types.SimpleNamespace(
+        check_clinfo_gpu=lambda: True,
+        verify_lightgbm_gpu=lambda p: True,
+    )
     import ml_trainer
     def fake_train(X, y, params, use_gpu=False, profile_gpu=False):
         class FakeBooster:

@@ -298,8 +298,7 @@ params.setdefault("device_type", "gpu")
 
 ### ROCm on Windows for RX 7900 XTX
 
-AMD provides a preview ROCm driver for Windows that runs under WSL 2. Use an
-administrator PowerShell prompt to enable WSL and install Ubuntu:
+ROCm on Windows remains **experimental** and LightGBM relies on the OpenCL backend. Install the latest Adrenalin driver from AMD with WSL 2 support, then use an administrator PowerShell prompt to enable WSL and install Ubuntu:
 
 ```powershell
 wsl --install
@@ -314,8 +313,7 @@ sudo apt update
 sudo apt install rocm-dev rocm-smi rocm-utils
 ```
 
-Restart WSL and verify the RX 7900 XTX appears when running `rocminfo` or
-`clinfo`.
+Restart WSL and verify that an OpenCL device is available by running `clinfo`.
 
 ## Running the CLI
 
