@@ -5,9 +5,12 @@ import platform
 import time
 from utils import timed
 import logging
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
+
+from cache_utils import load_cached_features, store_cached_features
 
 try:  # optional dependency for GPU acceleration
     import jax.numpy as jnp  # type: ignore
@@ -358,6 +361,9 @@ def make_features(
     use_gpu: bool = False,
     return_threshold: float = 0.01,
     use_modin: bool = False,
+    redis_client: Optional[Any] = None,
+    cache_key: Optional[str] = None,
+    cache_ttl: Optional[int] = None,
 ) -> pd.DataFrame:
     """Generate technical indicator features for trading models.
 
@@ -395,6 +401,12 @@ def make_features(
         Threshold used to generate the ``target`` column when it is missing.
     use_modin : bool, optional
         Convert ``df`` to a Modin DataFrame for parallelised processing.
+    redis_client : Any, optional
+        Redis client used to store and retrieve cached features.
+    cache_key : str, optional
+        Key under which features are cached in Redis.
+    cache_ttl : int, optional
+        Override TTL in seconds for the cached features.
 
     Returns
     -------
@@ -406,7 +418,10 @@ def make_features(
         dropped.
     """
 
-
+    if redis_client is not None and cache_key:
+        cached = load_cached_features(redis_client, cache_key)
+        if cached is not None:
+            return cached
 
     use_gpu = (
         use_gpu
@@ -440,7 +455,6 @@ def make_features(
             momentum_period,
             adx_period,
             True,
-        )
         )
 
         # Materialise numeric columns on the GPU
@@ -502,7 +516,6 @@ def make_features(
             adx_period,
             False,
         )
-        )
     df, rsi_col, vol_col, atr_col = _compute_features_pandas(
         df,
         ema_short_period,
@@ -543,5 +556,8 @@ def make_features(
     if log_time and start_time is not None:
         elapsed = time.time() - start_time
         print(f"feature generation took {elapsed:.3f}s")
+
+    if redis_client is not None and cache_key:
+        store_cached_features(redis_client, cache_key, result, cache_ttl)
 
     return result

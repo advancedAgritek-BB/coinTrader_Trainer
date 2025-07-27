@@ -18,7 +18,7 @@ import yaml
 from dotenv import load_dotenv
 from supabase import create_client
 
-from data_loader import fetch_trade_logs
+from data_loader import fetch_trade_logs, _get_redis_client
 from evaluation import full_strategy_eval
 from feature_engineering import make_features
 from registry import ModelRegistry
@@ -52,6 +52,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--start-ts", help="Start timestamp ISO format")
     parser.add_argument("--end-ts", help="End timestamp ISO format")
     parser.add_argument("--table", default="ohlc_data", help="Supabase table name")
+    parser.add_argument(
+        "--feature-cache-key",
+        help="Redis key for caching generated features",
+    )
     return parser.parse_args()
 
 
@@ -101,7 +105,12 @@ def main() -> None:
     if "timestamp" in df.columns and "ts" not in df.columns:
         df = df.rename(columns={"timestamp": "ts"})
 
-    df = make_features(df)
+    redis_client = _get_redis_client() if args.feature_cache_key else None
+    df = make_features(
+        df,
+        redis_client=redis_client,
+        cache_key=args.feature_cache_key,
+    )
     if "target" not in df.columns:
         raise ValueError("Data must contain a 'target' column for training")
 

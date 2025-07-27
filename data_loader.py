@@ -22,6 +22,7 @@ from supabase import Client, create_client, AuthApiError
 logger = logging.getLogger(__name__)
 from tenacity import retry, stop_after_attempt, wait_exponential
 from feature_engineering import make_features
+from cache_utils import load_cached_features
 
 load_dotenv()
 
@@ -113,19 +114,14 @@ def _maybe_cache_features(
     cache_features: bool,
     feature_params: Optional[dict],
 ) -> pd.DataFrame:
-    """Return ``df`` or cached features depending on ``cache_features``."""
-    if not cache_features or redis_client is None or cache_key is None:
-        return df
-    feat_key = f"features_{cache_key}"
-    cached = redis_client.get(feat_key)
-    if cached:
-        return pd.read_parquet(BytesIO(cached))
-    features_df = make_features(df, **(feature_params or {}))
-    ttl = int(os.environ.get("REDIS_TTL", 3600))
-    buf = BytesIO()
-    features_df.to_parquet(buf)
-    redis_client.setex(feat_key, ttl, buf.getvalue())
-    return features_df
+    """Compute features and optionally cache them in Redis."""
+    params = feature_params or {}
+    if cache_features and redis_client is not None and cache_key is not None:
+        feat_key = f"features_{cache_key}"
+        return make_features(
+            df, redis_client=redis_client, cache_key=feat_key, **params
+        )
+    return make_features(df, **params)
 
 
 def fetch_trade_logs(
@@ -187,9 +183,9 @@ def fetch_trade_logs(
             return pd.read_parquet(BytesIO(cached))
         if cache_features:
             feat_key = f"features_{cache_key}"
-            cached_feat = redis_cache.get(feat_key)
-            if cached_feat:
-                return pd.read_parquet(BytesIO(cached_feat))
+            cached_feat = load_cached_features(redis_cache, feat_key)
+            if cached_feat is not None:
+                return cached_feat
 
     if cache_path and os.path.exists(cache_path):
         df = pd.read_parquet(cache_path)
