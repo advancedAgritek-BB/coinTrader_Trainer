@@ -1,3 +1,4 @@
+import os
 import sys
 from pathlib import Path
 
@@ -51,6 +52,8 @@ def test_make_features_interpolation_and_columns():
     assert not result.isna().any().any()
 
 
+def test_make_features_gpu_matches_cpu(monkeypatch):
+    monkeypatch.setenv("ROCM_PATH", "1")
 def test_make_features_gpu_uses_jax(monkeypatch):
     calls = {"asarray": False}
 

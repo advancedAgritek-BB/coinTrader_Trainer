@@ -1,5 +1,7 @@
 """Feature generation utilities used by coinTrader models."""
 
+import os
+import platform
 import time
 from utils import timed
 import logging
@@ -406,9 +408,16 @@ def make_features(
 
 
 
+    use_gpu = (
+        use_gpu
+        and "ROCM_PATH" in os.environ
+        and platform.system() == "Windows"
+    )
+
     if "ts" not in df.columns or "price" not in df.columns:
         raise ValueError("DataFrame must contain 'ts' and 'price' columns")
 
+    if use_gpu:
     if use_modin:
         import modin.pandas as mpd  # type: ignore
         df = mpd.DataFrame(df)
@@ -430,6 +439,8 @@ def make_features(
             bollinger_std,
             momentum_period,
             adx_period,
+            True,
+        )
         )
 
         # Materialise numeric columns on the GPU
@@ -489,6 +500,8 @@ def make_features(
             bollinger_std,
             momentum_period,
             adx_period,
+            False,
+        )
         )
     df, rsi_col, vol_col, atr_col = _compute_features_pandas(
         df,
