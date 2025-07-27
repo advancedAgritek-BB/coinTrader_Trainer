@@ -363,9 +363,9 @@ def make_features(
         Period for the Average Directional Index.
     use_gpu : bool, optional
         If ``True``, perform a round-trip through ``cudf`` to allow GPU acceleration.
-        If ``True``, JAX and Numba are used to accelerate calculations on the GPU.
-        When ``True`` Numba accelerated functions operate on NumPy arrays
-        for faster computation.
+        When enabled, JAX and Numba are used for faster indicator computation.
+        The underlying ``_compute_features_pandas`` call receives ``use_numba=True``
+        to activate the Numba-optimised implementations.
     log_time : bool, optional
         Print the elapsed generation time when ``True``.
     return_threshold : float, optional
@@ -425,7 +425,7 @@ def make_features(
                 bollinger_std,
                 momentum_period,
                 adx_period,
-                use_gpu,
+                use_numba=use_gpu,
             )
             return result
 
@@ -446,7 +446,7 @@ def make_features(
             bollinger_std,
             momentum_period,
             adx_period,
-            use_gpu,
+            use_numba=use_gpu,
         )
 
     if use_gpu:
