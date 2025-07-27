@@ -17,13 +17,11 @@ from prometheus_client import Gauge, start_http_server
 import numpy as np
 import pandas as pd
 import yaml
-from dotenv import load_dotenv
+from config import load_config
 
 import historical_data_importer
 from data_import import download_historical_data, insert_to_supabase
 from train_pipeline import check_clinfo_gpu, verify_lightgbm_gpu
-
-load_dotenv()
 
 logger = logging.getLogger(__name__)
 
@@ -210,8 +208,9 @@ def main() -> None:  # pragma: no cover - CLI entry
             start_ts=args.start_ts,
             end_ts=args.end_ts,
         )
-        url = os.environ.get("SUPABASE_URL")
-        key = os.environ.get("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABASE_KEY")
+        cfg_env = load_config()
+        url = cfg_env.supabase_url
+        key = cfg_env.supabase_service_key or cfg_env.supabase_key
         if not url or not key:
             raise SystemExit("SUPABASE_URL and service key must be set")
         table = args.table or f"historical_prices_{args.symbol.lower()}"
