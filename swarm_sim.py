@@ -96,7 +96,7 @@ class SwarmAgent:
     params: Dict[str, Any]
     fitness: float = field(default=float("inf"))
 
-    def simulate(
+    async def simulate(
         self, X: pd.DataFrame, y: pd.Series, base_params: Dict[str, Any]
     ) -> None:
         """Train a small LightGBM model and update ``fitness``.
@@ -113,10 +113,14 @@ class SwarmAgent:
         train_params = {**base_params, **self.params}
         train_params.setdefault("device_type", "gpu")
         dataset = lgb.Dataset(X, label=y)
-        booster = lgb.train(
-            train_params,
-            dataset,
-            num_boost_round=train_params.get("num_boost_round", 10),
+        loop = asyncio.get_running_loop()
+        booster = await loop.run_in_executor(
+            None,
+            lambda: lgb.train(
+                train_params,
+                dataset,
+                num_boost_round=train_params.get("num_boost_round", 10),
+            ),
         )
         preds = booster.predict(X)
         error = np.mean((preds - y) ** 2)
@@ -193,7 +197,7 @@ async def run_swarm_search(
     rounds = 3
     for _ in range(rounds):
         await asyncio.gather(
-            *(asyncio.to_thread(agent.simulate, X, y, base_params) for agent in agents)
+            *(agent.simulate(X, y, base_params) for agent in agents)
         )
         evolve_swarm(agents, graph)
 

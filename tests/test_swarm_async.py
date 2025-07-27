@@ -12,7 +12,7 @@ async def fake_fetch(start, end, *, table="ohlc_data", return_threshold=0.01):
     return pd.DataFrame({"f": [1, 2, 3]}), pd.Series([0, 1, 0])
 
 
-def fake_simulate(self, X, y, base_params):
+async def fake_simulate(self, X, y, base_params):
     self.fitness = float(self.id)
 
 
