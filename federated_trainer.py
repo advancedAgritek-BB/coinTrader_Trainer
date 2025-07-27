@@ -127,7 +127,7 @@ def _train_client(X: pd.DataFrame, y: pd.Series, params: dict) -> lgb.Booster:
     num_round = train_params.get("num_boost_round", 100)
     try:
         booster = lgb.train(train_params, dataset, num_boost_round=num_round)
-    except Exception as exc:  # pragma: no cover - hardware dependent
+    except lgb.basic.LightGBMError as exc:  # pragma: no cover - hardware dependent
         if "OpenCL" in str(exc):
             logging.exception("LightGBM GPU training failed: %s", exc)
             train_params["device_type"] = "cpu"

@@ -125,7 +125,7 @@ class SwarmAgent:
                     num_boost_round=train_params.get("num_boost_round", 10),
                 ),
             )
-        except Exception as exc:
+        except lgb.basic.LightGBMError as exc:
             if "OpenCL" in str(exc):
                 logging.exception("LightGBM GPU training failed: %s", exc)
                 train_params["device_type"] = "cpu"

@@ -13,6 +13,8 @@ from data_loader import fetch_data_range_async
 from feature_engineering import make_features
 from registry import ModelRegistry
 from utils import timed
+import httpx
+from supabase import SupabaseException
 
 load_dotenv()
 
@@ -93,11 +95,11 @@ def train_federated_regime(
         try:
             env_reg = ModelRegistry(url, key)
             env_reg.upload(models, model_name, metrics, conflict_key="name")
-        except Exception:
+        except (httpx.HTTPError, SupabaseException):
             pass
     if registry is not None:
         try:
             registry.upload(models, model_name, metrics, conflict_key="name")
-        except Exception:
+        except (httpx.HTTPError, SupabaseException):
             pass
     return ensemble, metrics

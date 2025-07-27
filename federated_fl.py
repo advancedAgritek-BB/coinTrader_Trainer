@@ -8,7 +8,7 @@ from typing import Optional, Tuple, List
 try:  # pragma: no cover - optional dependency
     import flwr as fl
     from flwr.server import ServerConfig
-except Exception as exc:  # pragma: no cover - missing dependency
+except ImportError as exc:  # pragma: no cover - missing dependency
     raise SystemExit(
         "True federated training requires the 'flwr' package."
         " Install it with 'pip install flwr'"
@@ -18,7 +18,8 @@ import lightgbm as lgb
 import numpy as np
 import pandas as pd
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
-from supabase import create_client
+import httpx
+from supabase import SupabaseException, create_client
 
 from federated_trainer import (
     FederatedEnsemble,
@@ -147,7 +148,7 @@ def launch(
             bucket = client.storage.from_("models")
             with open("flower_federated_model.pkl", "rb") as fh:
                 bucket.upload("flower_federated_model.pkl", fh)
-        except Exception:
+        except (httpx.HTTPError, SupabaseException):
             pass
 
     return ensemble, metrics
@@ -202,7 +203,7 @@ def start_server(
             bucket = client.storage.from_("models")
             with open("flower_federated_model.pkl", "rb") as fh:
                 bucket.upload("flower_federated_model.pkl", fh)
-        except Exception:
+        except (httpx.HTTPError, SupabaseException):
             pass
 
     return ensemble, metrics
