@@ -117,3 +117,62 @@ def test_upsert_called_and_deduplicates(monkeypatch, registry_with_dummy):
     assert table_calls["count"] == 2
     assert table_calls["conflict"] == "name"
     assert len(table.rows) == 1
+
+
+def test_upload_temp_file_removed_on_error(monkeypatch, registry_with_dummy):
+    reg, dummy = registry_with_dummy
+
+    def fake_dump(obj, filename):
+        with open(filename, "wb") as f:
+            f.write(b"d")
+
+    monkeypatch.setattr(
+        registry,
+        "joblib",
+        types.SimpleNamespace(dump=fake_dump, load=lambda f: None),
+        raising=False,
+    )
+
+    def fail_upload(*args, **kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(dummy.storage.bucket, "upload", fail_upload)
+
+    removed = []
+    orig_unlink = os.unlink
+
+    def spy_unlink(path):
+        removed.append(path)
+        orig_unlink(path)
+
+    monkeypatch.setattr(os, "unlink", spy_unlink)
+
+    with pytest.raises(RuntimeError):
+        reg.upload(object(), "tempfail")
+
+    assert removed, "temporary file was not removed"
+    assert not os.path.exists(removed[0])
+
+
+def test_upload_dict_temp_file_removed_on_error(monkeypatch, registry_with_dummy):
+    reg, dummy = registry_with_dummy
+
+    def fail_upload(*args, **kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(dummy.storage.bucket, "upload", fail_upload)
+
+    removed = []
+    orig_unlink = os.unlink
+
+    def spy_unlink(path):
+        removed.append(path)
+        orig_unlink(path)
+
+    monkeypatch.setattr(os, "unlink", spy_unlink)
+
+    with pytest.raises(RuntimeError):
+        reg.upload_dict({"a": 1}, "tempdict")
+
+    assert removed, "temporary file was not removed"
+    assert not os.path.exists(removed[0])
