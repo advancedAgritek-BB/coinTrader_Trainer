@@ -135,3 +135,41 @@ def run_backtest(
     cerebro.broker.setcommission(commission=commission)
     cerebro.run()
     return float(cerebro.broker.getvalue())
+
+
+from backtest import run_backtest as bt_run
+
+
+def full_strategy_eval(
+    df: pd.DataFrame,
+    preds: np.ndarray,
+    **bt_kwargs,
+) -> dict:
+    """Evaluate strategy PnL and final portfolio value via backtesting.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        OHLCV data indexed by datetime.
+    preds : np.ndarray
+        Array of trade signals aligned to ``df``.
+    **bt_kwargs : dict
+        Additional keyword arguments forwarded to :func:`backtest.run_backtest`.
+
+    Returns
+    -------
+    dict
+        ``simulate_signal_pnl`` metrics with ``final_portfolio_value`` added.
+    """
+
+    slippage = bt_kwargs.setdefault("slippage", 0.005)
+    costs = bt_kwargs.setdefault("costs", 0.002)
+
+    pnl_metrics = simulate_signal_pnl(df, preds, costs=costs, slippage=slippage)
+    stats = bt_run(df, preds, **bt_kwargs)
+    if isinstance(stats, dict):
+        final_val = float(stats.get("final_value", 0.0))
+    else:
+        final_val = float(stats)
+    pnl_metrics["final_portfolio_value"] = final_val
+    return pnl_metrics

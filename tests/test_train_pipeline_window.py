@@ -55,13 +55,13 @@ def test_default_window_used(monkeypatch, tmp_path):
         "train_regime_lgbm",
         lambda X, y, p, use_gpu=True: (FakeModel(), {}),
     )
-    monkeypatch.setattr(train_pipeline, "simulate_signal_pnl", lambda df, signal: 0)
+    monkeypatch.setattr(train_pipeline, "full_strategy_eval", lambda df, signal, **k: {})
 
     class DummyRegistry:
         def __init__(self, url, key):
             pass
 
-        def upload(self, model, name, metrics):
+        def upload(self, model, name, metrics, conflict_key=None):
             captured["uploaded"] = True
 
     monkeypatch.setattr(train_pipeline, "ModelRegistry", DummyRegistry)

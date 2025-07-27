@@ -24,10 +24,12 @@ optionally persisted to Supabase Storage and the ``models`` table.
   ``SUPABASE_KEY``).
 * ``PARAMS_BUCKET`` and ``PARAMS_TABLE`` control where swarm optimisation
   parameters are uploaded. Defaults are ``agent_params`` for both.
-* Optional: ``cudf`` and a CUDA capable GPU for accelerated feature
+* Optional: ``numba`` and ``jax`` for GPU-accelerated feature
   generation.
 * Optional: a GPU-enabled LightGBM build for faster training. A helper script
   is provided to compile and upload wheels.
+* GPU feature generation uses [Numba](https://numba.pydata.org/) when
+  ``use_gpu=True`` in ``feature_engineering.make_features``.
 
 ## Integration with coinTrader2.0
 
@@ -96,13 +98,20 @@ train only on the CPU you can remove `pyopencl` from `requirements.txt`.
 
 If you update the repository at a later date, run the installation
 command again so new dependencies such as ``pyyaml``, ``networkx``, ``backtrader`` or ``requests`` are installed.
-For GPU-accelerated feature engineering install
-[`cudf`](https://rapids.ai/). The package requires CUDA
-and is not included in ``requirements.txt`` by default:
+For GPU-accelerated feature engineering install ``numba`` and ``jax``.
+Depending on your hardware choose the CUDA or ROCm build of JAX. For
+CUDA GPUs:
 
 ```bash
-pip install cudf-cu12 --extra-index-url=https://pypi.nvidia.com
+pip install --upgrade "jax[cuda]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
 ```
+
+For AMD GPUs:
+
+```bash
+pip install --upgrade "jax[rocm]" -f https://storage.googleapis.com/jax-releases/jax_rocm_releases.html
+```
+
 
 If you prefer to install packages individually:
 
@@ -140,7 +149,19 @@ Supabase.  Pass UTC ``datetime`` objects for ``start_ts`` and ``end_ts``—
 naive timestamps are interpreted as UTC.  The optional ``symbol`` argument
 filters rows to a specific pair.  When a ``cache_path`` is supplied the
 function will read from the Parquet file if it exists and write new
-results back to this location, avoiding repeated network requests.
+results back to this location, avoiding repeated network requests.  Use
+``max_rows`` to limit the number of rows returned:
+
+```python
+df = data_loader.fetch_trade_logs(start_ts, end_ts, symbol="BTC", max_rows=1000)
+```
+
+When ``REDIS_HOST`` is configured, trade logs are also cached in Redis using
+a key derived from the time range and symbol. Cached data expires after
+``REDIS_TTL`` seconds (default ``3600``). Passing ``cache_features=True`` to
+``fetch_trade_logs`` will compute ``make_features`` on the returned data and
+store the result under ``features_<key>`` in Redis. Subsequent calls with the
+same parameters return this cached feature set directly.
 
 ### Async Data Fetching
 
@@ -188,9 +209,14 @@ technical indicators that are produced:
 Installing [TA‑Lib](https://ta-lib.org/) is recommended for more accurate
 technical indicator implementations.
 
-GPU acceleration is possible when the `cudf` package is installed.  Pass
-``use_gpu=True`` to ``make_features`` to switch to GPU-backed DataFrame
-operations.
+GPU acceleration is possible when ``numba`` and ``jax`` are installed.
+Pass ``use_gpu=True`` to ``make_features`` to compute features on the GPU
+using JAX.
+GPU acceleration is provided via ``numba`` when ``use_gpu=True`` is passed to
+``make_features``.
+
+When the [`modin[ray]`](https://modin.org/) package is available, you can
+set ``use_modin=True`` to distribute the pandas workload across CPU cores.
 
 Set ``log_time=True`` to print the total processing time for feature
 generation.
@@ -280,7 +306,7 @@ the packages:
 
 ```bash
 sudo apt update
-sudo apt install rocm-dev rocm-utils
+sudo apt install rocm-dev rocm-smi rocm-utils
 ```
 
 Restart WSL and verify the RX 7900 XTX appears when running `rocminfo` or
@@ -527,10 +553,15 @@ can be provided to select a specific OpenCL device.
 python ml_trainer.py train regime --use-gpu --gpu-device-id 0
 ```
 
+Pass ``--profile-gpu`` to log utilisation metrics with ``rocm-smi``.
+The CLI periodically executes ``rocm-smi --showuse`` and prints the
+output so you can monitor GPU load during training.
 Pass ``--profile-gpu`` to capture utilisation metrics with
 [AMD RGP](https://gpuopen.com/rgp/). The CLI attempts to launch
 ``rgp.exe --process <PID>`` automatically. If the executable is not found,
 the command to run is printed so you can start the profiler manually.
+When profiling is enabled a ``rocm-smi --showuse --interval 1`` monitor is
+also started and its output logged.
 
 After installation, test training with a large dataset to verify the
 OpenCL driver remains stable under load.
