@@ -8,7 +8,7 @@ import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from evaluation import simulate_signal_pnl
+from evaluation import simulate_signal_pnl, full_strategy_eval
 
 
 def test_simulate_signal_pnl_metrics():
@@ -41,4 +41,23 @@ def test_simulate_signal_pnl_slippage_reduces_returns():
     with_slip = simulate_signal_pnl(df, preds, costs=0.0, slippage=0.05)
 
     assert with_slip["sharpe"] <= no_slip["sharpe"]
+
+
+def test_full_strategy_eval_returns_value():
+    df = pd.DataFrame(
+        {
+            "open": [1.0, 1.1, 1.2],
+            "high": [1.0, 1.1, 1.2],
+            "low": [1.0, 1.1, 1.2],
+            "close": [1.0, 1.1, 1.2],
+            "volume": [1, 1, 1],
+        },
+        index=pd.date_range("2021-01-01", periods=3, freq="D"),
+    )
+    preds = np.array([1, 0, -1])
+
+    metrics = full_strategy_eval(df, preds, slippage=0.0, costs=0.0)
+
+    assert "final_portfolio_value" in metrics
+    assert isinstance(metrics["final_portfolio_value"], float)
 

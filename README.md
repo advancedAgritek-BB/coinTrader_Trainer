@@ -28,6 +28,8 @@ optionally persisted to Supabase Storage and the ``models`` table.
   generation.
 * Optional: a GPU-enabled LightGBM build for faster training. A helper script
   is provided to compile and upload wheels.
+* GPU feature generation uses [Numba](https://numba.pydata.org/) when
+  ``use_gpu=True`` in ``feature_engineering.make_features``.
 
 ## Integration with coinTrader2.0
 
@@ -109,6 +111,7 @@ For AMD GPUs:
 ```bash
 pip install --upgrade "jax[rocm]" -f https://storage.googleapis.com/jax-releases/jax_rocm_releases.html
 ```
+
 
 If you prefer to install packages individually:
 
@@ -197,6 +200,8 @@ technical indicator implementations.
 GPU acceleration is possible when ``numba`` and ``jax`` are installed.
 Pass ``use_gpu=True`` to ``make_features`` to compute features on the GPU
 using JAX.
+GPU acceleration is provided via ``numba`` when ``use_gpu=True`` is passed to
+``make_features``.
 
 Set ``log_time=True`` to print the total processing time for feature
 generation.
@@ -536,6 +541,12 @@ python ml_trainer.py train regime --use-gpu --gpu-device-id 0
 Pass ``--profile-gpu`` to log utilisation metrics with ``rocm-smi``.
 The CLI periodically executes ``rocm-smi --showuse`` and prints the
 output so you can monitor GPU load during training.
+Pass ``--profile-gpu`` to capture utilisation metrics with
+[AMD RGP](https://gpuopen.com/rgp/). The CLI attempts to launch
+``rgp.exe --process <PID>`` automatically. If the executable is not found,
+the command to run is printed so you can start the profiler manually.
+When profiling is enabled a ``rocm-smi --showuse --interval 1`` monitor is
+also started and its output logged.
 
 After installation, test training with a large dataset to verify the
 OpenCL driver remains stable under load.

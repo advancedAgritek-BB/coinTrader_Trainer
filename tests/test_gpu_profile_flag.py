@@ -31,8 +31,19 @@ def test_profile_gpu_prints_message(monkeypatch, capsys):
             pd.Series([0, 1, 0, 1]),
         ),
     )
+
+    class DummyProc:
+        def terminate(self):
+            pass
+
+    def fake_monitor():
+        print("rocm-smi --showuse --interval 1")
+        return DummyProc()
+
+    monkeypatch.setattr(ml_trainer, "_start_rocm_smi_monitor", fake_monitor)
     monkeypatch.setattr(sys, "argv", ["ml_trainer", "train", "regime", "--profile-gpu"])
 
     ml_trainer.main()
     out = capsys.readouterr().out
+    assert "rgp.exe --process" in out or "AMD RGP" in out
     assert "rocm-smi" in out

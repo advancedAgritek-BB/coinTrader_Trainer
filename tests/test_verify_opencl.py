@@ -30,6 +30,13 @@ def test_verify_opencl_success(monkeypatch):
     cl_module = types.SimpleNamespace(get_platforms=lambda: [fake_platform])
     monkeypatch.setitem(sys.modules, "pyopencl", cl_module)
     importlib.reload(opencl_utils)
+
+    def fake_run(cmd, capture_output=True, text=True, check=False):
+        assert cmd == ["rocm-smi", "--showproductname"]
+        return types.SimpleNamespace(stdout="GPU[0] : AMD Radeon X", stderr="")
+
+    monkeypatch.setattr(opencl_utils.subprocess, "run", fake_run)
+
     assert opencl_utils.verify_opencl() is True
 
 
@@ -39,4 +46,19 @@ def test_verify_opencl_no_amd(monkeypatch):
     monkeypatch.setitem(sys.modules, "pyopencl", cl_module)
     importlib.reload(opencl_utils)
     with pytest.raises(ValueError):
+        opencl_utils.verify_opencl()
+
+
+def test_verify_opencl_bad_rocm_output(monkeypatch):
+    fake_platform = FakePlatform([FakeDevice("Advanced Micro Devices, Inc.")])
+    cl_module = types.SimpleNamespace(get_platforms=lambda: [fake_platform])
+    monkeypatch.setitem(sys.modules, "pyopencl", cl_module)
+    importlib.reload(opencl_utils)
+
+    def fake_run(cmd, capture_output=True, text=True, check=False):
+        return types.SimpleNamespace(stdout="no gpu", stderr="")
+
+    monkeypatch.setattr(opencl_utils.subprocess, "run", fake_run)
+
+    with pytest.raises(RuntimeError):
         opencl_utils.verify_opencl()

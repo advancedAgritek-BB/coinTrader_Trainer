@@ -1,5 +1,4 @@
 import sys
-import types
 from pathlib import Path
 
 import numpy as np
@@ -91,6 +90,7 @@ def test_make_features_gpu_generates_columns(monkeypatch):
     monkeypatch.setitem(sys.modules, "jax.numpy", jnp)
     monkeypatch.setattr(feature_engineering, "jnp", jnp, raising=False)
 
+def test_make_features_gpu_matches_cpu():
     df = pd.DataFrame(
         {
             "ts": pd.date_range("2020-01-01", periods=6, freq="D"),
@@ -101,7 +101,16 @@ def test_make_features_gpu_generates_columns(monkeypatch):
         }
     )
 
-    result = make_features(
+    cpu = make_features(
+        df,
+        ema_short_period=2,
+        ema_long_period=3,
+        rsi_period=5,
+        volatility_window=2,
+        atr_window=2,
+        use_gpu=False,
+    )
+    gpu = make_features(
         df,
         ema_short_period=2,
         ema_long_period=3,
@@ -111,22 +120,7 @@ def test_make_features_gpu_generates_columns(monkeypatch):
         use_gpu=True,
     )
 
-    expected_cols = {
-        "ema_short",
-        "ema_long",
-        "macd",
-        "rsi5",
-        "volatility2",
-        "atr2",
-        "bol_upper",
-        "bol_mid",
-        "bol_lower",
-        "momentum_10",
-        "adx_14",
-        "obv",
-    }
-
-    assert expected_cols.issubset(result.columns)
+    pd.testing.assert_frame_equal(cpu, gpu)
 
 
 def test_make_features_adds_columns_and_handles_params(capsys):
