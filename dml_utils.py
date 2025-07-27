@@ -28,6 +28,10 @@ def get_dml_device() -> Any:
     try:
         import torch  # type: ignore
 
+        if getattr(getattr(torch, "version", None), "hip", None):
+            logger.info("Using ROCm device")
+            return torch.device("cuda")
+
         return torch.device("cpu")
     except Exception:  # pragma: no cover - PyTorch missing
         logger.warning("PyTorch not installed, returning 'cpu' string")

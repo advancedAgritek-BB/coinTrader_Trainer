@@ -24,10 +24,12 @@ optionally persisted to Supabase Storage and the ``models`` table.
   ``SUPABASE_KEY``).
 * ``PARAMS_BUCKET`` and ``PARAMS_TABLE`` control where swarm optimisation
   parameters are uploaded. Defaults are ``agent_params`` for both.
-* Optional: ``cudf`` and a CUDA capable GPU for accelerated feature
+* Optional: ``numba`` and ``jax`` for GPU-accelerated feature
   generation.
 * Optional: a GPU-enabled LightGBM build for faster training. A helper script
   is provided to compile and upload wheels.
+* GPU feature generation uses [Numba](https://numba.pydata.org/) when
+  ``use_gpu=True`` in ``feature_engineering.make_features``.
 
 ## Integration with coinTrader2.0
 
@@ -96,13 +98,20 @@ train only on the CPU you can remove `pyopencl` from `requirements.txt`.
 
 If you update the repository at a later date, run the installation
 command again so new dependencies such as ``pyyaml``, ``networkx``, ``backtrader`` or ``requests`` are installed.
-For GPU-accelerated feature engineering install
-[`cudf`](https://rapids.ai/). The package requires CUDA
-and is not included in ``requirements.txt`` by default:
+For GPU-accelerated feature engineering install ``numba`` and ``jax``.
+Depending on your hardware choose the CUDA or ROCm build of JAX. For
+CUDA GPUs:
 
 ```bash
-pip install cudf-cu12 --extra-index-url=https://pypi.nvidia.com
+pip install --upgrade "jax[cuda]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
 ```
+
+For AMD GPUs:
+
+```bash
+pip install --upgrade "jax[rocm]" -f https://storage.googleapis.com/jax-releases/jax_rocm_releases.html
+```
+
 
 If you prefer to install packages individually:
 
@@ -188,9 +197,11 @@ technical indicators that are produced:
 Installing [TA‑Lib](https://ta-lib.org/) is recommended for more accurate
 technical indicator implementations.
 
-GPU acceleration is possible when the `cudf` package is installed.  Pass
-``use_gpu=True`` to ``make_features`` to switch to GPU-backed DataFrame
-operations.
+GPU acceleration is possible when ``numba`` and ``jax`` are installed.
+Pass ``use_gpu=True`` to ``make_features`` to compute features on the GPU
+using JAX.
+GPU acceleration is provided via ``numba`` when ``use_gpu=True`` is passed to
+``make_features``.
 
 When the [`modin[ray]`](https://modin.org/) package is available, you can
 set ``use_modin=True`` to distribute the pandas workload across CPU cores.
@@ -283,7 +294,7 @@ the packages:
 
 ```bash
 sudo apt update
-sudo apt install rocm-dev rocm-utils
+sudo apt install rocm-dev rocm-smi rocm-utils
 ```
 
 Restart WSL and verify the RX 7900 XTX appears when running `rocminfo` or
@@ -530,10 +541,15 @@ can be provided to select a specific OpenCL device.
 python ml_trainer.py train regime --use-gpu --gpu-device-id 0
 ```
 
+Pass ``--profile-gpu`` to log utilisation metrics with ``rocm-smi``.
+The CLI periodically executes ``rocm-smi --showuse`` and prints the
+output so you can monitor GPU load during training.
 Pass ``--profile-gpu`` to capture utilisation metrics with
 [AMD RGP](https://gpuopen.com/rgp/). The CLI attempts to launch
 ``rgp.exe --process <PID>`` automatically. If the executable is not found,
 the command to run is printed so you can start the profiler manually.
+When profiling is enabled a ``rocm-smi --showuse --interval 1`` monitor is
+also started and its output logged.
 
 After installation, test training with a large dataset to verify the
 OpenCL driver remains stable under load.

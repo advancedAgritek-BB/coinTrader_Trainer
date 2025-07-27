@@ -20,7 +20,7 @@ class DummyRegistry:
     def __init__(self, *a):
         pass
 
-    def upload(self, model, name, metrics):
+    def upload(self, model, name, metrics, conflict_key=None):
         pass
 
 
@@ -43,7 +43,7 @@ def test_gpu_helper_import_warning(monkeypatch, caplog):
         "train_regime_lgbm",
         lambda X, y, p, use_gpu=True: (DummyModel(), {}),
     )
-    monkeypatch.setattr(train_pipeline, "simulate_signal_pnl", lambda df, preds: 0.0)
+    monkeypatch.setattr(train_pipeline, "full_strategy_eval", lambda df, preds, **k: {})
     monkeypatch.setattr(train_pipeline, "ModelRegistry", DummyRegistry)
 
     monkeypatch.setattr(sys, "argv", ["prog"])
@@ -76,7 +76,7 @@ def test_main_aborts_without_gpu(monkeypatch):
         "train_regime_lgbm",
         lambda X, y, p, use_gpu=True: (DummyModel(), {}),
     )
-    monkeypatch.setattr(train_pipeline, "simulate_signal_pnl", lambda df, preds: 0.0)
+    monkeypatch.setattr(train_pipeline, "full_strategy_eval", lambda df, preds, **k: {})
     monkeypatch.setattr(train_pipeline, "ModelRegistry", DummyRegistry)
 
     monkeypatch.setattr(sys, "argv", ["prog"])

@@ -55,6 +55,7 @@ class ModelRegistry:
         metadata: Optional[Dict[str, Any]] = None,
         *,
         approved: bool = False,
+        conflict_key: str | None = None,
     ) -> str:
         """Upload ``model`` to Supabase Storage under ``name`` and return the model ID.
 
@@ -79,7 +80,9 @@ class ModelRegistry:
             "created_at": now,
             "updated_at": now,
         }
-        resp = self.client.table(self.table).insert(entry).execute()
+        table = self.client.table(self.table)
+        params = {"on_conflict": conflict_key} if conflict_key else {}
+        resp = table.upsert(entry, **params).execute()
         return resp.data[0]["id"]
 
     def list_models(self, approved: bool | None = None) -> List[Dict[str, Any]]:
@@ -103,6 +106,7 @@ class ModelRegistry:
         metadata: Optional[dict] = None,
         *,
         approved: bool = False,
+        conflict_key: str | None = None,
     ) -> str:
         """Upload a dictionary as JSON and return the inserted row ID."""
 
@@ -126,5 +130,7 @@ class ModelRegistry:
             "created_at": now,
             "updated_at": now,
         }
-        resp = self.client.table(self.table).insert(entry).execute()
+        table = self.client.table(self.table)
+        params = {"on_conflict": conflict_key} if conflict_key else {}
+        resp = table.upsert(entry, **params).execute()
         return resp.data[0]["id"]
