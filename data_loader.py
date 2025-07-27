@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import logging
 from datetime import datetime, timezone
 from io import BytesIO
 from typing import Any, AsyncGenerator, Dict, Optional
@@ -16,7 +17,9 @@ except Exception:  # pragma: no cover - optional dependency
 
 import httpx
 import pandas as pd
-from supabase import Client, create_client
+from supabase import Client, create_client, AuthApiError
+
+logger = logging.getLogger(__name__)
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 load_dotenv()
@@ -68,8 +71,9 @@ def _get_client() -> Client:
             client.auth.set_session(jwt, "")
         elif email and password:
             client.auth.sign_in_with_password({"email": email, "password": password})
-    except Exception as exc:  # pragma: no cover - requires real Supabase instance
-        raise RuntimeError("Supabase authentication failed") from exc
+    except (httpx.HTTPError, AuthApiError, ValueError) as exc:  # pragma: no cover - requires real Supabase instance
+        logger.error("Supabase auth failed: %s", exc)
+        raise
 
     return client
 
