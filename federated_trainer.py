@@ -18,7 +18,6 @@ from dotenv import load_dotenv
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
 from sklearn.utils import resample, shuffle
 from utils import timed
-from supabase import create_client
 from supabase import SupabaseException, create_client
 import httpx
 
@@ -153,9 +152,6 @@ async def train_federated_regime(
             pd.to_datetime(start_ts),
             pd.to_datetime(end_ts),
         )
-    except Exception:
-        pass
-        fetch_trade_aggregates(pd.to_datetime(start_ts), pd.to_datetime(end_ts))
     except (httpx.HTTPError, SupabaseException, ValueError, TypeError, AttributeError) as exc:  # pragma: no cover
         logging.exception("Failed to fetch aggregates: %s", exc)
 
@@ -168,49 +164,6 @@ async def train_federated_regime(
         cache_key=feature_cache_key,
     )
     y_enc = y.replace(LABEL_MAP).astype(int)
-
-    # Upsample each class to have equal counts before splitting
-    class_indices = [np.where(y_enc == i)[0] for i in range(len(LABEL_MAP))]
-    max_len = max((len(idx) for idx in class_indices if len(idx) > 0), default=0)
-    balanced = []
-    for idx in class_indices:
-        if len(idx) == 0:
-            balanced.append(np.array([], dtype=int))
-        else:
-            balanced.append(
-                resample(idx, replace=True, n_samples=max_len, random_state=0)
-            )
-
-    # Split each class evenly across clients
-    per_class_splits = []
-    for idx in balanced:
-        if len(idx) == 0:
-            per_class_splits.append([np.array([], dtype=int)] * num_clients)
-        else:
-            per_class_splits.append(
-                np.array_split(shuffle(idx, random_state=0), num_clients)
-            )
-    indices = [
-        shuffle(
-            np.concatenate([splits[i] for splits in per_class_splits]),
-            random_state=0,
-        )
-        for i in range(num_clients)
-    ]
-    models: List[lgb.Booster] = []
-    for idx in indices:
-        booster = _train_client(X.iloc[idx], y.iloc[idx], params)
-        models.append(booster)
-    X, y = await asyncio.to_thread(
-        _prepare_data,
-        start_ts,
-        end_ts,
-        table=table,
-        redis_client=redis_client,
-        cache_key=feature_cache_key,
-    )
-    label_map = {-1: 0, 0: 1, 1: 2}
-    y_enc = y.replace(label_map).astype(int)
 
     indices = np.array_split(np.arange(len(X)), num_clients)
     tasks = [
