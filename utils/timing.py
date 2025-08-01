@@ -13,8 +13,9 @@ logger = logging.getLogger(__name__)
 def timed(func: Callable[..., T]) -> Callable[..., T]:
     """Measure runtime of ``func`` using ``perf_counter``.
 
-    When the wrapped function is called with ``log_time=True`` the elapsed
-    time is logged at ``INFO`` level. Otherwise it is printed to stdout.
+    The execution time of the wrapped function is always logged at ``INFO``
+    level. If ``log_time`` is ``False`` when calling the function, the
+    message is also printed to stdout.
     """
 
     if asyncio.iscoroutinefunction(func):
