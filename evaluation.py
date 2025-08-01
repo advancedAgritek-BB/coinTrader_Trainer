@@ -107,10 +107,6 @@ def simulate_signal_pnl(
     wins = [tr for tr in trade_returns if tr > 0]
     losses = [tr for tr in trade_returns if tr < 0]
     win_rate = len(wins) / len(trade_returns) if trade_returns else 0.0
-    gross_profit = sum(wins)
-    gross_loss = -sum(losses)
-    profit_factor = gross_profit / gross_loss if gross_loss > 0 else float("inf")
-
     annual_return = strategy_returns.mean() * 365
     calmar_ratio = (
         float(annual_return) / abs(max_drawdown) if max_drawdown != 0 else 0.0
