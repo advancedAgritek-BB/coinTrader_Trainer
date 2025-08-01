@@ -40,24 +40,8 @@ async def fetch_and_prepare_data(
 ) -> tuple[pd.DataFrame, pd.Series]:
     """Fetch trade data and return feature matrix ``X`` and targets ``y``."""
 
-    return await prepare_data(
-        start_ts,
-        end_ts,
-        table=table,
-        min_rows=min_rows,
-        return_threshold=return_threshold,
-        balance=True,
-    )
-    """Fetch trade data and return feature matrix ``X`` and targets ``y``.
 
-    Parameters
-    ----------
-    return_threshold : float, optional
-        Threshold used to generate the ``target`` column when it is missing.
-    min_rows : int, optional
-        Minimum number of rows required. A ``ValueError`` is raised when fewer
-        rows are returned.
-    """
+
 
     if isinstance(start_ts, datetime):
         start_ts = start_ts.isoformat()
