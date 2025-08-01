@@ -49,19 +49,18 @@ sys.modules.setdefault("optuna", types.SimpleNamespace())
 
 import swarm_sim
 import utils
+from config import load_config
 
 
-async def fake_fetch(
-    start,
-    end,
-    *,
-    table="ohlc_data",
-    return_threshold=0.01,
-    min_rows=1,
-    balance=False,
-    **_,
-):
-    return pd.DataFrame({"f": [1, 2, 3]}), pd.Series([0, 1, 0])
+async def fake_fetch_range(table, start, end):
+    return pd.DataFrame({
+        "price": [1, 2, 3],
+        "ts": pd.date_range("2021-01-01", periods=3, freq="min"),
+    })
+
+
+def fake_make_features(df, generate_target=True):
+    return df
 
 
 async def fake_simulate(self, X, y, base_params):
@@ -69,10 +68,13 @@ async def fake_simulate(self, X, y, base_params):
 
 
 def test_run_swarm_search_returns_params(monkeypatch):
-    monkeypatch.setattr(utils, "prepare_data", fake_fetch)
+    monkeypatch.setattr(swarm_sim.data_loader, "fetch_data_range_async", fake_fetch_range)
+    monkeypatch.setattr(swarm_sim, "make_features", fake_make_features)
     monkeypatch.setattr(swarm_sim.SwarmAgent, "simulate", fake_simulate)
     monkeypatch.setattr(swarm_sim.yaml, "safe_load", lambda fh: {})
     monkeypatch.delenv("SUPABASE_URL", raising=False)
+    monkeypatch.delenv("SUPABASE_KEY", raising=False)
+    monkeypatch.setattr(swarm_sim, "load_config", lambda: load_config(require_supabase=False))
 
     params = asyncio.run(
         swarm_sim.run_swarm_search(
