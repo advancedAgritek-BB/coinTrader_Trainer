@@ -97,8 +97,9 @@ def train_regime_lgbm(
         updated in-place with computed defaults and tuned hyperparameters.
     use_gpu : bool, optional
         Enable GPU training if ``True`` (default). When enabled the model is
-        initialised with ``device='opencl'``, ``tree_learner='data'``,
-        ``gpu_platform_id=0`` and ``gpu_device_id=0``.
+        initialised with ``device='gpu'`` and optional OpenCL device
+        identifiers. When ``False`` the model explicitly falls back to CPU
+        execution.
     tune : bool, optional
         If ``True`` perform hyperparameter tuning with Optuna to optimise
         ``learning_rate`` before training. Defaults to ``False``.
@@ -140,7 +141,7 @@ def train_regime_lgbm(
     skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 
     gpu_defaults = {
-        "device": "opencl",
+        "device": "gpu",
         "tree_learner": "data",
         "gpu_platform_id": 0,
         "gpu_device_id": 0,
@@ -232,6 +233,11 @@ def train_regime_lgbm(
             if use_gpu:
                 for k, v in gpu_defaults.items():
                     trial_params.setdefault(k, v)
+            else:
+                trial_params["device"] = "cpu"
+                trial_params.pop("gpu_platform_id", None)
+                trial_params.pop("gpu_device_id", None)
+                trial_params.pop("tree_learner", None)
             m, _ = _cross_validate(trial_params)
             return m["f1"]
 
@@ -254,6 +260,11 @@ def train_regime_lgbm(
     if use_gpu:
         for k, v in gpu_defaults.items():
             train_params.setdefault(k, v)
+    else:
+        train_params["device"] = "cpu"
+        train_params.pop("gpu_platform_id", None)
+        train_params.pop("gpu_device_id", None)
+        train_params.pop("tree_learner", None)
 
     # expose parameters for unit tests if caller defines ``captured``
     import inspect

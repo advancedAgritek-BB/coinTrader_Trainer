@@ -615,6 +615,21 @@ On Windows the flag merely checks that an OpenCL device is detected via
 After installation, test training with a large dataset to verify the
 OpenCL driver remains stable under load.
 
+### PyTorch ROCm environment variables
+
+When using the reinforcement-learning helpers with PyTorch on AMD hardware
+ensure the proper ROCm environment variables are set so that PyTorch can
+detect your GPU.  The most common settings are:
+
+```bash
+export PYTORCH_ROCM_ARCH=gfx1030  # adjust to match your GPU
+export HSA_OVERRIDE_GFX_VERSION=10.3.0
+```
+
+Set these before installing or running PyTorch.  On multi-GPU systems you may
+also need to restrict visibility using ``HIP_VISIBLE_DEVICES`` or
+``ROCR_VISIBLE_DEVICES``.
+
 ## Running Tests
 
 Tests are executed with ``pytest``.  After installing dependencies,
