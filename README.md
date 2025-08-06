@@ -793,3 +793,24 @@ For automated retraining you can schedule the trainer via `cron`. The example be
 
 Make sure the job inherits your Supabase credentials such as `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` (or `SUPABASE_KEY`) and any other variables referenced by `ml_trainer.py`.
 
+
+## Running the ML Training Application
+
+* Activate the virtual environment:
+
+  ```bash
+  source .venv/bin/activate
+  ```
+
+* Execute `ml_trainer.py` to launch the menu-driven trainer and optionally enable GPU routines:
+
+  ```bash
+  python ml_trainer.py --use-gpu
+  ```
+
+* Use backtesting scripts such as `lstm_bot.py` or `mean_bot.py` to bootstrap training data.
+
+* Schedule recurring retraining via `token_registry.py`.
+
+* `regime_classifier.py` embeds a base64-encoded model as a fallback in case no parameters are available.
+
