@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import Optional
+from typing import ClassVar, Optional
 
 from dotenv import load_dotenv
 
@@ -13,6 +13,9 @@ load_dotenv()
 @dataclass
 class Config:
     """Holds configuration derived from environment variables."""
+
+    # Default bucket used for storing models in Supabase Storage
+    SUPABASE_BUCKET: ClassVar[str] = "models"
 
     supabase_url: str
     supabase_key: str
