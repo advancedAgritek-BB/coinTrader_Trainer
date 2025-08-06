@@ -762,6 +762,18 @@ drawdown, win rate, Calmar ratio and profit factor.
 ``simulate_signal_pnl`` computes Sharpe/Sortino along with drawdown,
 win rate and other trade statistics for the same signals.
 
+## Training Menu
+
+The ``ml_trainer.py`` module provides a small interactive menu for
+common training tasks. Launch it with ``python ml_trainer.py`` and
+optionally pass ``--use-gpu`` to enable GPU-accelerated routines. The
+menu offers entries for training various models including a logistic
+regression signal model, LightGBM meta selector, LightGBM regime model,
+PPO reinforcement-learning selector, contextual bandit selector and a
+fallback LightGBM model. Each option first generates a CSV of simulated
+trades using ``tools.backtest_strategies.backtest`` and uploads the
+resulting model artefact to Supabase via :class:`ModelRegistry`.
+
 ## Monitoring and Automation
 
 To monitor the trainer during long running jobs install the Prometheus client and run Grafana:

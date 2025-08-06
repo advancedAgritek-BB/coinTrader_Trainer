@@ -8,6 +8,8 @@ from typing import Iterable, Sequence
 import numpy as np
 import torch
 from torch import nn
+import pandas as pd
+from registry import ModelRegistry
 
 
 @dataclass
@@ -77,3 +79,33 @@ class ContextualBanditStrategySelector:
             "model_state_dicts": [m.state_dict() for m in self.models],
         }
         torch.save(state, path)
+
+
+def train(
+    data: str,
+    *,
+    context_cols: Iterable[str] | None = None,
+    action_col: str = "strategy",
+    reward_col: str = "pnl",
+    use_gpu: bool = False,
+    model_name: str = "bandit_selector",
+    registry: ModelRegistry | None = None,
+) -> ContextualBanditStrategySelector:
+    """Train a contextual bandit selector from logged interactions."""
+    df = pd.read_csv(data)
+    context_cols = list(context_cols) if context_cols else [
+        c for c in df.columns if c not in {action_col, reward_col}
+    ]
+    selector = ContextualBanditStrategySelector(
+        n_actions=int(df[action_col].nunique()),
+        context_dim=len(context_cols),
+        use_gpu=use_gpu,
+    )
+    selector.train(df, context_cols, action_col, reward_col)
+    if registry is None:
+        registry = ModelRegistry()
+    registry.upload(selector, model_name)
+    return selector
+
+
+__all__ = ["ContextualBanditStrategySelector", "train"]
