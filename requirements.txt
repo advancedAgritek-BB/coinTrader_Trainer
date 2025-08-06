@@ -22,7 +22,9 @@ redis  # optional, used for caching
 requests
 scikit-learn
 prometheus_client
-supabase
+supabase==2.18.0  # supabase-py client
+stable-baselines3==2.7.0
+torch==2.3.1  # ROCm-enabled build
 tenacity
 modin[ray]
 dask[dataframe]
