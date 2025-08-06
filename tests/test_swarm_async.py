@@ -49,7 +49,6 @@ sys.modules.setdefault("optuna", types.SimpleNamespace())
 
 import swarm_sim
 import utils
-from config import load_config
 
 
 async def fake_fetch_range(table, start, end):
@@ -74,7 +73,6 @@ def test_run_swarm_search_returns_params(monkeypatch):
     monkeypatch.setattr(swarm_sim.yaml, "safe_load", lambda fh: {})
     monkeypatch.delenv("SUPABASE_URL", raising=False)
     monkeypatch.delenv("SUPABASE_KEY", raising=False)
-    monkeypatch.setattr(swarm_sim, "load_config", lambda: load_config(require_supabase=False))
 
     params = asyncio.run(
         swarm_sim.run_swarm_search(

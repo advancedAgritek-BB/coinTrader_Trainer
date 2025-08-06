@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List
 import asyncio
+import os
 
 import lightgbm as lgb
 try:
@@ -18,7 +19,7 @@ import yaml
 from dotenv import load_dotenv
 from utils import timed
 from utils import prepare_data, validate_schema
-from config import load_config
+from config import Config
 import httpx
 from supabase import SupabaseException
 
@@ -263,11 +264,10 @@ async def run_swarm_search(
 
     best = min(agents, key=lambda a: a.fitness)
 
-    cfg = load_config()
-    url = cfg.supabase_url
-    key = cfg.supabase_service_key or cfg.supabase_key
-    bucket = cfg.params_bucket or "agent_params"
-    table = cfg.params_table or "agent_params"
+    url = os.getenv("SUPABASE_URL")
+    key = os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_KEY")
+    bucket = Config.SUPABASE_BUCKET
+    table = "agent_params"
     if url and key:
         try:
             reg = ModelRegistry(url, key, bucket=bucket, table=table)

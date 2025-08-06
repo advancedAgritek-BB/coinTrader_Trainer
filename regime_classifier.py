@@ -6,11 +6,10 @@ import base64
 import logging
 from io import BytesIO
 from typing import Optional
+import os
 
 import joblib
 import pandas as pd
-
-from config import load_config
 
 try:  # pragma: no cover - optional dependency
     from supabase import SupabaseException, create_client
@@ -32,7 +31,7 @@ def load_model() -> object:
     """Return the LightGBM regime model.
 
     Attempts to download ``regime_lgbm.pkl`` from Supabase Storage using
-    credentials provided via :func:`config.load_config`. If the download
+    credentials provided via environment variables. If the download
     fails for any reason, a base64-encoded fallback model embedded in
     ``train_fallback_model.py`` is used instead.
     """
@@ -42,9 +41,8 @@ def load_model() -> object:
         return _MODEL
 
     # Try fetching the model from Supabase if possible
-    cfg = load_config(require_supabase=False)
-    url = cfg.supabase_url
-    key = cfg.supabase_key or cfg.supabase_service_key
+    url = os.getenv("SUPABASE_URL")
+    key = os.getenv("SUPABASE_KEY") or os.getenv("SUPABASE_SERVICE_KEY")
     if url and key and create_client is not None:
         try:
             client = create_client(url, key)
