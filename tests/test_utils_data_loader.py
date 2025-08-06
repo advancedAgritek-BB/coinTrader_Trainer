@@ -13,11 +13,13 @@ from utils import load_market_csv
 def test_load_market_csv(tmp_path):
     csv_file = tmp_path / "market.csv"
     csv_file.write_text(
-        "timestamp,open,high,low,close\n2021-01-01T00:00:00Z,1,2,0.5,1.5\n"
+        "timestamp,open,high,low,close,volume\n"
+        "2021-01-01T00:00:00Z,1,2,0.5,1.5,100\n"
     )
 
     df = load_market_csv(str(csv_file))
 
-    assert list(df.columns) == ["open", "high", "low", "close"]
+    assert list(df.columns) == ["open", "high", "low", "close", "volume"]
     assert pd.api.types.is_datetime64_any_dtype(df.index)
     assert float(df.iloc[0]["close"]) == 1.5
+    assert float(df.iloc[0]["volume"]) == 100
