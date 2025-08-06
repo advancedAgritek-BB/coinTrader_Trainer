@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import logging
 from io import BytesIO
+from pathlib import Path
 from typing import Optional
 import os
 
@@ -22,7 +23,18 @@ try:  # pragma: no cover - optional dependency
 except Exception:  # pragma: no cover - httpx not installed
     httpx = None  # type: ignore[assignment]
 
+try:  # pragma: no cover - optional helper
+    from utils import schedule_retrain as _schedule_retrain
+except Exception:  # pragma: no cover - schedule helper absent
+    _schedule_retrain = None  # type: ignore[assignment]
+
 logger = logging.getLogger(__name__)
+
+FALLBACK_B64_PATH = Path(__file__).resolve().parents[2] / "fallback_b64.txt"
+try:  # pragma: no cover - file may be missing in some installs
+    FALLBACK_MODEL_B64 = FALLBACK_B64_PATH.read_text().strip()
+except Exception:  # pragma: no cover - fallback not bundled
+    FALLBACK_MODEL_B64 = ""
 
 _MODEL: Optional[object] = None
 
@@ -61,11 +73,15 @@ def load_model() -> object:
             else:
                 logger.warning("Model download failed: %s", exc)
 
-    # Fallback to embedded model
-    try:
-        from train_fallback_model import FALLBACK_MODEL_B64
-    except Exception as exc:  # pragma: no cover - missing fallback
-        raise RuntimeError("Fallback model missing") from exc
+    # Fallback to embedded model and schedule retraining
+    if _schedule_retrain is not None:
+        try:  # pragma: no cover - external side effect
+            _schedule_retrain("regime_lgbm", "daily")
+        except Exception as exc:  # pragma: no cover - scheduling failures
+            logger.warning("Retraining schedule failed: %s", exc)
+
+    if not FALLBACK_MODEL_B64:
+        raise RuntimeError("Fallback model missing")
 
     data = base64.b64decode(FALLBACK_MODEL_B64)
     _MODEL = joblib.load(BytesIO(data))

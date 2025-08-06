@@ -812,5 +812,5 @@ Make sure the job inherits your Supabase credentials such as `SUPABASE_URL`, `SU
 
 * Schedule recurring retraining via `token_registry.py`.
 
-* `regime_classifier.py` embeds a base64-encoded model as a fallback in case no parameters are available.
+* `crypto_bot.regime.regime_classifier` embeds a base64-encoded model as a fallback in case no parameters are available.
 
