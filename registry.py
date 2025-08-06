@@ -9,7 +9,6 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 import joblib
-from config import load_config
 from supabase import Client, create_client
 
 logger = logging.getLogger(__name__)
@@ -33,9 +32,8 @@ class ModelRegistry:
         is created from ``url`` and ``key`` or environment variables.
         """
         if client is None:
-            cfg = load_config()
-            url = url or cfg.supabase_url
-            key = key or cfg.supabase_key or cfg.supabase_service_key
+            url = url or os.getenv("SUPABASE_URL")
+            key = key or os.getenv("SUPABASE_KEY") or os.getenv("SUPABASE_SERVICE_KEY")
             if not url or not key:
                 raise ValueError("SUPABASE_URL and SUPABASE_KEY must be set")
             self.client = create_client(url, key)

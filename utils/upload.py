@@ -8,8 +8,6 @@ from typing import Tuple
 
 from supabase import Client, create_client
 
-from config import load_config
-
 
 def _parse_dest(dest: str, src_path: str) -> Tuple[str, str]:
     """Return the bucket name and object path for ``dest``.
@@ -43,9 +41,8 @@ def upload_to_supabase(path: str, dest: str) -> None:
         bucket name. When only the bucket name is supplied, the basename of
         ``path`` is used as the object name.
     """
-    cfg = load_config()
-    url = cfg.supabase_url
-    key = cfg.supabase_service_key or cfg.supabase_key
+    url = os.getenv("SUPABASE_URL")
+    key = os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_KEY")
     client: Client = create_client(url, key)
 
     bucket, object_name = _parse_dest(dest, path)

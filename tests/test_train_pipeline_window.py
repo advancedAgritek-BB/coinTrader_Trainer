@@ -8,7 +8,6 @@ import pandas as pd
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 import train_pipeline
-from config import load_config
 
 
 def test_default_window_used(monkeypatch, tmp_path):
@@ -26,7 +25,6 @@ def test_default_window_used(monkeypatch, tmp_path):
     monkeypatch.setattr(train_pipeline, "parse_args", lambda: Args)
     monkeypatch.setenv("SUPABASE_URL", "http://localhost")
     monkeypatch.setenv("SUPABASE_KEY", "anon")
-    load_config()
     monkeypatch.setattr(train_pipeline, "check_clinfo_gpu", lambda: True)
 
     fixed_now = datetime(2021, 1, 10)

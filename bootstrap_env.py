@@ -2,17 +2,12 @@ from __future__ import annotations
 
 import logging
 
-from config import load_config
+from config import Config
 
 
 def main() -> None:
-    """Validate environment variables using :func:`load_config`."""
-    try:
-        cfg = load_config()
-    except Exception as exc:  # pragma: no cover - log and re-raise
-        logging.error("Environment bootstrap failed: %s", exc)
-        raise
-    logging.info("Loaded configuration for %s", cfg.supabase_url)
+    """Log basic configuration information."""
+    logging.info("Loaded configuration for bucket %s", Config.SUPABASE_BUCKET)
 
 
 if __name__ == "__main__":

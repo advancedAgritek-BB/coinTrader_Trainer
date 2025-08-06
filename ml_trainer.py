@@ -64,7 +64,6 @@ from prometheus_client import Gauge, start_http_server
 import numpy as np
 import pandas as pd
 import yaml
-from config import load_config
 
 import historical_data_importer
 from data_import import download_historical_data, insert_to_supabase
@@ -263,9 +262,8 @@ def main() -> None:  # pragma: no cover - CLI entry
             start_ts=args.start_ts,
             end_ts=args.end_ts,
         )
-        cfg_env = load_config()
-        url = cfg_env.supabase_url
-        key = cfg_env.supabase_service_key or cfg_env.supabase_key
+        url = os.getenv("SUPABASE_URL")
+        key = os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_KEY")
         if not url or not key:
             raise SystemExit("SUPABASE_URL and service key must be set")
         table = args.table or f"historical_prices_{args.symbol.lower()}"

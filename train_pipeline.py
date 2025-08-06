@@ -13,7 +13,6 @@ from pathlib import Path
 
 import pandas as pd
 import yaml
-from config import load_config
 from supabase import create_client
 
 from data_loader import fetch_trade_logs, _get_redis_client
@@ -68,9 +67,8 @@ def main() -> None:
     cfg = load_cfg(args.cfg)
     params = cfg.get("regime_lgbm", {})
 
-    cfg_env = load_config()
-    url = cfg_env.supabase_url
-    key = cfg_env.supabase_key or cfg_env.supabase_service_key
+    url = os.getenv("SUPABASE_URL")
+    key = os.getenv("SUPABASE_KEY") or os.getenv("SUPABASE_SERVICE_KEY")
     if not url or not key:
         raise ValueError(
             "SUPABASE_URL and SUPABASE_KEY environment variables must be set"
