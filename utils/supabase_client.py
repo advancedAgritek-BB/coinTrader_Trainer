@@ -57,7 +57,14 @@ def download_model(bucket: str, file_path: str) -> bytes:
         The downloaded file contents.
     """
     client = get_client()
-    return client.storage.from_(bucket).download(file_path)
+    data = client.storage.from_(bucket).download(file_path)
+
+    # ``download`` may return a ``bytes`` object or a file-like object
+    # depending on the Supabase client version.  Normalise the output to
+    # raw bytes so callers have a consistent interface.
+    if hasattr(data, "read"):
+        return data.read()
+    return data
 
 
 def load_fallback_model(b64_str: str) -> Any:
