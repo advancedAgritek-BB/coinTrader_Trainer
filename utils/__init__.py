@@ -6,3 +6,9 @@ from .validation import validate_schema
 from .token_registry import schedule_retrain
 
 __all__ = ["timed", "prepare_data", "validate_schema", "schedule_retrain"]
+from .simulator import simulate
+
+__all__ = ["timed", "prepare_data", "validate_schema", "simulate"]
+from .data_loader import load_market_csv
+
+__all__ = ["timed", "prepare_data", "validate_schema", "load_market_csv"]

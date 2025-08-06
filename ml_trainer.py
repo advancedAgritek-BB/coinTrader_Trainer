@@ -10,8 +10,31 @@ import os
 import platform
 import shutil
 import subprocess
+import threading
 from datetime import datetime, timedelta
 from typing import Any, Dict, Tuple
+
+# ---------------------------------------------------------------------------
+# Optional imports used by the interactive menu.
+# These modules may not be available during testing so we guard them with
+# ``try`` blocks and fall back to ``None`` if missing.  The interactive menu
+# checks for ``None`` before invoking any functionality.
+# ---------------------------------------------------------------------------
+try:  # pragma: no cover - optional utility
+    from tools.backtest_strategies.backtest import backtest
+except Exception:  # pragma: no cover - missing dependency
+    backtest = None  # type: ignore[misc]
+
+try:  # pragma: no cover - optional RL helpers
+    from rl.train import run as rl_train
+    from rl.evaluate import run as rl_evaluate
+except Exception:  # pragma: no cover - RL modules may be absent
+    rl_train = rl_evaluate = None  # type: ignore
+
+try:  # pragma: no cover - optional scheduling helper
+    from utils.token_registry import schedule_retrain
+except Exception:  # pragma: no cover - module not available
+    schedule_retrain = None  # type: ignore
 
 from prometheus_client import Gauge, start_http_server
 
@@ -387,5 +410,137 @@ def main() -> None:  # pragma: no cover - CLI entry
             monitor_proc.terminate()
 
 
+# ---------------------------------------------------------------------------
+# Interactive helpers
+# ---------------------------------------------------------------------------
+
+# cached objects used across menu actions
+_CACHED_PARAMS: Dict[str, Any] = {}
+_CACHED_DATA: Tuple[pd.DataFrame, pd.Series] | None = None
+
+
+def get_params(cfg_path: str = "cfg.yaml", task: str = "regime") -> Dict[str, Any]:
+    """Load and cache training parameters for ``task``.
+
+    Parameters are loaded from ``cfg_path`` and stored globally so subsequent
+    menu actions can reuse them without re-reading the file.
+    """
+
+    global _CACHED_PARAMS
+    cfg = load_cfg(cfg_path)
+    trainer = TRAINERS.get(task)
+    key = trainer[1] if trainer else task
+    _CACHED_PARAMS = cfg.get(key, {})
+    print("Parameters loaded")
+    return _CACHED_PARAMS
+
+
+def prepare_data() -> Tuple[pd.DataFrame, pd.Series]:
+    """Prepare a small dummy dataset for experimentation."""
+
+    global _CACHED_DATA
+    _CACHED_DATA = _make_dummy_data()
+    print(f"Prepared dataset with {_CACHED_DATA[0].shape[0]} rows")
+    return _CACHED_DATA
+
+
+def train_model() -> None:
+    """Train the default regime model on dummy data."""
+
+    params = _CACHED_PARAMS or get_params()
+    data = _CACHED_DATA or prepare_data()
+    trainer_fn, _ = TRAINERS.get("regime", (None, "regime_lgbm"))
+    if trainer_fn is None:
+        print("Trainer not available")
+        return
+    model, metrics = trainer_fn(
+        data[0],
+        data[1],
+        params,
+        use_gpu=False,
+        profile_gpu=False,
+    )  # type: ignore[arg-type]
+    print("Training completed. Metrics:")
+    for k, v in metrics.items():
+        print(f"{k}: {v}")
+    accuracy_gauge.set(metrics.get("accuracy", 0))
+
+
+def _run_backtest() -> None:
+    """Invoke the optional backtest helper if available."""
+
+    if backtest is None:
+        print("Backtest module not available")
+        return
+    try:
+        backtest()
+    except Exception as exc:  # pragma: no cover - depends on external module
+        print(f"Backtest failed: {exc}")
+
+
+def _rl_train() -> None:
+    if rl_train is None:
+        print("RL training module not available")
+        return
+    try:  # pragma: no cover - optional
+        rl_train()
+    except Exception as exc:  # pragma: no cover - depends on external module
+        print(f"RL training failed: {exc}")
+
+
+def _rl_evaluate() -> None:
+    if rl_evaluate is None:
+        print("RL evaluation module not available")
+        return
+    try:  # pragma: no cover - optional
+        rl_evaluate()
+    except Exception as exc:  # pragma: no cover - depends on external module
+        print(f"RL evaluation failed: {exc}")
+
+
+def schedule() -> None:
+    """Schedule a future retraining job if the helper exists."""
+
+    if schedule_retrain is None:
+        print("schedule_retrain unavailable")
+        return
+    try:  # pragma: no cover - optional
+        schedule_retrain()
+        print("Retraining scheduled")
+    except Exception as exc:  # pragma: no cover - depends on external module
+        print(f"Scheduling failed: {exc}")
+
+
+def show_menu() -> None:
+    """Display a basic interactive menu for common training tasks."""
+
+    actions = {
+        "1": ("Load parameters", lambda: get_params()),
+        "2": ("Prepare data", prepare_data),
+        "3": ("Train model", train_model),
+        "4": ("Backtest strategy", _run_backtest),
+        "5": ("RL training", _rl_train),
+        "6": ("RL evaluation", _rl_evaluate),
+        "7": ("Schedule retrain", schedule),
+        "8": ("Exit", None),
+    }
+
+    while True:
+        print("\ncoinTrader trainer menu:")
+        for key, (desc, _) in actions.items():
+            print(f"{key}. {desc}")
+        choice = input("Select option: ").strip()
+        action = actions.get(choice)
+        if not action:
+            print("Invalid choice")
+            continue
+        if choice == "8":
+            print("Goodbye")
+            break
+        func = action[1]
+        if func:
+            func()
+
+
 if __name__ == "__main__":  # pragma: no cover - CLI entry
-    asyncio.run(main())
+    show_menu()
