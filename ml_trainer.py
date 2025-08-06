@@ -25,6 +25,29 @@ try:  # pragma: no cover - optional utility
 except Exception:  # pragma: no cover - missing dependency
     backtest = None  # type: ignore[misc]
 
+try:  # pragma: no cover - optional signal model
+    from crypto_bot.ml_signal_model import train_from_csv as train_signal_model
+except Exception:  # pragma: no cover - module may be absent
+    train_signal_model = None  # type: ignore
+
+try:  # pragma: no cover - optional LightGBM helpers
+    from tools.train_meta_selector import main as train_meta_selector
+    from tools.train_regime_model import main as train_regime_model
+    from tools.train_fallback_model import main as train_fallback_model
+except Exception:  # pragma: no cover - training scripts may be missing
+    train_meta_selector = train_regime_model = train_fallback_model = None  # type: ignore
+
+try:  # pragma: no cover - optional RL trainers
+    import rl.rl as _rl_mod
+    ppo_train = getattr(_rl_mod, "train", getattr(_rl_mod, "train_ppo", None))
+except Exception:  # pragma: no cover - RL module may be missing
+    ppo_train = None  # type: ignore
+
+try:  # pragma: no cover - contextual bandit trainer
+    from rl.strategy_selector import train as bandit_train
+except Exception:  # pragma: no cover - selector module may be missing
+    bandit_train = None  # type: ignore
+
 try:  # pragma: no cover - optional RL helpers
     from rl.train import run as rl_train
     from rl.evaluate import run as rl_evaluate
@@ -46,6 +69,7 @@ from config import load_config
 import historical_data_importer
 from data_import import download_historical_data, insert_to_supabase
 from train_pipeline import check_clinfo_gpu, verify_lightgbm_gpu
+from registry import ModelRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -96,9 +120,10 @@ def _make_dummy_data(n: int = 200) -> Tuple[pd.DataFrame, pd.Series]:
     rng = np.random.default_rng(0)
     df = pd.DataFrame(
         {
-            "price": rng.random(n) * 100,
+            "open": rng.random(n) * 100,
             "high": rng.random(n) * 100,
             "low": rng.random(n) * 100,
+            "close": rng.random(n) * 100,
         }
     )
     return df, pd.Series(rng.integers(0, 2, size=n))
@@ -417,6 +442,7 @@ def main() -> None:  # pragma: no cover - CLI entry
 # cached objects used across menu actions
 _CACHED_PARAMS: Dict[str, Any] = {}
 _CACHED_DATA: Tuple[pd.DataFrame, pd.Series] | None = None
+_MENU_USE_GPU: bool = False
 
 
 def get_params(cfg_path: str = "cfg.yaml", task: str = "regime") -> Dict[str, Any]:
@@ -464,6 +490,99 @@ def train_model() -> None:
     for k, v in metrics.items():
         print(f"{k}: {v}")
     accuracy_gauge.set(metrics.get("accuracy", 0))
+
+
+def _generate_csv() -> str:
+    """Generate a CSV of simulated trades via :func:`backtest`."""
+    if backtest is None:
+        raise RuntimeError("backtest module not available")
+    df, _ = _make_dummy_data()
+    df.index = pd.date_range("2020", periods=len(df), freq="H")
+    backtest(df, ["ml"])
+    return "simulated_trades.csv"
+
+
+def _train_signal_model() -> None:
+    if train_signal_model is None:
+        print("Signal model training not available")
+        return
+    try:
+        csv_path = _generate_csv()
+        kwargs = {}
+        if "use_gpu" in inspect.signature(train_signal_model).parameters:
+            kwargs["use_gpu"] = _MENU_USE_GPU
+        model = train_signal_model(csv_path, **kwargs)
+        ModelRegistry().upload(model, "signal_model")
+        print("Signal model uploaded")
+    except Exception as exc:  # pragma: no cover - external deps
+        print(f"Signal model training failed: {exc}")
+
+
+def _train_meta_selector() -> None:
+    if train_meta_selector is None:
+        print("Meta selector training not available")
+        return
+    try:
+        path = _generate_csv()
+        train_meta_selector(path, use_gpu=_MENU_USE_GPU)
+        print("Meta selector uploaded")
+    except Exception as exc:  # pragma: no cover - external deps
+        print(f"Meta selector training failed: {exc}")
+
+
+def _train_regime_model_menu() -> None:
+    if train_regime_model is None:
+        print("Regime model training not available")
+        return
+    try:
+        path = _generate_csv()
+        train_regime_model(path, use_gpu=_MENU_USE_GPU)
+        print("Regime model uploaded")
+    except Exception as exc:  # pragma: no cover
+        print(f"Regime model training failed: {exc}")
+
+
+def _train_ppo_selector() -> None:
+    if ppo_train is None:
+        print("PPO trainer not available")
+        return
+    try:
+        env = None
+        try:
+            import gymnasium as gym  # type: ignore
+            env = gym.make("CartPole-v1")
+        except Exception:
+            print("gymnasium unavailable; skipping")
+            return
+        model = ppo_train(env, use_gpu=_MENU_USE_GPU)
+        ModelRegistry().upload(model, "ppo_selector")
+        print("PPO selector uploaded")
+    except Exception as exc:  # pragma: no cover - external deps
+        print(f"PPO training failed: {exc}")
+
+
+def _train_bandit_selector() -> None:
+    if bandit_train is None:
+        print("Bandit trainer not available")
+        return
+    try:
+        path = _generate_csv()
+        bandit_train(path, use_gpu=_MENU_USE_GPU)
+        print("Bandit selector uploaded")
+    except Exception as exc:  # pragma: no cover - external deps
+        print(f"Bandit training failed: {exc}")
+
+
+def _train_fallback() -> None:
+    if train_fallback_model is None:
+        print("Fallback model training not available")
+        return
+    try:
+        path = _generate_csv()
+        train_fallback_model(path, use_gpu=_MENU_USE_GPU)
+        print("Fallback model uploaded")
+    except Exception as exc:  # pragma: no cover - external deps
+        print(f"Fallback model training failed: {exc}")
 
 
 def _run_backtest() -> None:
@@ -523,6 +642,12 @@ def show_menu() -> None:
         "6": ("RL evaluation", _rl_evaluate),
         "7": ("Schedule retrain", schedule),
         "8": ("Exit", None),
+        "9": ("Train logistic regression signal model", _train_signal_model),
+        "10": ("Train meta selector", _train_meta_selector),
+        "11": ("Train regime model", _train_regime_model_menu),
+        "12": ("Train PPO RL selector", _train_ppo_selector),
+        "13": ("Train contextual bandit selector", _train_bandit_selector),
+        "14": ("Train fallback LightGBM model", _train_fallback),
     }
 
     while True:
@@ -543,4 +668,10 @@ def show_menu() -> None:
 
 
 if __name__ == "__main__":  # pragma: no cover - CLI entry
+    import argparse
+
+    parser = argparse.ArgumentParser(description="coinTrader training menu")
+    parser.add_argument("--use-gpu", action="store_true", help="Enable GPU training")
+    args = parser.parse_args()
+    _MENU_USE_GPU = args.use_gpu
     show_menu()

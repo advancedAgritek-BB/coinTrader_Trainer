@@ -35,6 +35,7 @@ from typing import Any, Callable
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv
 import torch
+from registry import ModelRegistry
 
 
 def train_ppo(
@@ -77,3 +78,22 @@ def train_ppo(
     model.learn(total_timesteps=total_timesteps)
     model.save(model_path)
     return model
+
+
+def train(
+    data: Any,
+    *,
+    use_gpu: bool = False,
+    total_timesteps: int = 10000,
+    model_name: str = "ppo_selector",
+    registry: ModelRegistry | None = None,
+):
+    """Train a PPO selector and upload it via :class:`ModelRegistry`."""
+    model = train_ppo(data, use_gpu=use_gpu, total_timesteps=total_timesteps)
+    if registry is None:
+        registry = ModelRegistry()
+    registry.upload(model, model_name)
+    return model
+
+
+__all__ = ["train_ppo", "train"]

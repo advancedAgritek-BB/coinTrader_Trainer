@@ -1,3 +1,29 @@
+"""Wrapper to train the fallback model and upload via ModelRegistry."""
+
+from __future__ import annotations
+
+from typing import Optional
+
+from registry import ModelRegistry
+from train_fallback_model import train_fallback_model as _train_fallback_model
+
+
+def main(
+    data: str | None = None,
+    *,
+    use_gpu: bool = False,
+    model_name: str = "fallback_model",
+    registry: Optional[ModelRegistry] = None,
+):
+    """Train the fallback model and upload its weights to Supabase."""
+    payload = _train_fallback_model(data, use_gpu=use_gpu)
+    if registry is None:
+        registry = ModelRegistry()
+    registry.upload_dict({"weights_b64": payload}, model_name)
+    return payload
+
+
+__all__ = ["main"]
 from __future__ import annotations
 
 """Train a tiny LightGBM fallback model and store it as base64."""
