@@ -29,6 +29,8 @@ dependencies = [
 "redis",
 "requests",
 "scikit-learn",
+"scipy",
+"statsmodels",
 "prometheus_client",
 "supabase==2.18.0",  # supabase-py client
 "stable-baselines3==2.7.0",
