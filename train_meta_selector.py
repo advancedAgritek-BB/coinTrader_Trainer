@@ -1,91 +1,24 @@
 from __future__ import annotations
 
-"""Train the meta selector model and upload it to Supabase."""
+"""Train the LightGBM-based meta selector and store it in Supabase."""
 
-import os
-
-from utils.upload import upload_to_supabase
-
-
-def train_meta_selector(model_path: str = "meta_selector.pkl", dest: str | None = None) -> str:
-    """Train a placeholder meta selector and upload the artifact.
-
-    Parameters
-    ----------
-    model_path : str, optional
-        Local path where the trained model will be written. Defaults to
-        ``"meta_selector.pkl"``.
-    dest : str, optional
-        Destination path in Supabase storage. If omitted the file is uploaded
-        to ``models/<basename>``.
-    """
-    # Placeholder for actual training logic. A real implementation would
-    # produce a model object and serialise it to ``model_path``.
-    with open(model_path, "wb") as fh:
-        fh.write(b"meta selector model")
-
-    remote = dest or f"models/{os.path.basename(model_path)}"
-    upload_to_supabase(model_path, remote)
-    return model_path
-
-
-if __name__ == "__main__":  # pragma: no cover - manual execution helper
-    train_meta_selector()
-"""Train a meta selector model using LightGBM."""
-
-from typing import Dict, Tuple
-"""Train a LightGBM meta-selector on simulator output and upload to Supabase."""
-
+import argparse
 from pathlib import Path
 from typing import Any
 
 import lightgbm as lgb
 import pandas as pd
 
-
-def train_meta_selector(
-    X: pd.DataFrame,
-    y: pd.Series,
-    lgb_params: dict,
-    *,
-    use_gpu: bool = False,
-) -> Tuple[lgb.Booster, Dict[str, float]]:
-    """Train a LightGBM model for meta selection.
-
-    Parameters
-    ----------
-    X : pd.DataFrame
-        Feature matrix.
-    y : pd.Series
-        Target labels.
-    lgb_params : dict
-        Parameters passed to ``lightgbm.train``.
-    use_gpu : bool, optional
-        When ``True`` LightGBM runs on GPU by setting ``device='gpu'``.
-        Otherwise the model runs on CPU.
-    """
-
-    params = dict(lgb_params)
-    params["device"] = "gpu" if use_gpu else "cpu"
-
-    dataset = lgb.Dataset(X, label=y)
-    booster = lgb.train(params, dataset)
-
-    preds = booster.predict(X)
-    if preds.ndim > 1:
-        preds = preds.argmax(axis=1)
-    metrics = {"accuracy": float((preds == y).mean())}
-    return booster, metrics
 from registry import ModelRegistry
 
 
 def _load_data(data: pd.DataFrame | str) -> pd.DataFrame:
-    """Return ``data`` as a DataFrame.
+    """Return ``data`` as a :class:`~pandas.DataFrame`.
 
     Parameters
     ----------
     data:
-        Either a DataFrame with simulator output or a path to a CSV file.
+        DataFrame with simulator output or path to a CSV file.
     """
     if isinstance(data, pd.DataFrame):
         return data
@@ -96,11 +29,7 @@ def _load_data(data: pd.DataFrame | str) -> pd.DataFrame:
 
 
 def _build_features(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
-    """Build features from simulator output.
-
-    This helper selects numeric columns and separates the target column named
-    ``target`` (if present) or the last numeric column otherwise.
-    """
+    """Separate numeric features and target column from ``df``."""
     numeric = df.select_dtypes("number").copy()
     if numeric.empty:
         raise ValueError("No numeric columns found for feature generation")
@@ -120,23 +49,7 @@ def train_meta_selector(
     model_name: str = "meta_selector",
     registry: ModelRegistry | None = None,
 ) -> lgb.LGBMClassifier:
-    """Train a LightGBM meta-selector and upload the model to Supabase.
-
-    Parameters
-    ----------
-    data:
-        DataFrame or path to CSV containing simulator output. The dataset must
-        contain a numeric ``target`` column or the last numeric column will be
-        treated as the target.
-    use_gpu:
-        If ``True`` enable LightGBM GPU acceleration. Defaults to ``False``.
-    model_name:
-        Name used when storing the model in Supabase. Defaults to
-        ``"meta_selector"``.
-    registry:
-        Optional :class:`ModelRegistry` instance. If not provided a new
-        instance is created using environment configuration.
-    """
+    """Train a LightGBM meta-selector and upload the model to Supabase."""
     df = _load_data(data)
     X, y = _build_features(df)
 
@@ -153,4 +66,18 @@ def train_meta_selector(
     return model
 
 
-__all__ = ["train_meta_selector"]
+def main() -> None:
+    """CLI entry point."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("data", help="CSV file with simulator output")
+    parser.add_argument("--model-name", default="meta_selector", help="Name for the stored model")
+    parser.add_argument("--gpu", action="store_true", help="Enable GPU training")
+    args = parser.parse_args()
+    train_meta_selector(args.data, use_gpu=args.gpu, model_name=args.model_name)
+
+
+__all__ = ["train_meta_selector", "main"]
+
+
+if __name__ == "__main__":  # pragma: no cover - script mode
+    main()
