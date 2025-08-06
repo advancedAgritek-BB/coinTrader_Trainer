@@ -35,9 +35,7 @@ def _load_data(data: pd.DataFrame | str | None) -> tuple[pd.DataFrame, pd.Series
 
 
 def train_fallback_model(
-    data: pd.DataFrame | str | None = None,
-    *,
-    use_gpu: bool = False,
+    data: pd.DataFrame | str | None = None
 ) -> str:
     """Train a tiny logistic regression model and return base64 weights."""
     X, y = _load_data(data)

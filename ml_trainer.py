@@ -577,7 +577,7 @@ def _train_fallback() -> None:
         return
     try:
         path = _generate_csv()
-        train_fallback_model(path, use_gpu=_MENU_USE_GPU)
+        train_fallback_model(path)
         print("Fallback model uploaded")
     except Exception as exc:  # pragma: no cover - external deps
         print(f"Fallback model training failed: {exc}")
