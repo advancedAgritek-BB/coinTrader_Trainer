@@ -1,8 +1,8 @@
 import base64
-import pickle
-import types
 import os
+import pickle
 import sys
+import types
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
@@ -37,4 +37,3 @@ def test_fallback_schedules_and_returns_model(monkeypatch):
 
     assert result is dummy_model
     assert called["args"] == ("regime_lgbm", "daily")
-
