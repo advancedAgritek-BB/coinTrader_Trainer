@@ -814,3 +814,18 @@ Make sure the job inherits your Supabase credentials such as `SUPABASE_URL`, `SU
 
 * `crypto_bot.regime.regime_classifier` embeds a base64-encoded model as a fallback in case no parameters are available.
 
+
+## Maintenance
+
+Use `tools/cleanup_old_files.py` to remove stale files based on their last modification date. By default it scans the repository root, but any directory can be supplied:
+
+```bash
+python tools/cleanup_old_files.py            # remove files older than today from repo root
+python tools/cleanup_old_files.py /path/to/data  # specify a custom directory
+```
+
+To run the cleanup automatically, schedule it with cron:
+
+```cron
+0 0 * * * python /path/to/coinTrader_Trainer/tools/cleanup_old_files.py /path/to/data
+```
