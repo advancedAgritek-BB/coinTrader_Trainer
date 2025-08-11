@@ -1,15 +1,18 @@
 from __future__ import annotations
 
-"""Train a LightGBM-based regime classifier and upload it via ``ModelRegistry``."""
+"""Train a LightGBM-based regime classifier and persist the artifact."""
 
 from pathlib import Path
 from typing import Any
 
 import argparse
+import pickle
+from datetime import datetime
+
 import lightgbm as lgb
 import pandas as pd
 
-from cointrainer.registry import ModelRegistry
+from cointrainer.registry import save_model
 
 
 def _load_data(data: pd.DataFrame | str) -> pd.DataFrame:
@@ -53,9 +56,12 @@ def train_regime_model(
     *,
     use_gpu: bool = True,
     model_name: str = "regime_model",
-    registry: ModelRegistry | None = None,
+    registry: Any | None = None,
+    symbol: str = "BTCUSDT",
+    horizon: str = "15m",
+    thresholds: dict | None = None,
 ) -> lgb.LGBMClassifier:
-    """Train and optionally upload a LightGBM classifier for market regimes."""
+    """Train a LightGBM classifier for market regimes and save it."""
 
     df = _load_data(data)
     X, y = _prepare_xy(df)
@@ -67,9 +73,17 @@ def train_regime_model(
     model = lgb.LGBMClassifier(**params)
     model.fit(X, y)
 
-    if registry is None:
-        registry = ModelRegistry()
-    registry.upload(model, model_name)
+    ts = datetime.utcnow().strftime("%Y%m%d-%H%M%S")
+    key = f"models/regime/{symbol}/{ts}_regime_lgbm.pkl"
+    blob = pickle.dumps(model)
+    metadata = {
+        "feature_list": list(X.columns),
+        "label_order": [-1, 0, 1],
+        "horizon": horizon,
+    }
+    if thresholds:
+        metadata["thresholds"] = thresholds
+    save_model(key, blob, metadata)
     return model
 
 
