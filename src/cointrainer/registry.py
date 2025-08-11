@@ -6,6 +6,7 @@ import logging
 import os
 import tempfile
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import joblib
@@ -131,3 +132,16 @@ class ModelRegistry:
         params = {"on_conflict": conflict_key} if conflict_key else {}
         resp = table.upsert(entry, **params).execute()
         return resp.data[0]["id"]
+
+
+def load_latest(prefix: str) -> bytes:
+    """Return bytes for the most recent model matching ``prefix``.
+
+    This lightweight helper only implements local file loading. ``prefix`` is
+    joined with ``.pkl`` and read from disk. Callers should handle any
+    ``FileNotFoundError`` exceptions.
+    """
+
+    path = Path(f"{prefix}.pkl")
+    with path.open("rb") as fh:
+        return fh.read()
