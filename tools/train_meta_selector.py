@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from registry import ModelRegistry
+from cointrainer.registry import ModelRegistry
 from train_meta_selector import train_meta_selector as _train_meta_selector
 
 

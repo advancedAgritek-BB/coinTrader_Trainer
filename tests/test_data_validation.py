@@ -6,8 +6,8 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-import data_loader
-import feature_engineering
+from cointrainer.data import loader as data_loader
+from cointrainer.features import build as feature_engineering
 pkg = types.ModuleType("coinTrader_Trainer")
 pkg.data_loader = data_loader
 pkg.feature_engineering = feature_engineering

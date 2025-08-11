@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+import io
 import logging
 import os
 from datetime import datetime
 from typing import Optional
 
+import numpy as np
 import pandas as pd
+import requests
 from dotenv import load_dotenv
-from supabase import Client, create_client
 from postgrest.exceptions import APIError
+from supabase import Client, create_client
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from utils.normalise import normalize_ohlc
@@ -19,26 +22,40 @@ load_dotenv()
 
 
 def download_historical_data(
-    path: str,
+    source: str,
     *,
     symbol: Optional[str] = None,
     start_ts: Optional[str | datetime] = None,
     end_ts: Optional[str | datetime] = None,
     output_path: Optional[str] = None,
+    output_file: Optional[str] = None,
+    return_threshold: float = 0.01,
 ) -> pd.DataFrame:
-    """Load historical price data from ``path`` and return a normalized DataFrame."""
+    """Load historical price data from ``source`` (file path or URL)."""
+
+    is_local = os.path.isfile(source) or source.startswith("file://")
+    path = source[7:] if source.startswith("file://") else source
+
     skiprows = 0
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            first_line = f.readline()
-        if "cryptodatadownload" in first_line.lower():
-            skiprows = 1
-    except OSError:
-        pass
+    if is_local:
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                first_line = f.readline()
+            if "cryptodatadownload" in first_line.lower():
+                skiprows = 1
+        except OSError:
+            pass
+        df = pd.read_csv(path, skiprows=skiprows)
+    else:
+        resp = requests.get(source)
+        resp.raise_for_status()
+        if output_file:
+            with open(output_file, "wb") as fh:
+                fh.write(resp.content)
+        first_line = resp.text.splitlines()[0].lower()
+        skiprows = 1 if "cryptodatadownload" in first_line else 0
+        df = pd.read_csv(io.StringIO(resp.text), skiprows=skiprows)
 
-    df = pd.read_csv(path, skiprows=skiprows)
-
-    # Normalize column names to match the Supabase schema exactly
     rename_map = {
         "Unix": "unix",
         "unix": "unix",
@@ -63,13 +80,9 @@ def download_historical_data(
     }
 
     df = df.rename(
-        columns={
-            col: rename_map.get(col, rename_map.get(col.lower(), col))
-            for col in df.columns
-        }
+        columns={col: rename_map.get(col, rename_map.get(col.lower(), col)) for col in df.columns}
     )
 
-    # Drop duplicate columns if any
     if df.columns.duplicated().any():
         dupes = list(df.columns[df.columns.duplicated()])
         logging.warning("Dropping duplicate columns: %s", dupes)
@@ -78,14 +91,12 @@ def download_historical_data(
     if ("unix" not in df.columns and "date" not in df.columns) or "close" not in df.columns:
         raise ValueError("CSV must contain unix/date timestamp and close columns")
 
-    # Create 'timestamp' column from 'date' or 'unix' if not present
     if "timestamp" not in df.columns:
         if "unix" in df.columns:
             df["timestamp"] = pd.to_datetime(df["unix"], unit="ms", utc=True)
         else:
             df["timestamp"] = pd.to_datetime(df["date"], utc=True)
 
-    # Filter by symbol and date range
     if symbol is not None and "symbol" in df.columns:
         df = df[df["symbol"] == symbol]
     if start_ts is not None:
@@ -95,12 +106,8 @@ def download_historical_data(
         end_ts = pd.to_datetime(end_ts, utc=True)
         df = df[df["timestamp"] < end_ts]
 
-    df = (
-        df.sort_values("timestamp")
-        .drop_duplicates("timestamp")
-        .reset_index(drop=True)
-    )
-    # Select only columns that match the Supabase schema (exclude 'id' as it's auto-generated)
+    df = df.sort_values("timestamp").drop_duplicates("timestamp").reset_index(drop=True)
+
     schema_columns = [
         "unix",
         "date",
@@ -123,6 +130,14 @@ def download_historical_data(
             df.to_csv(output_path, index=False)
 
     df = normalize_ohlc(df)
+
+    if "target" not in df.columns and "price" in df.columns:
+        returns = df["price"].pct_change().shift(-1)
+        df["target"] = pd.Series(
+            np.where(returns > return_threshold, 1, np.where(returns < -return_threshold, -1, 0)),
+            index=df.index,
+        ).fillna(0)
+
     return df
 
 
@@ -198,16 +213,16 @@ def insert_to_supabase(
 
     df = df.copy()
     schema_columns = [
-        'unix',
-        'date',
-        'symbol',
-        'open',
-        'high',
-        'low',
-        'close',
-        'volume_xrp',
-        'volume_usdt',
-        'tradecount',
+        "unix",
+        "date",
+        "symbol",
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume_xrp",
+        "volume_usdt",
+        "tradecount",
     ]
     df = df[[col for col in schema_columns if col in df.columns]]
 

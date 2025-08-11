@@ -9,7 +9,7 @@ import numpy as np
 import torch
 from torch import nn
 import pandas as pd
-from registry import ModelRegistry
+from cointrainer.registry import ModelRegistry
 
 
 @dataclass

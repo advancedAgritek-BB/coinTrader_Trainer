@@ -17,9 +17,9 @@ from lightgbm import Booster
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
 from sklearn.model_selection import StratifiedKFold
 
-from registry import ModelRegistry
+from cointrainer.registry import ModelRegistry
 from utils import timed
-from evaluation import simulate_signal_pnl
+from cointrainer.evaluation import simulate_signal_pnl
 import httpx
 from supabase import SupabaseException
 

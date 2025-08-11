@@ -8,7 +8,7 @@ import pandas as pd
 import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-from data_loader import (
+from cointrainer.data.loader import (
     fetch_data_async,
     fetch_data_between_async,
     fetch_data_range_async,

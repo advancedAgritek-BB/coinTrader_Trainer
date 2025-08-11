@@ -8,7 +8,7 @@ import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from evaluation import simulate_signal_pnl, full_strategy_eval
+from cointrainer.evaluation import simulate_signal_pnl, full_strategy_eval
 
 
 def test_simulate_signal_pnl_metrics():

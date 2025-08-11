@@ -20,7 +20,7 @@ from dotenv import load_dotenv
 from supabase import Client, create_client
 import argparse
 
-from data_loader import _get_redis_client
+from cointrainer.data.loader import _get_redis_client
 from utils.normalise import normalize_ohlc
 
 load_dotenv()

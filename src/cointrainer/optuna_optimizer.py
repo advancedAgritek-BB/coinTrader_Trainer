@@ -9,8 +9,8 @@ import numpy as np
 import optuna
 import pandas as pd
 
-from data_loader import fetch_data_range_async
-from feature_engineering import make_features
+from cointrainer.data.loader import fetch_data_range_async
+from cointrainer.features.build import make_features
 from utils import validate_schema
 
 

@@ -18,7 +18,7 @@ import pandas as pd
 import yaml
 from dotenv import load_dotenv
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
-from feature_engineering import make_features
+from cointrainer.features.build import make_features
 from utils import timed, validate_schema
 from supabase import SupabaseException, create_client
 import httpx

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from registry import ModelRegistry
+from cointrainer.registry import ModelRegistry
 from train_fallback_model import train_fallback_model as _train_fallback_model
 
 

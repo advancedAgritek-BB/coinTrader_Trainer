@@ -8,7 +8,7 @@ import torch
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv
 
-from registry import ModelRegistry
+from cointrainer.registry import ModelRegistry
 
 
 def train_ppo(

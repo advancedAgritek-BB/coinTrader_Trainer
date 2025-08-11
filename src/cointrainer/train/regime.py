@@ -9,7 +9,7 @@ import argparse
 import lightgbm as lgb
 import pandas as pd
 
-from registry import ModelRegistry
+from cointrainer.registry import ModelRegistry
 
 
 def _load_data(data: pd.DataFrame | str) -> pd.DataFrame:

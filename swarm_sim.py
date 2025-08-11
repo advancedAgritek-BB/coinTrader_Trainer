@@ -23,10 +23,10 @@ from config import Config
 import httpx
 from supabase import SupabaseException
 
-from registry import ModelRegistry
-from train_pipeline import check_clinfo_gpu, verify_lightgbm_gpu
-import data_loader
-from feature_engineering import make_features
+from cointrainer.registry import ModelRegistry
+from cointrainer.train.pipeline import check_clinfo_gpu, verify_lightgbm_gpu
+from cointrainer.data import loader as data_loader
+from cointrainer.features.build import make_features
 from sklearn.utils import resample
 
 

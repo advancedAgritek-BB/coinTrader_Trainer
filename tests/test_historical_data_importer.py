@@ -1,12 +1,10 @@
 import os
-import sys
 import types
 
 import pandas as pd
 import pytest
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-import historical_data_importer as hdi
+import cointrainer.data.importers as hdi
 import ml_trainer
 
 

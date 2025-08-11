@@ -10,9 +10,9 @@ import numpy as np
 import pandas as pd
 from dotenv import load_dotenv
 
-from data_loader import fetch_data_range_async
-from feature_engineering import make_features
-from registry import ModelRegistry
+from cointrainer.data.loader import fetch_data_range_async
+from cointrainer.features.build import make_features
+from cointrainer.registry import ModelRegistry
 from utils import timed
 import httpx
 from supabase import SupabaseException

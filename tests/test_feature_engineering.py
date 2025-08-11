@@ -11,8 +11,8 @@ import types
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import feature_engineering
-from feature_engineering import make_features
+from cointrainer.features import build as feature_engineering
+from cointrainer.features.build import make_features
 
 
 def test_make_features_interpolation_and_columns():

@@ -65,10 +65,9 @@ import numpy as np
 import pandas as pd
 import yaml
 
-import historical_data_importer
-from data_import import download_historical_data, insert_to_supabase
-from train_pipeline import check_clinfo_gpu, verify_lightgbm_gpu
-from registry import ModelRegistry
+from cointrainer.data import importers
+from cointrainer.train.pipeline import check_clinfo_gpu, verify_lightgbm_gpu
+from cointrainer.registry import ModelRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -245,18 +244,18 @@ def main() -> None:  # pragma: no cover - CLI entry
     args = parser.parse_args()
 
     if args.command == "import-data":
-        df = download_historical_data(
+        df = importers.download_historical_data(
             args.source_url,
             output_file=args.output_file,
             symbol=args.symbol,
             start_ts=args.start_ts,
             end_ts=args.end_ts,
         )
-        insert_to_supabase(df, batch_size=args.batch_size)
+        importers.insert_to_supabase(df, batch_size=args.batch_size)
         return
 
     if args.command == "import-csv":
-        df = historical_data_importer.download_historical_data(
+        df = importers.download_historical_data(
             args.csv,
             symbol=args.symbol,
             start_ts=args.start_ts,
@@ -267,7 +266,7 @@ def main() -> None:  # pragma: no cover - CLI entry
         if not url or not key:
             raise SystemExit("SUPABASE_URL and service key must be set")
         table = args.table or f"historical_prices_{args.symbol.lower()}"
-        historical_data_importer.insert_to_supabase(
+        importers.insert_to_supabase(
             df,
             url=url,
             key=key,
