@@ -48,6 +48,33 @@ and trains the ``regime_lgbm`` model.  After training the resulting model is
 uploaded back to Supabase where the trading application can fetch it for live
 predictions.
 
+## Artifacts & Registry
+
+Trained models are saved using a standard layout so the trainer and runtime
+agree on how to locate them.  Each run writes the pickled model to
+
+```
+models/regime/{SYMBOL}/{YYYYMMDD-HHMMSS}_regime_lgbm.pkl
+```
+
+and updates a pointer file ``models/regime/{SYMBOL}/LATEST.json`` with metadata:
+
+```json
+{
+  "key": "models/regime/BTCUSDT/20250811-153000_regime_lgbm.pkl",
+  "schema_version": "1",
+  "feature_list": ["rsi_14", "atr_14", "ema_8", "ema_21"],
+  "label_order": [-1, 0, 1],
+  "horizon": "15m",
+  "thresholds": {"hold": 0.55},
+  "hash": "sha256:...hex..."
+}
+```
+
+``coinTrader2.0`` resolves the latest model by reading ``LATEST.json`` and then
+downloading the referenced pickle.  If a hash is present it is verified before
+the model is deserialised.
+
 The trading bot must be able to import modules from this repository.
 Either install the package or add the project path to ``PYTHONPATH`` so that
 ``from coinTrader_Trainer import ...`` works. An easy approach is to export the
