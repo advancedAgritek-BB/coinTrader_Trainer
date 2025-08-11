@@ -11,8 +11,8 @@ import concurrent.futures
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 import types
-import data_loader
-import feature_engineering
+from cointrainer.data import loader as data_loader
+from cointrainer.features import build as feature_engineering
 
 module = types.SimpleNamespace(data_loader=data_loader, feature_engineering=feature_engineering)
 sys.modules["coinTrader_Trainer"] = module

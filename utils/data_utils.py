@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 from sklearn.utils import resample
 
-import data_loader
+from cointrainer.data import loader as data_loader
 
 
 async def prepare_data(
@@ -56,7 +56,7 @@ async def prepare_data(
     if symbols is not None and "symbol" in df.columns:
         df = df[df["symbol"].isin(set(symbols))]
 
-    from feature_engineering import make_features
+    from cointrainer.features.build import make_features
 
     loop = asyncio.get_running_loop()
     df = await loop.run_in_executor(

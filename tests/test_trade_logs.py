@@ -18,7 +18,7 @@ sys.modules.setdefault(
     ),
 )
 
-import data_loader
+from cointrainer.data import loader as data_loader
 
 
 def test_fetch_trade_logs_symbol_filter(monkeypatch):

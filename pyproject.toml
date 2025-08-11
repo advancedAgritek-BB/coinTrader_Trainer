@@ -3,44 +3,27 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "coinTrader_Trainer"
+name = "cointrader-trainer"
 version = "0.1.0"
+requires-python = ">=3.10"
 dependencies = [
-"ccxt",
-"fakeredis",
-"flwr",
-"httpx",
-"joblib",
-"jsonschema",
-"lightgbm",
-"networkx",
-"numpy",
-"numba",
-"optuna",
-"pandas",
-"backtrader",
-"pyarrow",
-"pyopencl",
-"pytest",
-"pytest-asyncio",
-"python-dotenv",
-"pytz",
-"pyyaml",
-"redis",
-"requests",
-"scikit-learn",
-"scipy",
-"statsmodels",
-"prometheus_client",
-"supabase==2.18.0",  # supabase-py client
-"stable-baselines3==2.7.0",
-"torch==2.3.1",  # ROCm-enabled build
-"tenacity",
-"modin[ray]",
-"dask[dataframe]",
-"stable-baselines3",
+    "pandas",
+    "numpy",
+    "pyarrow",
+    "pytz",
+    "tenacity",
+    "requests",
 ]
 
+[project.optional-dependencies]
+train = ["lightgbm", "scikit-learn", "optuna", "networkx", "backtrader"]
+gpu = ["pyopencl"]
+flwr = ["flwr"]
+talib = ["TA-Lib"]
+accel = ["numba", "jax"]
+
+[project.scripts]
+cointrainer = "cointrainer.cli:main"
+
 [tool.setuptools.packages.find]
-where = ["."]
-include = ["coinTrader_Trainer*"]
+where = ["src"]

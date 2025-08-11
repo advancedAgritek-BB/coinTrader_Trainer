@@ -5,7 +5,7 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-import registry
+from cointrainer import registry
 
 
 def test_upload_uses_joblib(monkeypatch, registry_with_dummy):

@@ -4,7 +4,7 @@ from datetime import datetime
 
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-import data_loader
+from cointrainer.data import loader as data_loader
 
 
 def test_fetch_trade_aggregates(monkeypatch):

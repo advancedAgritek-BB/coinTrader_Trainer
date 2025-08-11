@@ -5,7 +5,7 @@ import logging
 import builtins
 import pytest
 import swarm_sim
-import data_loader
+from cointrainer.data import loader as data_loader
 
 import numpy as np
 import pandas as pd

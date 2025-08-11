@@ -1,5 +1,7 @@
 # coinTrader Trainer
 
+Now installable via `pip install -e .` and importable via `import cointrainer`.
+
 coinTrader Trainer forms the model training component of the broader
 `coinTrader2.0` trading application.  The live system records executed
 orders and market snapshots in a Supabase project.  This repository
@@ -150,14 +152,12 @@ cp .env.example .env
 python bootstrap_env.py
 ```
 
-All modules reside directly in the project root rather than under a
-``src/`` directory.  When running scripts from another location, add the
-repository path to ``PYTHONPATH`` so Python can resolve imports.
+Training modules now live under the `cointrainer` package inside `src/`. Legacy root-level modules remain for backward compatibility but are deprecated and will be removed after the transition.
 
-Modules can then be imported as normal.  For example:
+Modules can now be imported as normal, for example:
 
 ```python
-from coinTrader_Trainer import data_loader
+from cointrainer.data import loader as data_loader
 ```
 
 ### Trade Log Fetching and Caching

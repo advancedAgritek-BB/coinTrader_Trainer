@@ -3,7 +3,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-import train_pipeline
+from cointrainer.train import pipeline as train_pipeline
 import ml_trainer
 
 

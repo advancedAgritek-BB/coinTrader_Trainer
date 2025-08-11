@@ -127,7 +127,7 @@ class DummySupabase:
 
 @pytest.fixture
 def registry_with_dummy(monkeypatch):
-    import registry
+    from cointrainer import registry
 
     dummy = DummySupabase()
     monkeypatch.setattr(registry, "create_client", lambda url, key: dummy)

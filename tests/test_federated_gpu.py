@@ -9,8 +9,8 @@ import pandas as pd
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 # Import the module under test which expects a package name
-import data_loader
-import feature_engineering
+from cointrainer.data import loader as data_loader
+from cointrainer.features import build as feature_engineering
 
 module = types.ModuleType("coinTrader_Trainer")
 module.data_loader = data_loader

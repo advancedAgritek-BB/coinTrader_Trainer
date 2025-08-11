@@ -1,10 +1,6 @@
-import os
-import sys
-
 import pandas as pd
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-import data_import
+import cointrainer.data.importers as data_import
 
 
 def test_download_historical_data_local(tmp_path):

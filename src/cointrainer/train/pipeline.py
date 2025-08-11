@@ -15,12 +15,12 @@ import pandas as pd
 import yaml
 from supabase import create_client
 
-from data_loader import fetch_trade_logs, _get_redis_client
-from evaluation import simulate_signal_pnl
+from cointrainer.data.loader import fetch_trade_logs, _get_redis_client
+from cointrainer.evaluation import simulate_signal_pnl
 from sklearn.utils import resample
-from feature_engineering import make_features
+from cointrainer.features.build import make_features
 from utils import validate_schema
-from registry import ModelRegistry
+from cointrainer.registry import ModelRegistry
 from trainers.regime_lgbm import train_regime_lgbm
 
 try:  # optional dependency
