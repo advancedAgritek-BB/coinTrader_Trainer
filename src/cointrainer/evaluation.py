@@ -93,7 +93,7 @@ def simulate_signal_pnl(
     trade_returns = []
     current_signal = 0.0
     current_ret = 0.0
-    for ret, sig in zip(strategy_returns, signals):
+    for ret, sig in zip(strategy_returns, signals, strict=False):
         if sig != current_signal:
             if current_signal != 0.0:
                 trade_returns.append(current_ret)

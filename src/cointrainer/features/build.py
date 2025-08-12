@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Tuple, Dict
-
 import pandas as pd
 
-from .indicators import rsi, atr, ema, bollinger, momentum, adx, obv
+from .indicators import adx, atr, bollinger, ema, momentum, obv, rsi
 
 
 def _close_series(df: pd.DataFrame) -> pd.Series:
@@ -17,7 +15,7 @@ def _close_series(df: pd.DataFrame) -> pd.Series:
     raise KeyError("DataFrame must contain a 'close' or 'price' column")
 
 
-def build_features(df: pd.DataFrame, *, use: dict, params: dict) -> Tuple[pd.DataFrame, Dict]:
+def build_features(df: pd.DataFrame, *, use: dict, params: dict) -> tuple[pd.DataFrame, dict]:
     """Return selected indicator features and accompanying metadata."""
 
     close = _close_series(df)
@@ -66,7 +64,7 @@ def build_features(df: pd.DataFrame, *, use: dict, params: dict) -> Tuple[pd.Dat
     return X, meta
 
 
-def make_labels(df: pd.DataFrame, *, horizon: str, thresholds: dict) -> Tuple[pd.Series, Dict]:
+def make_labels(df: pd.DataFrame, *, horizon: str, thresholds: dict) -> tuple[pd.Series, dict]:
     """Generate classification labels and metadata."""
 
     close = _close_series(df)
@@ -98,4 +96,4 @@ def make_features(df: pd.DataFrame, *_, **kwargs) -> pd.DataFrame:
     return X
 
 
-__all__ = ["build_features", "make_labels", "make_features"]
+__all__ = ["build_features", "make_features", "make_labels"]

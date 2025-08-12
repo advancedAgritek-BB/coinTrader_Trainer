@@ -2,17 +2,16 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from train_fallback_model import train_fallback_model as _train_fallback_model
 
 from cointrainer.registry import ModelRegistry
-from train_fallback_model import train_fallback_model as _train_fallback_model
 
 
 def main(
     data: str | None = None,
     *,
     model_name: str = "fallback_model",
-    registry: Optional[ModelRegistry] = None,
+    registry: ModelRegistry | None = None,
 ):
     """Train the fallback model and upload its weights to Supabase."""
     payload = _train_fallback_model(data)

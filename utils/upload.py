@@ -4,12 +4,11 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Tuple
 
 from supabase import Client, create_client
 
 
-def _parse_dest(dest: str, src_path: str) -> Tuple[str, str]:
+def _parse_dest(dest: str, src_path: str) -> tuple[str, str]:
     """Return the bucket name and object path for ``dest``.
 
     Parameters

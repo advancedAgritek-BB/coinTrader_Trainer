@@ -2,7 +2,7 @@ from __future__ import annotations
 
 """Utilities for training reinforcement-learning agents using PPO."""
 
-from typing import Any, Callable
+from typing import Any
 
 import torch
 from stable_baselines3 import PPO
@@ -71,5 +71,5 @@ def train(
     return model
 
 
-__all__ = ["train_ppo", "train"]
+__all__ = ["train", "train_ppo"]
 

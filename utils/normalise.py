@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from typing import Mapping
+from collections.abc import Mapping
 
 import pandas as pd
-
 
 _RENAME_MAP: Mapping[str, str] = {
     "timestamp": "ts",

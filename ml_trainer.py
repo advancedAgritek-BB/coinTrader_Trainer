@@ -12,7 +12,7 @@ import shutil
 import subprocess
 import threading
 from datetime import datetime, timedelta
-from typing import Any, Dict, Tuple
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # Optional imports used by the interactive menu.
@@ -31,9 +31,9 @@ except Exception:  # pragma: no cover - module may be absent
     train_signal_model = None  # type: ignore
 
 try:  # pragma: no cover - optional LightGBM helpers
+    from tools.train_fallback_model import main as train_fallback_model
     from tools.train_meta_selector import main as train_meta_selector
     from tools.train_regime_model import main as train_regime_model
-    from tools.train_fallback_model import main as train_fallback_model
 except Exception:  # pragma: no cover - training scripts may be missing
     train_meta_selector = train_regime_model = train_fallback_model = None  # type: ignore
 
@@ -49,8 +49,8 @@ except Exception:  # pragma: no cover - selector module may be missing
     bandit_train = None  # type: ignore
 
 try:  # pragma: no cover - optional RL helpers
-    from rl.train import run as rl_train
     from rl.evaluate import run as rl_evaluate
+    from rl.train import run as rl_train
 except Exception:  # pragma: no cover - RL modules may be absent
     rl_train = rl_evaluate = None  # type: ignore
 
@@ -59,14 +59,13 @@ try:  # pragma: no cover - optional scheduling helper
 except Exception:  # pragma: no cover - module not available
     schedule_retrain = None  # type: ignore
 
-from prometheus_client import Gauge, start_http_server
-
 import numpy as np
 import pandas as pd
 import yaml
+from prometheus_client import Gauge, start_http_server
 
-from cointrainer.train.pipeline import check_clinfo_gpu, verify_lightgbm_gpu
 from cointrainer.registry import ModelRegistry
+from cointrainer.train.pipeline import check_clinfo_gpu, verify_lightgbm_gpu
 
 logger = logging.getLogger(__name__)
 
@@ -99,9 +98,9 @@ TRAINERS = {
 }
 
 
-def load_cfg(path: str) -> Dict[str, Any]:
+def load_cfg(path: str) -> dict[str, Any]:
     """Load YAML configuration with sensible defaults."""
-    with open(path, "r") as fh:
+    with open(path) as fh:
         cfg = yaml.safe_load(fh) or {}
 
     for key in ("regime_lgbm", "federated_regime"):
@@ -112,7 +111,7 @@ def load_cfg(path: str) -> Dict[str, Any]:
     return cfg
 
 
-def _make_dummy_data(n: int = 200) -> Tuple[pd.DataFrame, pd.Series]:
+def _make_dummy_data(n: int = 200) -> tuple[pd.DataFrame, pd.Series]:
     """Generate a small synthetic dataset for local testing."""
     rng = np.random.default_rng(0)
     df = pd.DataFrame(
@@ -440,12 +439,12 @@ def main() -> None:  # pragma: no cover - CLI entry
 # ---------------------------------------------------------------------------
 
 # cached objects used across menu actions
-_CACHED_PARAMS: Dict[str, Any] = {}
-_CACHED_DATA: Tuple[pd.DataFrame, pd.Series] | None = None
+_CACHED_PARAMS: dict[str, Any] = {}
+_CACHED_DATA: tuple[pd.DataFrame, pd.Series] | None = None
 _MENU_USE_GPU: bool = False
 
 
-def get_params(cfg_path: str = "cfg.yaml", task: str = "regime") -> Dict[str, Any]:
+def get_params(cfg_path: str = "cfg.yaml", task: str = "regime") -> dict[str, Any]:
     """Load and cache training parameters for ``task``.
 
     Parameters are loaded from ``cfg_path`` and stored globally so subsequent
@@ -461,7 +460,7 @@ def get_params(cfg_path: str = "cfg.yaml", task: str = "regime") -> Dict[str, An
     return _CACHED_PARAMS
 
 
-def prepare_data() -> Tuple[pd.DataFrame, pd.Series]:
+def prepare_data() -> tuple[pd.DataFrame, pd.Series]:
     """Prepare a small dummy dataset for experimentation."""
 
     global _CACHED_DATA

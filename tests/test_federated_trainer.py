@@ -1,16 +1,17 @@
+import asyncio
+import concurrent.futures
+import logging
 import os
 import sys
-import logging
-import pytest
 
 import numpy as np
 import pandas as pd
-import asyncio
-import concurrent.futures
+import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 import types
+
 from cointrainer.data import loader as data_loader
 from cointrainer.features import build as feature_engineering
 
@@ -20,7 +21,6 @@ sys.modules["coinTrader_Trainer.data_loader"] = data_loader
 sys.modules["coinTrader_Trainer.feature_engineering"] = feature_engineering
 
 import federated_trainer as ft
-
 from trainers import federated
 from trainers.federated import train_federated_regime
 

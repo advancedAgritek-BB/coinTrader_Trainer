@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from train_regime_model import train_regime_model as _train_regime_model
 
 from cointrainer.registry import ModelRegistry
-from train_regime_model import train_regime_model as _train_regime_model
 
 
 def main(
@@ -13,7 +12,7 @@ def main(
     *,
     use_gpu: bool = False,
     model_name: str = "regime_model",
-    registry: Optional[ModelRegistry] = None,
+    registry: ModelRegistry | None = None,
 ):
     """Train the regime model from ``data`` and upload it.
 

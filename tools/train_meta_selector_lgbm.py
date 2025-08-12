@@ -3,7 +3,6 @@ from __future__ import annotations
 """Train a LightGBM meta selector from trade history."""
 
 from pathlib import Path
-from typing import Tuple
 
 import joblib
 import lightgbm as lgb
@@ -27,7 +26,7 @@ def _load_trades(csv_path: str | Path) -> pd.DataFrame:
     return df
 
 
-def _build_features(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.Series]:
+def _build_features(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
     """Construct a feature matrix ``X`` and target vector ``y`` from trades."""
     features = ["strategy", "side", "entry_price", "exit_price", "duration"]
     X = df[features].copy()

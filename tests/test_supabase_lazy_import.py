@@ -1,7 +1,7 @@
+import builtins
+import importlib
 import os
 import sys
-import importlib
-import builtins
 
 import pytest
 

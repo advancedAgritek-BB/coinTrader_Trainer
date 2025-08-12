@@ -8,17 +8,16 @@ Run `python kraken_fetch.py` manually or via cron, e.g., every 6 hours:
 
 from __future__ import annotations
 
+import argparse
+import logging
 import os
 import time
-import logging
-from typing import Optional
 from io import BytesIO
 
 import pandas as pd
 import requests
 from dotenv import load_dotenv
 from supabase import Client, create_client
-import argparse
 
 from cointrainer.data.cache import get_cache
 from utils.normalise import normalize_ohlc
@@ -44,12 +43,12 @@ def get_tradable_pairs() -> list[str]:
     resp = requests.get("https://api.kraken.com/0/public/AssetPairs")
     resp.raise_for_status()
     data = resp.json()
-    if "error" in data and data["error"]:
+    if data.get("error"):
         raise ValueError(data["error"])
     return list(data["result"].keys())  # e.g., ['XBTUSD', 'ETHUSD']
 
 
-def get_last_ts(client: Client, symbol: str, table: str) -> Optional[int]:
+def get_last_ts(client: Client, symbol: str, table: str) -> int | None:
     """Get the Unix timestamp of the latest entry for a symbol (or None if empty)."""
     resp = (
         client.table(table)
@@ -77,7 +76,7 @@ def fetch_kraken_ohlc(pair: str, interval: int = 1) -> pd.DataFrame:
     resp = requests.get("https://api.kraken.com/0/public/OHLC", params=params)
     resp.raise_for_status()
     data = resp.json()
-    if "error" in data and data["error"]:
+    if data.get("error"):
         raise ValueError(data["error"])
     ohlc_data = data["result"][pair]
     df = pd.DataFrame(
@@ -138,7 +137,7 @@ def append_kraken_data(
         time.sleep(delay_sec)
 
 
-def main(argv: Optional[list[str]] = None) -> None:
+def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Fetch OHLC data from Kraken")
     parser.add_argument(
         "--table",

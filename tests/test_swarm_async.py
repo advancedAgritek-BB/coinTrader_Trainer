@@ -2,6 +2,7 @@ import asyncio
 import os
 import sys
 import types
+
 import pandas as pd
 import pytest
 
@@ -48,7 +49,6 @@ sys.modules.setdefault(
 sys.modules.setdefault("optuna", types.SimpleNamespace())
 
 import swarm_sim
-import utils
 
 
 async def fake_fetch_range(table, start, end):

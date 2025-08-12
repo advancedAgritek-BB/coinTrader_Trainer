@@ -6,7 +6,6 @@ from __future__ import annotations
 import logging
 import os
 import subprocess
-from typing import Dict, Optional, Tuple
 
 import lightgbm as lgb
 import numpy as np
@@ -80,10 +79,10 @@ def train_regime_lgbm(
     use_gpu: bool = True,
     tune: bool = False,
     n_trials: int = 50,
-    registry: Optional[ModelRegistry] = None,
+    registry: ModelRegistry | None = None,
     model_name: str = "regime_lgbm",
     profile_gpu: bool = False,
-) -> Tuple[Booster, Dict[str, float]]:
+) -> tuple[Booster, dict[str, float]]:
     """Train LightGBM model using 5-fold stratified CV with early stopping.
 
     Parameters
@@ -168,7 +167,7 @@ def train_regime_lgbm(
 
         return _cb
 
-    def _cross_validate(train_params: dict) -> Tuple[Dict[str, float], int]:
+    def _cross_validate(train_params: dict) -> tuple[dict[str, float], int]:
         acc_scores = []
         f1_scores = []
         precision_scores = []

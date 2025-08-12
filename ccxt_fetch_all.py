@@ -3,10 +3,9 @@ from __future__ import annotations
 """Fetch OHLC data from a CCXT exchange and append it to Supabase."""
 
 import argparse
+import logging
 import os
 import time
-import logging
-from typing import Optional
 
 import ccxt
 import pandas as pd
@@ -44,7 +43,7 @@ def get_markets(exchange: ccxt.Exchange) -> list[str]:
     return list(markets.keys())
 
 
-def get_last_ts(client: Client, symbol: str, table: str) -> Optional[int]:
+def get_last_ts(client: Client, symbol: str, table: str) -> int | None:
     """Get the Unix timestamp of the latest entry for ``symbol`` in ``table``."""
     """Return last timestamp for ``symbol`` in ``table`` or ``None``."""
     resp = (
@@ -120,7 +119,7 @@ def append_ccxt_data_all(
         time.sleep(delay_sec)
 
 
-def main(argv: Optional[list[str]] = None) -> None:
+def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Fetch OHLC data using CCXT")
     parser.add_argument(
         "--exchange",

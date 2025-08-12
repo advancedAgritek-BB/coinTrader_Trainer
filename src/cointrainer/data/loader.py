@@ -4,7 +4,6 @@ from __future__ import annotations
 import os
 from datetime import datetime
 from io import BytesIO
-from typing import Optional
 
 import pandas as pd
 
@@ -15,10 +14,10 @@ from .supabase_client import select_range
 def fetch_trade_logs(
     start_ts: datetime | str,
     end_ts: datetime | str,
-    symbol: Optional[str],
+    symbol: str | None,
     *,
-    limit: Optional[int] = None,
-    cache_path: Optional[str] = None,
+    limit: int | None = None,
+    cache_path: str | None = None,
     table: str = "trade_logs",
 ) -> pd.DataFrame:
     """Return trade logs from Supabase or a local cache.
@@ -53,7 +52,7 @@ async def async_fetch_range(
     start_ts: datetime | str,
     end_ts: datetime | str,
     *,
-    symbol: Optional[str] = None,
+    symbol: str | None = None,
 ) -> pd.DataFrame:
     """Asynchronous data fetch stub."""
     raise NotImplementedError("Async fetch not implemented")

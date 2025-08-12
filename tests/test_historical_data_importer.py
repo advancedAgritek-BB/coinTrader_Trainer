@@ -1,11 +1,10 @@
-import os
 import types
 
 import pandas as pd
 import pytest
 
-from examples.legacy_importers import importers as hdi
 import ml_trainer
+from examples.legacy_importers import importers as hdi
 
 
 def test_download_historical_data(tmp_path):

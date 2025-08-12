@@ -1,9 +1,9 @@
 import os
 import sys
+import types
 
 import numpy as np
 import pandas as pd
-import types
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 

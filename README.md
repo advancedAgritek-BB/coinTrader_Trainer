@@ -33,7 +33,7 @@ optionally persisted to Supabase Storage and the ``models`` table.
 * Feature generation always relies on
   [Numba](https://numba.pydata.org/) on the CPU. When
   ``jax`` is installed and ``use_gpu=True`` is passed to
-  ``feature_engineering.make_features`` compatible GPUs are used to accelerate
+  ``cointrainer.features.build.make_features`` compatible GPUs are used to accelerate
   calculations.
 * Optional: set ``REDIS_URL`` (or ``REDIS_TLS_URL``) to cache trade log queries
   in Redis.
@@ -43,7 +43,7 @@ optionally persisted to Supabase Storage and the ``models`` table.
 ``coinTrader2.0`` streams live trading data into the ``trade_logs`` table in
 Supabase.  The trainer consumes those logs to build supervised training sets.
 When ``train_pipeline.py`` or ``ml_trainer.py`` runs, it queries the desired
-time range from Supabase, engineers features with ``feature_engineering.make_features``
+time range from Supabase, engineers features with ``cointrainer.features.build.make_features``
 and trains the ``regime_lgbm`` model.  After training the resulting model is
 uploaded back to Supabase where the trading application can fetch it for live
 predictions.
@@ -77,7 +77,7 @@ the model is deserialised.
 
 The trading bot must be able to import modules from this repository.
 Either install the package or add the project path to ``PYTHONPATH`` so that
-``from coinTrader_Trainer import ...`` works. An easy approach is to export the
+``from cointrainer import ...`` works. An easy approach is to export the
 repository location when launching the bot:
 
 ```bash
@@ -170,13 +170,13 @@ pip install pandas numpy lightgbm scikit-learn supabase tenacity pyarrow pytz ne
 
 Copy `.env.example` to `.env` and populate your Supabase credentials. The
 optional `PARAMS_BUCKET` and `PARAMS_TABLE` variables default to
-`agent_params`. After editing the file run `python bootstrap_env.py` to
+`agent_params`. After editing the file run `python examples/bootstrap_env.py` to
 verify the configuration is complete.
 
 ```bash
 cp .env.example .env
 # edit .env with your credentials
-python bootstrap_env.py
+python examples/bootstrap_env.py
 ```
 
 Training modules now live under the `cointrainer` package inside `src/`. Legacy root-level modules remain for backward compatibility but are deprecated and will be removed after the transition.
@@ -240,7 +240,7 @@ tuning.
 ```python
 import asyncio
 from datetime import datetime, timedelta
-from coinTrader_Trainer.data_loader import fetch_data_range_async
+from cointrainer.data.loader import fetch_data_range_async
 
 end = datetime.utcnow()
 start = end - timedelta(days=1)
@@ -693,7 +693,7 @@ statistics can be retrieved via the `aggregate-trades` Edge Function. The helper
 
 ```python
 from datetime import datetime, timedelta
-from coinTrader_Trainer.data_loader import fetch_trade_aggregates
+from cointrainer.data.loader import fetch_trade_aggregates
 
 end = datetime.utcnow()
 start = end - timedelta(days=1)
@@ -772,7 +772,7 @@ signals. Default options such as starting ``cash`` and ``commission`` are
 defined in ``cfg.yaml`` under the ``backtest`` section.
 
 ```python
-from coinTrader_Trainer.evaluation import run_backtest, simulate_signal_pnl
+from cointrainer.evaluation import run_backtest, simulate_signal_pnl
 import pandas as pd
 import numpy as np
 

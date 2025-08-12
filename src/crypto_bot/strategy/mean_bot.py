@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict
 
 import numpy as np
 import pandas as pd
 from scipy.optimize import least_squares
 from statsmodels.tsa.stattools import adfuller
+
 try:
     from statsmodels.tsa.stattools import hurst as _hurst
 except ImportError:  # pragma: no cover - statsmodels may lack hurst
@@ -21,7 +21,7 @@ def _fallback_hurst(series: np.ndarray) -> float:
     poly = np.polyfit(np.log(lags), np.log(tau), 1)
     return poly[0] * 2.0
 
-def train_mean_reversion(csv_path: str) -> Dict[str, float]:
+def train_mean_reversion(csv_path: str) -> dict[str, float]:
     """Train a mean reversion model based on an Ornstein-Uhlenbeck process.
 
     Parameters

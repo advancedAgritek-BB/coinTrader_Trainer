@@ -1,7 +1,7 @@
+import asyncio
 import os
 import sys
 import types
-import asyncio
 
 import numpy as np
 import pandas as pd

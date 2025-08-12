@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import os
 from datetime import datetime
-from typing import Optional
 
 import pandas as pd
 
@@ -28,7 +27,7 @@ def select_range(
     start_ts: datetime | str,
     end_ts: datetime | str,
     *,
-    symbol: Optional[str] = None,
+    symbol: str | None = None,
 ) -> pd.DataFrame:
     """Fetch rows from ``table`` between ``start_ts`` and ``end_ts``."""
     client = get_client()

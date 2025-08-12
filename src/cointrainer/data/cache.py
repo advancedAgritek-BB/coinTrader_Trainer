@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import os
-from typing import Optional
 
 _CACHE = None
 
@@ -35,7 +34,7 @@ def get_cache():
     return _CACHE
 
 
-def get_parquet(key: str) -> Optional[bytes]:
+def get_parquet(key: str) -> bytes | None:
     """Return cached parquet bytes for ``key`` if available."""
     cache = get_cache()
     if cache is None:

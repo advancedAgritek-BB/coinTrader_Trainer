@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import os
 import logging
+import os
+from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
 from io import BytesIO
-from typing import Any, AsyncGenerator, Dict, Optional
-
+from typing import Any
 
 try:
     import redis  # type: ignore
@@ -16,17 +16,18 @@ except ImportError:  # pragma: no cover - optional dependency
 
 import httpx
 import pandas as pd
+
 try:
-    from supabase import Client, create_client, AuthApiError
+    from supabase import AuthApiError, Client, create_client
 except ImportError:  # pragma: no cover - fallback for older package
     from supabase import Client, create_client
     AuthApiError = Exception
 
 logger = logging.getLogger(__name__)
 from tenacity import retry, stop_after_attempt, wait_exponential
+
 from cache_utils import load_cached_features
 from utils.normalise import normalize_ohlc
-
 
 _REDIS_CLIENT = None
 
@@ -96,7 +97,7 @@ def _fetch_logs(
     start_ts: datetime,
     end_ts: datetime,
     *,
-    symbol: Optional[str] = None,
+    symbol: str | None = None,
     table: str = "ohlc_data",
 ) -> list[dict]:
     """Fetch rows from ``table`` between ``start_ts`` and ``end_ts`` with retry."""
@@ -114,10 +115,10 @@ def _fetch_logs(
 
 def _maybe_cache_features(
     df: pd.DataFrame,
-    redis_client: Optional[Any],
-    cache_key: Optional[str],
+    redis_client: Any | None,
+    cache_key: str | None,
     cache_features: bool,
-    feature_params: Optional[dict],
+    feature_params: dict | None,
 ) -> pd.DataFrame:
     """Compute features and optionally cache them in Redis."""
     from cointrainer.features.build import make_features
@@ -159,15 +160,15 @@ def fetch_trade_logs(
     start_ts: datetime,
     end_ts: datetime,
     *,
-    symbol: Optional[str] = None,
+    symbol: str | None = None,
     table: str = "ohlc_data",
-    cache_path: Optional[str] = None,
-    redis_client: Optional[Any] = None,
-    redis_key: Optional[str] = None,
+    cache_path: str | None = None,
+    redis_client: Any | None = None,
+    redis_key: str | None = None,
     cache_only: bool = False,
-    max_rows: Optional[int] = None,
+    max_rows: int | None = None,
     cache_features: bool = False,
-    feature_params: Optional[dict] = None,
+    feature_params: dict | None = None,
 ) -> pd.DataFrame:
     """Return trade logs between ``start_ts`` and ``end_ts`` as a DataFrame.
 
@@ -307,7 +308,7 @@ def fetch_trade_aggregates(
     start_ts: datetime,
     end_ts: datetime,
     *,
-    symbol: Optional[str] = None,
+    symbol: str | None = None,
 ) -> pd.DataFrame:
     """Return aggregated trade data between ``start_ts`` and ``end_ts``."""
 
@@ -342,13 +343,13 @@ def fetch_trade_aggregates(
 
 async def fetch_table_async(
     table: str,
-    start_ts: Optional[str] = None,
-    end_ts: Optional[str] = None,
+    start_ts: str | None = None,
+    end_ts: str | None = None,
     *,
     chunk_size: int = 1000,
-    page_size: Optional[int] = None,
-    params: Optional[Dict[str, str]] = None,
-    client: Optional[httpx.AsyncClient] = None,
+    page_size: int | None = None,
+    params: dict[str, str] | None = None,
+    client: httpx.AsyncClient | None = None,
 ) -> pd.DataFrame:
     """Fetch all rows from ``table`` asynchronously in pages."""
 
@@ -403,8 +404,8 @@ async def fetch_data_async(
     table: str,
     *,
     page_size: int = 1000,
-    params: Optional[Dict[str, str]] = None,
-    client: Optional[httpx.AsyncClient] = None,
+    params: dict[str, str] | None = None,
+    client: httpx.AsyncClient | None = None,
 ) -> pd.DataFrame:
     """Backward compatible wrapper for ``fetch_table_async``."""
     return await fetch_table_async(

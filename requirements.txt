@@ -31,3 +31,8 @@ tenacity
 modin[ray]
 dask[dataframe]
 stable-baselines3
+
+# Development tools
+ruff
+vulture
+pytest-cov

@@ -1,14 +1,15 @@
+import builtins
+import logging
 import os
 import sys
 import types
-import logging
-import builtins
-import pytest
-import swarm_sim
-from cointrainer.data import loader as data_loader
 
 import numpy as np
 import pandas as pd
+import pytest
+
+import swarm_sim
+from cointrainer.data import loader as data_loader
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 

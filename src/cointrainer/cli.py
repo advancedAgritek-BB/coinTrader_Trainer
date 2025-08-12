@@ -17,8 +17,8 @@ def _cmd_train_regime(args: argparse.Namespace) -> None:
 
 
 def _cmd_import_data_supabase(args: argparse.Namespace) -> None:
+
     from cointrainer.data.loader import fetch_trade_logs
-    import pandas as pd
 
     df = fetch_trade_logs(args.start, args.end, args.symbol, table=args.table)
     df.to_parquet(args.out)

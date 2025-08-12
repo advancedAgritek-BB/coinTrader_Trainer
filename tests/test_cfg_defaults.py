@@ -3,8 +3,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from cointrainer.train import pipeline as train_pipeline
 import ml_trainer
+from cointrainer.train import pipeline as train_pipeline
 
 
 def test_train_pipeline_load_cfg_backtest_defaults(tmp_path):

@@ -1,10 +1,11 @@
+import asyncio
 import os
 import sys
 import types
-import asyncio
-import pandas as pd
-import numpy as np
+
 import httpx
+import numpy as np
+import pandas as pd
 import pytest
 import sklearn.model_selection
 
@@ -21,11 +22,11 @@ sys.modules["coinTrader_Trainer"] = module
 sys.modules["coinTrader_Trainer.data_loader"] = data_loader
 sys.modules["coinTrader_Trainer.feature_engineering"] = feature_engineering
 
+import federated_fl
 import federated_trainer as ft
+import swarm_sim
 from trainers import federated as fed
 from trainers import regime_lgbm
-import federated_fl
-import swarm_sim
 
 
 class FakeBooster:

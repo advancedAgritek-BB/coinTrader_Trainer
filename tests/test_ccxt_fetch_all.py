@@ -1,7 +1,8 @@
+import importlib
 import os
 import sys
 import types
-import importlib
+
 import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
@@ -29,7 +30,6 @@ def _load_module(monkeypatch):
     monkeypatch.setenv("SUPABASE_SERVICE_KEY", "key")
     sys.modules["supabase"] = types.SimpleNamespace(create_client=lambda *a, **k: object(), Client=object)
     sys.modules.setdefault("ccxt", types.SimpleNamespace())
-    import importlib
     try:
         return importlib.import_module("ccxt_fetch_all")
     except SyntaxError:
