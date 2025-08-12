@@ -23,11 +23,8 @@ from utils import timed, validate_schema
 from supabase import SupabaseException, create_client
 import httpx
 
-from coinTrader_Trainer.data_loader import (
-    fetch_data_range_async,
-    fetch_trade_aggregates,
-    _get_redis_client,
-)
+from cointrainer.data.loader import fetch_data_range_async
+from cointrainer.data.cache import get_cache
 
 load_dotenv()
 
@@ -202,18 +199,7 @@ async def train_federated_regime(
     if params_override:
         params.update(params_override)
 
-    # Optionally fetch aggregated stats before downloading the full dataset
-    try:
-        await asyncio.to_thread(
-            fetch_trade_aggregates,
-            pd.to_datetime(start_ts),
-            pd.to_datetime(end_ts),
-        )
-    except (httpx.HTTPError, SupabaseException, ValueError, TypeError, AttributeError) as exc:  # pragma: no cover
-        logging.exception("Failed to fetch aggregates: %s", exc)
-        raise
-
-    redis_client = _get_redis_client() if feature_cache_key else None
+    redis_client = get_cache() if feature_cache_key else None
     X, y = await _prepare_data(
         start_ts,
         end_ts,

@@ -158,7 +158,7 @@ def test_fetch_kraken_ohlc_uses_redis(monkeypatch):
     df_cached.to_parquet(buf)
     fake_r.set("kraken_BTCUSD_1", buf.getvalue())
 
-    monkeypatch.setattr(kf, "_get_redis_client", lambda: fake_r)
+    monkeypatch.setattr(kf, "get_cache", lambda: fake_r)
     monkeypatch.setattr(
         kf.requests,
         "get",
@@ -185,7 +185,7 @@ def test_fetch_kraken_ohlc_sets_redis(monkeypatch):
             json=lambda: sample_data, raise_for_status=lambda: None
         )
 
-    monkeypatch.setattr(kf, "_get_redis_client", lambda: fake_r)
+    monkeypatch.setattr(kf, "get_cache", lambda: fake_r)
     monkeypatch.setattr(kf.requests, "get", fake_get)
 
     df = kf.fetch_kraken_ohlc("BTCUSD", interval=1)

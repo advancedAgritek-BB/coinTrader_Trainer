@@ -20,7 +20,7 @@ from dotenv import load_dotenv
 from supabase import Client, create_client
 import argparse
 
-from cointrainer.data.loader import _get_redis_client
+from cointrainer.data.cache import get_cache
 from utils.normalise import normalize_ohlc
 
 load_dotenv()
@@ -66,7 +66,7 @@ def get_last_ts(client: Client, symbol: str, table: str) -> Optional[int]:
 
 def fetch_kraken_ohlc(pair: str, interval: int = 1) -> pd.DataFrame:
     """Fetch recent OHLC for a pair (last ~720 candles)."""
-    redis_client = _get_redis_client()
+    redis_client = get_cache()
     cache_key = f"kraken_{pair}_{interval}"
     if redis_client is not None:
         cached = redis_client.get(cache_key)
