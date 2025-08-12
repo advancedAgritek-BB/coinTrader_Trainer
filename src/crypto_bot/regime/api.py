@@ -34,17 +34,22 @@ except Exception:  # pragma: no cover - fallback not bundled
     _FALLBACK_MODEL_B64 = ""
 
 _MODEL: object | None = None
+_META: dict | None = None
 
 
 def _load_model() -> object:
     """Load the regime model, falling back to embedded base64."""
 
-    global _MODEL
+    global _MODEL, _META
     if _MODEL is not None:
         return _MODEL
 
     prefix = f"{Config.MODELS_BUCKET}/regime/{Config.SYMBOL}"
     try:
+        try:
+            _META = _registry.load_pointer(prefix)
+        except Exception:
+            _META = None
         data = _registry.load_latest(prefix)
         _MODEL = joblib.load(BytesIO(data))
         return _MODEL
@@ -57,6 +62,7 @@ def _load_model() -> object:
             raise RuntimeError("Fallback model missing")
         data = base64.b64decode(_FALLBACK_MODEL_B64)
         _MODEL = joblib.load(BytesIO(data))
+        _META = None
         return _MODEL
 
 
@@ -64,9 +70,28 @@ def predict(features: pd.DataFrame) -> Prediction:
     """Return a :class:`Prediction` for the given ``features``."""
 
     model = _load_model()
-    proba = model.predict_proba(features.tail(1))  # type: ignore[attr-defined]
-    row = proba[-1]
-    idx = int(row.argmax())
-    score = float(row.max())
-    action = _CLASS_MAP[idx]
-    return Prediction(action=action, score=score)
+    meta = _META or {}
+
+    try:
+        df = features
+        feature_list = meta.get("feature_list")
+        if feature_list and all(col in df.columns for col in feature_list):
+            df = df.loc[:, feature_list]
+
+        proba = model.predict_proba(df.tail(1))  # type: ignore[attr-defined]
+        row = proba[-1]
+        idx = int(row.argmax())
+        score = float(row[idx])
+
+        order = meta.get("label_order", [-1, 0, 1])
+        lookup = { -1: "short", 0: "flat", 1: "long" }
+        mapping = {i: lookup.get(lbl, _CLASS_MAP[i] if i < len(_CLASS_MAP) else "flat") for i, lbl in enumerate(order)}
+        action = mapping.get(idx, _CLASS_MAP[idx])
+        return Prediction(action=action, score=score, meta=meta or None)
+    except Exception:
+        proba = model.predict_proba(features.tail(1))  # type: ignore[attr-defined]
+        row = proba[-1]
+        idx = int(row.argmax())
+        score = float(row[idx])
+        action = _CLASS_MAP[idx]
+        return Prediction(action=action, score=score)
