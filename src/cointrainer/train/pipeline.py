@@ -115,11 +115,9 @@ def main() -> None:
     cache_key = getattr(args, "feature_cache_key", None)
     redis_client = get_cache() if cache_key else None
 
-    feature_kwargs = {}
-    if redis_client is not None:
-        feature_kwargs.update({"redis_client": redis_client, "cache_key": cache_key})
-
-    df = make_features(df, generate_target=args.generate_target, **feature_kwargs)
+    # Features are generated through a single helper; additional kwargs are
+    # ignored for backwards compatibility.
+    df = make_features(df)
     if "target" not in df.columns:
         raise ValueError("Data must contain a 'target' column for training")
 
