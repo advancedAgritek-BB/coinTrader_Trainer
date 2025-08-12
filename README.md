@@ -48,6 +48,19 @@ and trains the ``regime_lgbm`` model.  After training the resulting model is
 uploaded back to Supabase where the trading application can fetch it for live
 predictions.
 
+Runtime integrations can rely on a stable facade for regime predictions:
+
+```python
+from crypto_bot.regime.facade import predict
+action = predict(features_df).action
+```
+
+Pin the package to guarantee compatibility with coinTrader2.0:
+
+```
+cointrader-trainer>=0.1.0
+```
+
 ## Artifacts & Registry
 
 Trained models are saved using a standard layout so the trainer and runtime
