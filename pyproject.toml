@@ -21,6 +21,7 @@ gpu = ["pyopencl"]
 flwr = ["flwr"]
 talib = ["TA-Lib"]
 accel = ["numba", "jax"]
+dev = ["ruff", "vulture", "pytest-cov"]
 
 [project.scripts]
 cointrainer = "cointrainer.cli:main"

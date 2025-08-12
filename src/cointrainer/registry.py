@@ -15,8 +15,7 @@ import os
 import tempfile
 import uuid
 from datetime import datetime
-from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import joblib
 
@@ -45,8 +44,8 @@ class ModelRegistry:
 
     def __init__(
         self,
-        url: Optional[str] = None,
-        key: Optional[str] = None,
+        url: str | None = None,
+        key: str | None = None,
         bucket: str = "models",
         table: str = "models",
         *,
@@ -67,7 +66,7 @@ class ModelRegistry:
         self,
         model: Any,
         name: str,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
         *,
         approved: bool = False,
         conflict_key: str | None = None,
@@ -102,7 +101,7 @@ class ModelRegistry:
         resp = table.upsert(entry, **params).execute()
         return resp.data[0]["id"]
 
-    def list_models(self, approved: bool | None = None) -> List[Dict[str, Any]]:
+    def list_models(self, approved: bool | None = None) -> list[dict[str, Any]]:
         query = self.client.table(self.table).select("*")
         if approved is not None:
             query = query.eq("approved", approved)
@@ -118,7 +117,7 @@ class ModelRegistry:
         self,
         obj: dict,
         name: str,
-        metadata: Optional[dict] = None,
+        metadata: dict | None = None,
         *,
         approved: bool = False,
         conflict_key: str | None = None,
@@ -221,7 +220,7 @@ def load_pointer(prefix: str) -> dict:
         raise RegistryError(str(exc)) from exc
 
 
-def load_latest(prefix: str, allow_fallback: bool = False) -> bytes:
+def load_latest(prefix: str) -> bytes:
     """Return bytes for the model referenced by ``{prefix}/LATEST.json``."""
 
     pointer_path = f"{prefix}/LATEST.json"
@@ -242,8 +241,8 @@ def load_latest(prefix: str, allow_fallback: bool = False) -> bytes:
 __all__ = [
     "ModelRegistry",
     "RegistryError",
-    "save_model",
-    "load_pointer",
     "load_latest",
+    "load_pointer",
+    "save_model",
 ]
 

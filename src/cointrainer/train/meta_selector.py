@@ -76,7 +76,7 @@ def main() -> None:
     train_meta_selector(args.data, use_gpu=args.gpu, model_name=args.model_name)
 
 
-__all__ = ["train_meta_selector", "main"]
+__all__ = ["main", "train_meta_selector"]
 
 
 if __name__ == "__main__":  # pragma: no cover - script mode

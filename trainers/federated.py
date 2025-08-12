@@ -1,21 +1,21 @@
 from __future__ import annotations
 
 import asyncio
-import os
 import logging
-from typing import Callable, List, Optional, Tuple
+import os
+from collections.abc import Callable
 
+import httpx
 import lightgbm as lgb
 import numpy as np
 import pandas as pd
 from dotenv import load_dotenv
+from supabase import SupabaseException
 
 from cointrainer.data.loader import fetch_data_range_async
 from cointrainer.features.build import make_features
 from cointrainer.registry import ModelRegistry
 from utils import timed
-import httpx
-from supabase import SupabaseException
 
 load_dotenv()
 
@@ -37,10 +37,10 @@ def train_federated_regime(
     *,
     n_clients: int = 1,
     table: str = "ohlc_data",
-    symbol: Optional[str] = None,
-    registry: Optional[ModelRegistry] = None,
+    symbol: str | None = None,
+    registry: ModelRegistry | None = None,
     model_name: str = "federated_regime",
-) -> Tuple[Callable[[pd.DataFrame], np.ndarray], dict]:
+) -> tuple[Callable[[pd.DataFrame], np.ndarray], dict]:
     """Train multiple LightGBM models and return an ensemble callable.
 
     Parameters
@@ -78,7 +78,7 @@ def train_federated_regime(
         if symbol is not None and "symbol" in source_df.columns:
             source_df = source_df[source_df["symbol"] == symbol]
 
-    models: List[lgb.Booster] = []
+    models: list[lgb.Booster] = []
     for _ in range(n_clients):
         df = make_features(source_df.copy(), use_gpu=use_gpu)
         booster = _train_single(df, params)

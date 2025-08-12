@@ -1,13 +1,13 @@
 import os
 from io import BytesIO
-from typing import Any, Optional
+from typing import Any
 
 import pandas as pd
 
 __all__ = ["load_cached_features", "store_cached_features"]
 
 
-def load_cached_features(redis_client: Any, key: str) -> Optional[pd.DataFrame]:
+def load_cached_features(redis_client: Any, key: str) -> pd.DataFrame | None:
     """Return cached DataFrame stored under ``key`` or ``None``."""
     if redis_client is None:
         return None
@@ -18,7 +18,7 @@ def load_cached_features(redis_client: Any, key: str) -> Optional[pd.DataFrame]:
 
 
 def store_cached_features(
-    redis_client: Any, key: str, df: pd.DataFrame, ttl: Optional[int] = None
+    redis_client: Any, key: str, df: pd.DataFrame, ttl: int | None = None
 ) -> None:
     """Store ``df`` in Redis under ``key`` with optional ``ttl``."""
     if redis_client is None:

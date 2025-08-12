@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime
-from typing import Any, Dict, Tuple
+from typing import Any
 
 import lightgbm as lgb
 import numpy as np
@@ -13,8 +13,7 @@ from cointrainer.data.loader import fetch_data_range_async
 from cointrainer.features.build import make_features
 from utils import validate_schema
 
-
-DEFAULT_PARAMS: Dict[str, Any] = {
+DEFAULT_PARAMS: dict[str, Any] = {
     "learning_rate": 0.05,
     "num_leaves": 63,
     "max_depth": 10,
@@ -34,7 +33,7 @@ async def load_data(
     table: str = "ohlc_data",
     *,
     generate_target: bool = True,
-) -> Tuple[pd.DataFrame, pd.Series]:
+) -> tuple[pd.DataFrame, pd.Series]:
     """Fetch data between ``start_ts`` and ``end_ts`` and return ``(X, y)``."""
 
     if isinstance(start_ts, datetime):
@@ -61,7 +60,7 @@ async def load_data(
     return X, y
 
 
-def _build_params(trial: optuna.Trial) -> Dict[str, Any]:
+def _build_params(trial: optuna.Trial) -> dict[str, Any]:
     params = dict(DEFAULT_PARAMS)
     params["learning_rate"] = trial.suggest_float("learning_rate", 0.01, 0.1)
     params["num_leaves"] = trial.suggest_int("num_leaves", 31, 127)
@@ -102,7 +101,7 @@ async def run_optuna_search(
     table: str = "ohlc_data",
     n_trials: int = 100,
     direction: str = "minimize",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Run an Optuna hyperparameter search and return the best parameters."""
 
     X, y = await load_data(start_ts, end_ts, table)

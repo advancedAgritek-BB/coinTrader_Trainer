@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import base64
 import logging
+import os
 from io import BytesIO
 from pathlib import Path
-from typing import Optional
-import os
 
 import joblib
 import pandas as pd
@@ -36,7 +35,7 @@ try:  # pragma: no cover - file may be missing in some installs
 except Exception:  # pragma: no cover - fallback not bundled
     FALLBACK_MODEL_B64 = ""
 
-_MODEL: Optional[object] = None
+_MODEL: object | None = None
 
 
 def load_model() -> object:

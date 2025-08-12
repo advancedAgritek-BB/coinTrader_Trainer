@@ -6,7 +6,6 @@ import io
 import logging
 import os
 from datetime import datetime
-from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -24,11 +23,11 @@ load_dotenv()
 def download_historical_data(
     source: str,
     *,
-    symbol: Optional[str] = None,
-    start_ts: Optional[str | datetime] = None,
-    end_ts: Optional[str | datetime] = None,
-    output_path: Optional[str] = None,
-    output_file: Optional[str] = None,
+    symbol: str | None = None,
+    start_ts: str | datetime | None = None,
+    end_ts: str | datetime | None = None,
+    output_path: str | None = None,
+    output_file: str | None = None,
     return_threshold: float = 0.01,
 ) -> pd.DataFrame:
     """Load historical price data from ``source`` (file path or URL)."""
@@ -39,7 +38,7 @@ def download_historical_data(
     skiprows = 0
     if is_local:
         try:
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 first_line = f.readline()
             if "cryptodatadownload" in first_line.lower():
                 skiprows = 1
@@ -158,7 +157,7 @@ def _insert_batch(client: Client, table: str, rows: list[dict]) -> None:
 _INSERTED_TABLES: set[tuple[int, str]] = set()
 
 
-def ensure_table_exists(symbol: str, *, client: Optional[Client] = None) -> str:
+def ensure_table_exists(symbol: str, *, client: Client | None = None) -> str:
     """Create historical prices table for ``symbol`` if needed and return its name."""
     table = f"historical_prices_{symbol.lower()}"
     if client is None:
@@ -178,12 +177,12 @@ def ensure_table_exists(symbol: str, *, client: Optional[Client] = None) -> str:
 
 def insert_to_supabase(
     df: pd.DataFrame,
-    url: Optional[str] = None,
-    key: Optional[str] = None,
+    url: str | None = None,
+    key: str | None = None,
     *,
     table: str | None = None,
-    symbol: Optional[str] = None,
-    client: Optional[Client] = None,
+    symbol: str | None = None,
+    client: Client | None = None,
     batch_size: int = 500,
 ) -> None:
     """Insert ``df`` rows into Supabase.

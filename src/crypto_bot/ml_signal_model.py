@@ -1,5 +1,3 @@
-import os
-from typing import Tuple
 
 import joblib
 import numpy as np
@@ -10,7 +8,7 @@ from sklearn.model_selection import GridSearchCV, cross_val_predict, cross_val_s
 from sklearn.preprocessing import StandardScaler
 
 
-def train_from_csv(csv_path: str, use_gpu: bool = False) -> Tuple[LogisticRegression, StandardScaler]:
+def train_from_csv(csv_path: str, use_gpu: bool = False) -> tuple[LogisticRegression, StandardScaler]:
     """Train a signal model from a CSV file.
 
     Parameters

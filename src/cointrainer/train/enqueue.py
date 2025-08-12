@@ -8,12 +8,12 @@ this function without introducing heavy dependencies.
 from __future__ import annotations
 
 
-def enqueue_retrain(agent: str, **kwargs) -> None:
+def enqueue_retrain(_agent: str, **kwargs) -> None:
     """Stub retrain enqueue function.
 
     Parameters
     ----------
-    agent: str
+    _agent: str
         Identifier of the agent to retrain.
     **kwargs:
         Additional keyword arguments.

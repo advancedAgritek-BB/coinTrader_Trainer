@@ -1,33 +1,32 @@
 from __future__ import annotations
 
+import asyncio
 import logging
+import os
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List
-import asyncio
-import os
+from typing import Any
 
 import lightgbm as lgb
+
 try:
     import networkx as nx
 except Exception as exc:  # pragma: no cover - optional dependency
     nx = None  # type: ignore
     logging.getLogger(__name__).warning("networkx import failed: %s", exc)
+import httpx
 import numpy as np
 import pandas as pd
 import yaml
-from dotenv import load_dotenv
-from utils import timed
-from utils import prepare_data, validate_schema
-from config import Config
-import httpx
+from sklearn.utils import resample
 from supabase import SupabaseException
 
-from cointrainer.registry import ModelRegistry
-from cointrainer.train.pipeline import check_clinfo_gpu, verify_lightgbm_gpu
 from cointrainer.data import loader as data_loader
 from cointrainer.features.build import make_features
-from sklearn.utils import resample
+from cointrainer.registry import ModelRegistry
+from cointrainer.train.pipeline import check_clinfo_gpu, verify_lightgbm_gpu
+from config import Config
+from utils import timed, validate_schema
 
 
 async def fetch_and_prepare_data(
@@ -117,11 +116,11 @@ class SwarmAgent:
     """Lightweight agent holding LightGBM parameters and fitness."""
 
     id: int
-    params: Dict[str, Any]
+    params: dict[str, Any]
     fitness: float = field(default=float("inf"))
 
     async def simulate(
-        self, X: pd.DataFrame, y: pd.Series, base_params: Dict[str, Any]
+        self, X: pd.DataFrame, y: pd.Series, base_params: dict[str, Any]
     ) -> None:
         """Train a small LightGBM model and update ``fitness``.
 
@@ -167,7 +166,7 @@ class SwarmAgent:
         self.fitness = float(error)
 
 
-def evolve_swarm(agents: List[SwarmAgent], graph: nx.Graph) -> None:
+def evolve_swarm(agents: list[SwarmAgent], graph: nx.Graph) -> None:
     """Average each agent's parameters with its neighbors.
 
     Parameters
@@ -183,7 +182,7 @@ def evolve_swarm(agents: List[SwarmAgent], graph: nx.Graph) -> None:
             continue
         neighbors = [graph.nodes[n]["agent"] for n in neighbor_ids]
         all_params = [agent.params] + [n.params for n in neighbors]
-        new_params: Dict[str, Any] = {}
+        new_params: dict[str, Any] = {}
         for key in agent.params.keys():
             vals = [p.get(key, agent.params[key]) for p in all_params]
             if all(isinstance(v, (int, float, np.number)) for v in vals):
@@ -201,7 +200,7 @@ async def run_swarm_search(
     *,
     table: str = "ohlc_data",
     rounds: int = 3,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Run an asynchronous swarm optimisation simulation.
 
     Parameters
@@ -222,9 +221,9 @@ async def run_swarm_search(
         raise SystemExit("networkx is required for run_swarm_search")
     X, y = await fetch_and_prepare_data(start_ts, end_ts, table=table)
 
-    with open("cfg.yaml", "r") as fh:
+    with open("cfg.yaml") as fh:
         cfg = yaml.safe_load(fh) or {}
-    base_params: Dict[str, Any] = cfg.get("regime_lgbm", {})
+    base_params: dict[str, Any] = cfg.get("regime_lgbm", {})
     if check_clinfo_gpu():
         base_params.setdefault("device", "opencl")
 
@@ -239,7 +238,7 @@ async def run_swarm_search(
         logging.warning("GPU not detected; falling back to CPU")
 
     graph = nx.complete_graph(num_agents)
-    agents: List[SwarmAgent] = []
+    agents: list[SwarmAgent] = []
     rng = np.random.default_rng(0)
     for i in range(num_agents):
         params = dict(base_params)
@@ -252,7 +251,7 @@ async def run_swarm_search(
         local_agents = [SwarmAgent(a.id, dict(a.params), a.fitness) for a in agents]
         await asyncio.gather(*(a.simulate(X, y, base_params) for a in local_agents))
         async with lock:
-            for src, dst in zip(local_agents, agents):
+            for src, dst in zip(local_agents, agents, strict=False):
                 dst.params = src.params
                 dst.fitness = src.fitness
             await asyncio.get_running_loop().run_in_executor(

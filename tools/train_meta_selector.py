@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from train_meta_selector import train_meta_selector as _train_meta_selector
 
 from cointrainer.registry import ModelRegistry
-from train_meta_selector import train_meta_selector as _train_meta_selector
 
 
 def main(
@@ -13,7 +12,7 @@ def main(
     *,
     use_gpu: bool = False,
     model_name: str = "meta_selector",
-    registry: Optional[ModelRegistry] = None,
+    registry: ModelRegistry | None = None,
 ):
     """Train the meta selector from ``data`` and upload it to Supabase."""
     if registry is None:

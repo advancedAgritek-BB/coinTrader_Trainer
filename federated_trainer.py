@@ -9,7 +9,8 @@ import multiprocessing
 import logging
 import os
 from dataclasses import dataclass
-from typing import Any, Iterable, List, Optional, Tuple
+from typing import Any
+from collections.abc import Iterable
 
 import joblib
 import lightgbm as lgb
@@ -43,7 +44,7 @@ async def _fetch_async(
 
 
 def _load_params(cfg_path: str) -> dict:
-    with open(cfg_path, "r") as fh:
+    with open(cfg_path) as fh:
         cfg = yaml.safe_load(fh) or {}
     params = cfg.get("regime_lgbm", {})
     # LightGBM expects the ``device`` parameter when selecting the
@@ -59,14 +60,14 @@ def _load_params(cfg_path: str) -> dict:
 async def _prepare_data(
     start_ts: str | pd.Timestamp,
     end_ts: str | pd.Timestamp,
-    symbols: Optional[Iterable[str]] = None,
+    symbols: Iterable[str] | None = None,
     *,
     table: str = "ohlc_data",
     min_rows: int = 1,
     redis_client: Any | None = None,
     cache_key: str | None = None,
     generate_target: bool = True,
-) -> Tuple[pd.DataFrame, pd.Series]:
+) -> tuple[pd.DataFrame, pd.Series]:
     """Return feature matrix and targets between ``start_ts`` and ``end_ts``.
 
     Parameters
@@ -123,13 +124,13 @@ async def _prepare_data(
 def prepare_data(
     start_ts: str | pd.Timestamp,
     end_ts: str | pd.Timestamp,
-    symbols: Optional[Iterable[str]] = None,
+    symbols: Iterable[str] | None = None,
     *,
     table: str = "ohlc_data",
     min_rows: int = 1,
     redis_client: Any | None = None,
     cache_key: str | None = None,
-) -> Tuple[pd.DataFrame, pd.Series]:
+) -> tuple[pd.DataFrame, pd.Series]:
     """Synchronous wrapper around ``_prepare_data`` for convenience."""
 
     return asyncio.run(
@@ -147,7 +148,7 @@ def prepare_data(
 
 @dataclass
 class FederatedEnsemble:
-    models: List[lgb.Booster]
+    models: list[lgb.Booster]
 
     def predict(self, X: pd.DataFrame) -> np.ndarray:
         preds = [m.predict(X) for m in self.models]
@@ -181,11 +182,11 @@ async def train_federated_regime(
     *,
     num_clients: int = 3,
     config_path: str = "cfg.yaml",
-    params_override: Optional[dict] = None,
+    params_override: dict | None = None,
     table: str = "ohlc_data",
     feature_cache_key: str | None = None,
     use_processes: bool = True,
-) -> Tuple[FederatedEnsemble, dict]:
+) -> tuple[FederatedEnsemble, dict]:
     """Train LightGBM models across ``num_clients`` and aggregate their predictions.
 
     Parameters
@@ -223,13 +224,13 @@ async def train_federated_regime(
                 )
                 for idx in indices
             ]
-            models: List[lgb.Booster] = list(await asyncio.gather(*tasks))
+            models: list[lgb.Booster] = list(await asyncio.gather(*tasks))
     else:
         tasks = [
             asyncio.to_thread(_train_client, X.iloc[idx], y.iloc[idx], params)
             for idx in indices
         ]
-        models: List[lgb.Booster] = list(await asyncio.gather(*tasks))
+        models: list[lgb.Booster] = list(await asyncio.gather(*tasks))
 
     ensemble = FederatedEnsemble(models)
 

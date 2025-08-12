@@ -74,8 +74,8 @@ def load_fallback_model(b64_str: str) -> Any:
 
 
 __all__ = [
-    "get_client",
-    "upload_model",
     "download_model",
+    "get_client",
     "load_fallback_model",
+    "upload_model",
 ]

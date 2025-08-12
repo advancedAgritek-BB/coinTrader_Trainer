@@ -6,8 +6,8 @@ import base64
 import pickle
 from pathlib import Path
 
-import numpy as np
 import lightgbm as lgb
+import numpy as np
 
 
 def main() -> None:

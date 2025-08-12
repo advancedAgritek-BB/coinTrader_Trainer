@@ -13,16 +13,16 @@ from pathlib import Path
 
 import pandas as pd
 import yaml
+from sklearn.utils import resample
 from supabase import create_client
 
-from cointrainer.data.loader import fetch_trade_logs
 from cointrainer.data.cache import get_cache
+from cointrainer.data.loader import fetch_trade_logs
 from cointrainer.evaluation import simulate_signal_pnl
-from sklearn.utils import resample
 from cointrainer.features.build import make_features
-from utils import validate_schema
 from cointrainer.registry import ModelRegistry
 from trainers.regime_lgbm import train_regime_lgbm
+from utils import validate_schema
 
 try:  # optional dependency
     import pyopencl as cl
@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 def load_cfg(path: str) -> dict:
     """Load YAML configuration file and return a dictionary with defaults."""
-    with open(path, "r") as f:
+    with open(path) as f:
         cfg = yaml.safe_load(f) or {}
 
     cfg.setdefault("default_window_days", 7)
@@ -268,8 +268,8 @@ def verify_opencl():
 def verify_lightgbm_gpu(params: dict) -> bool:
     """Return ``True`` if LightGBM can train using the GPU with ``params``."""
     try:
-        from sklearn.datasets import make_classification
         import lightgbm as lgb
+        from sklearn.datasets import make_classification
 
         X, y = make_classification(n_samples=10, n_features=5, n_informative=3, random_state=0)
         dataset = lgb.Dataset(X, label=y)

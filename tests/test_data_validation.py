@@ -1,6 +1,7 @@
 import os
 import sys
 import types
+
 import pandas as pd
 import pytest
 
@@ -8,6 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from cointrainer.data import loader as data_loader
 from cointrainer.features import build as feature_engineering
+
 pkg = types.ModuleType("coinTrader_Trainer")
 pkg.data_loader = data_loader
 pkg.feature_engineering = feature_engineering
@@ -15,8 +17,8 @@ sys.modules["coinTrader_Trainer"] = pkg
 sys.modules["coinTrader_Trainer.data_loader"] = data_loader
 sys.modules["coinTrader_Trainer.feature_engineering"] = feature_engineering
 
-import swarm_sim
 import federated_trainer
+import swarm_sim
 
 
 @pytest.mark.asyncio

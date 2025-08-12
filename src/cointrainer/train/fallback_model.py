@@ -5,7 +5,6 @@ from __future__ import annotations
 import base64
 import pickle
 from pathlib import Path
-from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -50,7 +49,7 @@ def main() -> None:
     print(weights_b64)
 
 
-__all__ = ["train_fallback_model", "main"]
+__all__ = ["main", "train_fallback_model"]
 
 if __name__ == "__main__":  # pragma: no cover - manual invocation
     main()

@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from typing import Iterable, Sequence
 
 import numpy as np
+import pandas as pd
 import torch
 from torch import nn
-import pandas as pd
+
 from cointrainer.registry import ModelRegistry
 
 

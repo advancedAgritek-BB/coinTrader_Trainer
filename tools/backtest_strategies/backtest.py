@@ -11,8 +11,8 @@ including a fixed 0.1% fee on entry and exit.  Closed trades are saved to
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable, Dict, List
 
 import pandas as pd
 
@@ -21,7 +21,6 @@ import pandas as pd
 from crypto_bot.lstm import lstm_bot
 from crypto_bot.mean_rev import mean_bot
 from crypto_bot.ml.lgbm import ml_signal_model
-
 
 FEE_RATE = 0.001  # 0.1%
 
@@ -49,7 +48,7 @@ def _get_strategy_function(name: str) -> Callable[[pd.Series], float]:
         and ``"ml"``.
     """
 
-    mapping: Dict[str, Callable[[pd.Series], float]] = {
+    mapping: dict[str, Callable[[pd.Series], float]] = {
         "lstm": lstm_bot.predict,
         "mean": mean_bot.score,
         "ml": ml_signal_model.get_signal,
@@ -59,7 +58,7 @@ def _get_strategy_function(name: str) -> Callable[[pd.Series], float]:
     return mapping[name]
 
 
-def backtest(df: pd.DataFrame, strategies_list: List[str]) -> pd.DataFrame:
+def backtest(df: pd.DataFrame, strategies_list: list[str]) -> pd.DataFrame:
     """Run a very small backtest for the given strategies.
 
     The DataFrame ``df`` must contain a ``'close'`` column and be indexed by
@@ -72,7 +71,7 @@ def backtest(df: pd.DataFrame, strategies_list: List[str]) -> pd.DataFrame:
     trades are written to ``simulated_trades.csv`` and returned as a DataFrame.
     """
 
-    trades: List[TradeRecord] = []
+    trades: list[TradeRecord] = []
 
     for strat in strategies_list:
         func = _get_strategy_function(strat)

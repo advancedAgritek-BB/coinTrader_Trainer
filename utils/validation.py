@@ -1,5 +1,6 @@
+from collections.abc import Iterable
+
 import pandas as pd
-from typing import Iterable
 
 
 def validate_schema(df: pd.DataFrame, required: Iterable[str]) -> None:

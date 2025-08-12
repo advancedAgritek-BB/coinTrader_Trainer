@@ -16,9 +16,11 @@ True
 
 from __future__ import annotations
 
+from collections.abc import Iterable
+from typing import Any
+
 import backtrader as bt
 import pandas as pd
-from typing import Iterable, Dict, Any
 
 
 class CryptoStrategy(bt.Strategy):
@@ -67,7 +69,7 @@ def run_backtest(
     signals: Iterable[int | float],
     slippage: float = 0.005,
     costs: float = 0.002,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Run a simple Backtrader backtest over ``df`` using ``signals``.
 
     Parameters

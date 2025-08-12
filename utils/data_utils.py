@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Iterable
 from datetime import datetime
-from typing import Any, Iterable, Optional, Tuple
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -19,12 +20,12 @@ async def prepare_data(
     table: str = "ohlc_data",
     min_rows: int = 1,
     return_threshold: float | None = None,
-    symbols: Optional[Iterable[str]] = None,
+    symbols: Iterable[str] | None = None,
     use_gpu: bool = False,
     redis_client: Any | None = None,
     cache_key: str | None = None,
     balance: bool = False,
-) -> Tuple[pd.DataFrame, pd.Series]:
+) -> tuple[pd.DataFrame, pd.Series]:
     """Return feature matrix and targets between ``start_ts`` and ``end_ts``."""
 
     if isinstance(start_ts, (datetime, pd.Timestamp)):

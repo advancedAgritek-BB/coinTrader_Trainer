@@ -6,14 +6,14 @@ import base64
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal
 
 import joblib
 import pandas as pd
 
-from crypto_bot.config import Config
 from cointrainer import registry as _registry
 from cointrainer.train.enqueue import enqueue_retrain
+from crypto_bot.config import Config
 
 Action = Literal["long", "flat", "short"]
 
@@ -22,7 +22,7 @@ Action = Literal["long", "flat", "short"]
 class Prediction:
     action: Action
     score: float
-    regime: Optional[str] = None
+    regime: str | None = None
     meta: dict | None = None
 
 

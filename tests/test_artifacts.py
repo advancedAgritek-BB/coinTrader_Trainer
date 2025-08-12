@@ -1,5 +1,3 @@
-import pickle
-
 import os
 import pickle
 import sys

@@ -1,10 +1,9 @@
 """Flower-based federated training using the Flower framework."""
 from __future__ import annotations
 
-import os
 import asyncio
 import logging
-from typing import Optional, Tuple, List
+import os
 
 try:  # pragma: no cover - optional dependency
     import flwr as fl
@@ -14,20 +13,20 @@ except ImportError:  # pragma: no cover - missing dependency
     fl = None
     ServerConfig = None
     _HAVE_FLWR = False
+import httpx
 import joblib
 import lightgbm as lgb
 import numpy as np
 import pandas as pd
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
-import httpx
 from supabase import SupabaseException, create_client
 
 from federated_trainer import (
-    FederatedEnsemble,
     LABEL_MAP,
+    FederatedEnsemble,
     _load_params,
-    prepare_data,
     _train_client,
+    prepare_data,
 )
 
 
@@ -38,9 +37,9 @@ class _LGBClient(fl.client.NumPyClient):
         self.X = X
         self.y = y
         self.params = params
-        self.booster: Optional[lgb.Booster] = None
+        self.booster: lgb.Booster | None = None
 
-    def get_parameters(self, config: dict) -> List[np.ndarray]:
+    def get_parameters(self, config: dict) -> list[np.ndarray]:
         if self.booster is None:
             return []
         model_str = self.booster.model_to_string().encode("utf-8")
@@ -48,8 +47,8 @@ class _LGBClient(fl.client.NumPyClient):
         return [arr]
 
     async def fit(
-        self, parameters: List[np.ndarray], config: dict
-    ) -> Tuple[List[np.ndarray], int, dict]:
+        self, parameters: list[np.ndarray], config: dict
+    ) -> tuple[list[np.ndarray], int, dict]:
         if parameters:
             model_bytes = bytes(parameters[0])
             self.booster = lgb.Booster(model_str=model_bytes.decode("utf-8"))
@@ -62,8 +61,8 @@ class _LGBClient(fl.client.NumPyClient):
         return [arr], len(self.X), {}
 
     async def evaluate(
-        self, parameters: List[np.ndarray], config: dict
-    ) -> Tuple[float, int, dict]:
+        self, parameters: list[np.ndarray], config: dict
+    ) -> tuple[float, int, dict]:
         if self.booster is None and parameters:
             model_bytes = bytes(parameters[0])
             self.booster = lgb.Booster(model_str=model_bytes.decode("utf-8"))
@@ -82,7 +81,7 @@ class _SaveModelStrategy(fl.server.strategy.FedAvg):
 
     def __init__(self) -> None:
         super().__init__()
-        self.models: List[bytes] = []
+        self.models: list[bytes] = []
 
     def aggregate_fit(self, rnd, results, failures):
         aggregated = super().aggregate_fit(rnd, results, failures)
@@ -98,10 +97,10 @@ def launch(
     *,
     config_path: str = "cfg.yaml",
     table: str = "ohlc_data",
-    params_override: Optional[dict] = None,
+    params_override: dict | None = None,
     num_clients: int = 3,
     num_rounds: int = 1,
-) -> Tuple[FederatedEnsemble, dict]:
+) -> tuple[FederatedEnsemble, dict]:
     """Run a Flower-based federated LightGBM training simulation."""
 
     if not _HAVE_FLWR:  # pragma: no cover - missing dependency
@@ -167,10 +166,10 @@ def start_server(
     *,
     config_path: str = "cfg.yaml",
     table: str = "ohlc_data",
-    params_override: Optional[dict] = None,
+    params_override: dict | None = None,
     num_rounds: int = 1,
     server_address: str = "0.0.0.0:8080",
-) -> Tuple[FederatedEnsemble, dict]:
+) -> tuple[FederatedEnsemble, dict]:
     """Start a Flower server and return the aggregated model and metrics."""
 
     if not _HAVE_FLWR:  # pragma: no cover - missing dependency
@@ -229,7 +228,7 @@ def start_client(
     server_address: str = "0.0.0.0:8080",
     config_path: str = "cfg.yaml",
     table: str = "ohlc_data",
-    params_override: Optional[dict] = None,
+    params_override: dict | None = None,
 ) -> None:
     """Start a Flower client for federated training."""
 
@@ -251,7 +250,7 @@ def start_client(
 
 __all__ = [
     "launch",
-    "start_server",
     "start_client",
+    "start_server",
 ]
 
