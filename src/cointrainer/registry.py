@@ -155,8 +155,8 @@ class ModelRegistry:
 # ---------------------------------------------------------------------------
 
 
-class RegistryError(RuntimeError):
-    """Raised when interacting with the model registry fails."""
+class RegistryError(Exception):
+    pass
 
 
 def _get_bucket():  # pragma: no cover - thin wrapper
@@ -210,6 +210,17 @@ def save_model(key: str, blob: bytes, metadata: dict) -> None:
         raise RegistryError(f"failed to save model: {exc}") from exc
 
 
+def load_pointer(prefix: str) -> dict:
+    """Return metadata from ``{prefix}/LATEST.json``."""
+
+    path = f"{prefix}/LATEST.json"
+    try:
+        data = _download(path)
+        return json.loads(data.decode())
+    except Exception as exc:
+        raise RegistryError(str(exc)) from exc
+
+
 def load_latest(prefix: str, allow_fallback: bool = False) -> bytes:
     """Return bytes for the model referenced by ``{prefix}/LATEST.json``."""
 
@@ -232,6 +243,7 @@ __all__ = [
     "ModelRegistry",
     "RegistryError",
     "save_model",
+    "load_pointer",
     "load_latest",
 ]
 
