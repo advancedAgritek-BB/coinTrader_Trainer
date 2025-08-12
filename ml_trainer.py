@@ -65,7 +65,6 @@ import numpy as np
 import pandas as pd
 import yaml
 
-from cointrainer.data import importers
 from cointrainer.train.pipeline import check_clinfo_gpu, verify_lightgbm_gpu
 from cointrainer.registry import ModelRegistry
 
@@ -244,6 +243,8 @@ def main() -> None:  # pragma: no cover - CLI entry
     args = parser.parse_args()
 
     if args.command == "import-data":
+        from examples.legacy_importers import importers
+
         df = importers.download_historical_data(
             args.source_url,
             output_file=args.output_file,
@@ -255,6 +256,8 @@ def main() -> None:  # pragma: no cover - CLI entry
         return
 
     if args.command == "import-csv":
+        from examples.legacy_importers import importers
+
         df = importers.download_historical_data(
             args.csv,
             symbol=args.symbol,

@@ -1,6 +1,6 @@
 import pandas as pd
 
-import cointrainer.data.importers as data_import
+from examples.legacy_importers import importers as data_import
 
 
 def test_download_historical_data_local(tmp_path):

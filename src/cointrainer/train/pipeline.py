@@ -15,7 +15,8 @@ import pandas as pd
 import yaml
 from supabase import create_client
 
-from cointrainer.data.loader import fetch_trade_logs, _get_redis_client
+from cointrainer.data.loader import fetch_trade_logs
+from cointrainer.data.cache import get_cache
 from cointrainer.evaluation import simulate_signal_pnl
 from sklearn.utils import resample
 from cointrainer.features.build import make_features
@@ -112,7 +113,7 @@ def main() -> None:
     validate_schema(df, ["ts"])
 
     cache_key = getattr(args, "feature_cache_key", None)
-    redis_client = _get_redis_client() if cache_key else None
+    redis_client = get_cache() if cache_key else None
 
     feature_kwargs = {}
     if redis_client is not None:

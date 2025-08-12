@@ -4,7 +4,7 @@ import types
 import pandas as pd
 import pytest
 
-import cointrainer.data.importers as hdi
+from examples.legacy_importers import importers as hdi
 import ml_trainer
 
 
