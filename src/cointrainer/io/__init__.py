@@ -1,1 +1,1 @@
-"""IO utilities."""
+"""IO utilities for cointrainer package."""
