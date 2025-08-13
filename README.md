@@ -1,6 +1,9 @@
 # coinTrader Trainer
 
 Installable via `pip install -e ".[train]"` for training or a base `pip install .` for runtime-only use.
+[![CI](https://github.com/OWNER/coinTrader_Trainer/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/OWNER/coinTrader_Trainer/actions/workflows/ci.yml)
+
+Now installable via `pip install -e .` and importable via `import cointrainer`.
 
 coinTrader Trainer forms the model training component of the broader
 `coinTrader2.0` trading application.  The live system records executed
@@ -64,6 +67,19 @@ time range from Supabase, engineers features with ``cointrainer.features.build.m
 and trains the ``regime_lgbm`` model.  After training the resulting model is
 uploaded back to Supabase where the trading application can fetch it for live
 predictions.
+
+Runtime integrations can rely on a stable facade for regime predictions:
+
+```python
+from crypto_bot.regime.facade import predict
+action = predict(features_df).action
+```
+
+Pin the package to guarantee compatibility with coinTrader2.0:
+
+```
+cointrader-trainer>=0.1.0
+```
 
 ## Artifacts & Registry
 
