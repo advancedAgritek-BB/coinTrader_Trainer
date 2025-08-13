@@ -19,13 +19,10 @@ class DummyModel:
 
 
 def test_feature_reorder(monkeypatch):
-    api._MODEL = None
-    api._META = None
-
     model = DummyModel()
     monkeypatch.setattr(api._registry, "load_pointer", lambda prefix: {"feature_list": ["a", "b", "c"]})
-    monkeypatch.setattr(api._registry, "load_latest", lambda prefix: b"model")
-    monkeypatch.setattr(api.joblib, "load", lambda buf: model)
+    monkeypatch.setattr(api._registry, "load_latest", lambda prefix, allow_fallback=False: b"model")
+    monkeypatch.setattr(api, "_load_model_from_bytes", lambda blob: model)
 
     df = pd.DataFrame({"c": [3], "a": [1], "b": [2]})
     api.predict(df)
