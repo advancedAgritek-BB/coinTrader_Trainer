@@ -1,5 +1,7 @@
 # coinTrader Trainer
 
+[![CI](https://github.com/OWNER/coinTrader_Trainer/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/OWNER/coinTrader_Trainer/actions/workflows/ci.yml)
+
 Now installable via `pip install -e .` and importable via `import cointrainer`.
 
 coinTrader Trainer forms the model training component of the broader
