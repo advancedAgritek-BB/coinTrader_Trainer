@@ -1,19 +1,12 @@
-"""Runtime prediction API for regime classification."""
-
 from __future__ import annotations
-
-import base64
 from dataclasses import dataclass
-from io import BytesIO
-from pathlib import Path
-from typing import Literal
-
-import joblib
+from typing import Literal, Optional
+import numpy as np
 import pandas as pd
+from io import BytesIO
 
+from crypto_bot.config import Config  # must exist from earlier steps
 from cointrainer import registry as _registry
-from cointrainer.train.enqueue import enqueue_retrain
-from crypto_bot.config import Config
 
 Action = Literal["long", "flat", "short"]
 
@@ -22,76 +15,82 @@ Action = Literal["long", "flat", "short"]
 class Prediction:
     action: Action
     score: float
-    regime: str | None = None
+    regime: Optional[str] = None
     meta: dict | None = None
 
 
-_CLASS_MAP = ["short", "flat", "long"]
-_FALLBACK_B64_PATH = Path(__file__).resolve().parents[3] / "fallback_b64.txt"
-try:  # pragma: no cover - file may be absent in some installs
-    _FALLBACK_MODEL_B64 = _FALLBACK_B64_PATH.read_text().strip()
-except Exception:  # pragma: no cover - fallback not bundled
-    _FALLBACK_MODEL_B64 = ""
-
-_MODEL: object | None = None
-_META: dict | None = None
+def _rsi(series: pd.Series, window: int = 14) -> pd.Series:
+    delta = series.diff()
+    up = delta.clip(lower=0).rolling(window).mean()
+    down = -delta.clip(upper=0).rolling(window).mean()
+    rs = up / (down.replace(0, np.nan))
+    return 100 - (100 / (1 + rs))
 
 
-def _load_model() -> object:
-    """Load the regime model, falling back to embedded base64."""
+def _baseline(features: pd.DataFrame) -> Prediction:
+    cols = [c.lower() for c in features.columns]
+    if "close" in cols:
+        price = features.iloc[:, cols.index("close")]
+    else:
+        num_cols = features.select_dtypes(include=[np.number]).columns
+        price = features[num_cols[-1]] if len(num_cols) else pd.Series(np.arange(len(features)))
+    r = _rsi(price).iloc[-1]
+    f = price.ewm(span=8, adjust=False).mean().iloc[-1]
+    s = price.ewm(span=21, adjust=False).mean().iloc[-1]
+    cross = float(np.sign(f - s))
+    if r >= 65 and cross >= 0:
+        return Prediction("long", float(min(1.0, 0.5 + (r - 65) / 35 + 0.25 * cross)), meta={"source":"fallback"})
+    if r <= 35 and cross <= 0:
+        return Prediction("short", float(min(1.0, 0.5 + (35 - r) / 35 + 0.25 * (-cross))), meta={"source":"fallback"})
+    return Prediction("flat", 0.5, meta={"source":"fallback"})
 
-    global _MODEL, _META
-    if _MODEL is not None:
-        return _MODEL
 
-    prefix = f"{Config.MODELS_BUCKET}/regime/{Config.SYMBOL}"
+def _load_model_from_bytes(blob: bytes):
+    # Try joblib first; then pickle
     try:
-        try:
-            _META = _registry.load_pointer(prefix)
-        except Exception:
-            _META = None
-        data = _registry.load_latest(prefix)
-        _MODEL = joblib.load(BytesIO(data))
-        return _MODEL
+        import joblib  # lazy import
+        return joblib.load(BytesIO(blob))
     except Exception:
-        try:  # pragma: no cover - external side effect
-            enqueue_retrain("regime", symbol=Config.SYMBOL)
-        except Exception:
-            pass
-        if not _FALLBACK_MODEL_B64:
-            raise RuntimeError("Fallback model missing")
-        data = base64.b64decode(_FALLBACK_MODEL_B64)
-        _MODEL = joblib.load(BytesIO(data))
-        _META = None
-        return _MODEL
+        import pickle
+        return pickle.loads(blob)
 
 
 def predict(features: pd.DataFrame) -> Prediction:
-    """Return a :class:`Prediction` for the given ``features``."""
-
-    model = _load_model()
-    meta = _META or {}
-
+    """
+    Load latest model per Config.REGIME_PREFIX. On any failure, return a baseline Prediction.
+    Align features to feature_list and map classes via label_order when available.
+    """
+    prefix = Config.REGIME_PREFIX
+    # Try registry
     try:
-        df = features
-        feature_list = meta.get("feature_list")
-        if feature_list and all(col in df.columns for col in feature_list):
-            df = df.loc[:, feature_list]
-
-        proba = model.predict_proba(df.tail(1))  # type: ignore[attr-defined]
-        row = proba[-1]
-        idx = int(row.argmax())
-        score = float(row[idx])
-
-        order = meta.get("label_order", [-1, 0, 1])
-        lookup = { -1: "short", 0: "flat", 1: "long" }
-        mapping = {i: lookup.get(lbl, _CLASS_MAP[i] if i < len(_CLASS_MAP) else "flat") for i, lbl in enumerate(order)}
-        action = mapping.get(idx, _CLASS_MAP[idx])
-        return Prediction(action=action, score=score, meta=meta or None)
+        meta = _registry.load_pointer(prefix)  # may raise
+        feat_list = meta.get("feature_list", None)
+        if feat_list:
+            # select & reorder if available subset exists
+            columns = [c for c in feat_list if c in features.columns]
+            if columns:
+                features = features[columns]
+        blob = _registry.load_latest(prefix, allow_fallback=False)
+        model = _load_model_from_bytes(blob)
+        try:
+            proba = model.predict_proba(features.tail(1))  # type: ignore[attr-defined]
+            proba = np.array(proba).ravel()
+            idx = int(np.argmax(proba))
+            label_order = meta.get("label_order", [-1, 0, 1])
+            mapping = {-1: "short", 0: "flat", 1: "long"}
+            class_id = label_order[idx] if idx < len(label_order) else 0
+            action = mapping.get(class_id, "flat")
+            score = float(proba[idx]) if proba.size else 0.5
+            # optional threshold "hold"
+            thresholds = meta.get("thresholds") or {}
+            hold = float(thresholds.get("hold", 0.0))
+            if hold and score < hold:
+                action = "flat"
+            return Prediction(action=action, score=score, meta={"source": "registry"})
+        except Exception:
+            # present but inference failed (e.g., feature mismatch)
+            return _baseline(features)
     except Exception:
-        proba = model.predict_proba(features.tail(1))  # type: ignore[attr-defined]
-        row = proba[-1]
-        idx = int(row.argmax())
-        score = float(row[idx])
-        action = _CLASS_MAP[idx]
-        return Prediction(action=action, score=score)
+        # registry missing/unconfigured
+        return _baseline(features)
+

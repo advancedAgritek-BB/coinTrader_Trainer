@@ -15,12 +15,9 @@ class DummyModel:
 
 
 def test_label_mapping(monkeypatch):
-    api._MODEL = None
-    api._META = None
-
     monkeypatch.setattr(api._registry, "load_pointer", lambda prefix: {"label_order": [1, 0, -1]})
-    monkeypatch.setattr(api._registry, "load_latest", lambda prefix: b"model")
-    monkeypatch.setattr(api.joblib, "load", lambda buf: DummyModel())
+    monkeypatch.setattr(api._registry, "load_latest", lambda prefix, allow_fallback=False: b"model")
+    monkeypatch.setattr(api, "_load_model_from_bytes", lambda blob: DummyModel())
 
     df = pd.DataFrame({"a": [1], "b": [2], "c": [3]})
     result = api.predict(df)
