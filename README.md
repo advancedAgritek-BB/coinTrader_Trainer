@@ -1,6 +1,19 @@
 # coinTrader Trainer
 
-Now installable via `pip install -e .` and importable via `import cointrainer`.
+Release **0.1.0** of the coinTrader Trainer package.
+
+Install from PyPI:
+
+```bash
+pip install cointrader-trainer==0.1.0
+```
+
+For development use the editable install and import as usual:
+
+```bash
+pip install -e .
+import cointrainer
+```
 
 coinTrader Trainer forms the model training component of the broader
 `coinTrader2.0` trading application.  The live system records executed
