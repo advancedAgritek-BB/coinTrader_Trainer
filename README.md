@@ -64,6 +64,38 @@ pip install -e ".[train]"  # omit [train] for runtime only
 cointrainer train regime --symbol BTCUSDT --horizon 15m [--optuna] [--use-gpu]
 ```
 
+### CSV7 ingest & local training (1-minute bars)
+
+Our CSV7 format is headerless with 7 columns:
+ts, open, high, low, close, volume, trades
+
+```kotlin
+where `ts` is epoch seconds (some files may be ms; the importer auto-detects).
+```
+
+**Ingest → normalized CSV (and Parquet if available):**
+```bash
+cointrainer import-csv7 --file ./XRPUSD_1.csv --symbol XRPUSD --out ./data/XRPUSD_1m
+# writes: data/XRPUSD_1m.normalized.csv (+ .parquet if pyarrow/fastparquet installed)
+```
+
+Train a quick regime model:
+```bash
+# from CSV7 (direct):
+cointrainer csv-train --file ./XRPUSD_1.csv --symbol XRPUSD --horizon 15 --hold 0.0015
+# or from normalized CSV:
+cointrainer csv-train --file ./data/XRPUSD_1m.normalized.csv --symbol XRPUSD --horizon 15 --hold 0.0015
+```
+
+Outputs:
+
+* local_models/xrpusd_regime_lgbm.pkl — local model
+* local_models/xrpusd_predictions.csv — actions + scores for inspection
+
+If you pass `--publish` and your registry environment is configured, the trainer will also upload the model and update `LATEST.json` under `models/regime/<SYMBOL>/`.
+
+_On Windows, use `python -m cointrainer` if the `cointrainer` command is not found._
+
 ### Runtime usage
 
 ```python
