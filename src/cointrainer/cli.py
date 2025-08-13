@@ -73,7 +73,7 @@ def main(argv: list[str] | None = None) -> None:
         try:
             print(version("cointrader-trainer"))
         except PackageNotFoundError:
-            print("0.0.0")
+            print("0.1.0")
         return
 
     if hasattr(args, "func"):

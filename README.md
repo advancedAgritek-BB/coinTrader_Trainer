@@ -1,5 +1,19 @@
 # coinTrader Trainer
 
+Release **0.1.0** of the coinTrader Trainer package.
+
+Install from PyPI:
+
+```bash
+pip install cointrader-trainer==0.1.0
+```
+
+For development use the editable install and import as usual:
+
+```bash
+pip install -e .
+import cointrainer
+```
 Installable via `pip install -e ".[train]"` for training or a base `pip install .` for runtime-only use.
 [![CI](https://github.com/OWNER/coinTrader_Trainer/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/OWNER/coinTrader_Trainer/actions/workflows/ci.yml)
 
