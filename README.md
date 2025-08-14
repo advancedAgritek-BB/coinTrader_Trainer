@@ -151,14 +151,13 @@ cointrader-trainer>=0.1.0
 
 ## Artifacts & Registry
 
+* Artifacts at ``models/regime/{SYMBOL}/{YYYYMMDD-HHMMSS}_regime_lgbm.pkl``
+* Pointer at ``models/regime/{SYMBOL}/LATEST.json``
+* ``--publish`` writes both.
+
 Trained models are saved using a standard layout so the trainer and runtime
-agree on how to locate them.  Each run writes the pickled model to
-
-```
-models/regime/{SYMBOL}/{YYYYMMDD-HHMMSS}_regime_lgbm.pkl
-```
-
-and updates a pointer file ``models/regime/{SYMBOL}/LATEST.json`` with metadata:
+agree on how to locate them.  Each run writes the pickled model to the artifact
+path and updates ``LATEST.json`` with metadata:
 
 ```json
 {
@@ -180,10 +179,10 @@ the model is deserialised.
 
 Set environment variables so the runtime can locate models:
 
-* ``CT_SYMBOL`` – trading pair such as ``BTCUSDT``
-* ``CT_MODELS_BUCKET`` – bucket or local directory containing artifacts
-* ``CT_REGIME_PREFIX`` – object prefix under the bucket
-* ``SUPABASE_URL`` and ``SUPABASE_KEY`` if Supabase storage is used
+* ``CT_SYMBOL`` – trading pair such as ``BTCUSDT`` (default: ``BTCUSDT``)
+* ``CT_MODELS_BUCKET`` – bucket or local directory containing artifacts (default: ``models``)
+* ``CT_REGIME_PREFIX`` – object prefix under the bucket (default: ``models/regime``)
+* ``SUPABASE_URL`` and ``SUPABASE_SERVICE_KEY`` if Supabase storage is used
 
 ## Troubleshooting
 
