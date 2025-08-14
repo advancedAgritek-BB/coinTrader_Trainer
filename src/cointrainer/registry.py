@@ -209,6 +209,56 @@ def save_model(key: str, blob: bytes, metadata: dict) -> None:
         raise RegistryError(f"failed to save model: {exc}") from exc
 
 
+class SupabaseRegistry:
+    """Thin helper for publishing regime models to Supabase."""
+
+    def publish_regime_model(
+        self,
+        *,
+        model_obj: Any,
+        symbol: str,
+        horizon: str,
+        feature_list: list[str],
+        label_order: list[int],
+        thresholds: dict[str, float],
+        metrics: dict | None,
+        config: dict | None,
+        code_sha: str,
+        data_fingerprint: str,
+    ) -> str:
+        """Upload ``model_obj`` and update ``LATEST.json``.
+
+        Parameters mirror the expected metadata fields.  Returns the storage
+        key of the uploaded model.
+        """
+
+        import io
+        import time
+
+        buf = io.BytesIO()
+        joblib.dump(model_obj, buf)
+        blob = buf.getvalue()
+
+        ts = time.strftime("%Y%m%d-%H%M%S")
+        key = f"models/regime/{symbol}/{ts}_regime_lgbm.pkl"
+
+        metadata = {
+            "schema_version": "1",
+            "feature_list": feature_list,
+            "label_order": label_order,
+            "horizon": horizon,
+            "thresholds": thresholds,
+            "symbol": symbol,
+            "metrics": metrics or {},
+            "config": config or {},
+            "code_sha": code_sha,
+            "data_fingerprint": data_fingerprint,
+        }
+
+        save_model(key, blob, metadata)
+        return key
+
+
 def load_pointer(prefix: str) -> dict:
     """Return metadata from ``{prefix}/LATEST.json``."""
 
@@ -240,6 +290,7 @@ def load_latest(prefix: str) -> bytes:
 
 __all__ = [
     "ModelRegistry",
+    "SupabaseRegistry",
     "RegistryError",
     "load_latest",
     "load_pointer",

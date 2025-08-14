@@ -1,19 +1,20 @@
 from __future__ import annotations
 
-import time
+import hashlib
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from sklearn.metrics import accuracy_score, f1_score
 
 from cointrainer.features.simple_indicators import atr, ema, obv, roc, rsi
 from cointrainer.io.csv7 import read_csv7
 
-try:
-    # Optional at import time; actual training imports happen inside _fit_model()
+try:  # Optional at import time; actual training imports happen inside _fit_model()
     from lightgbm import LGBMClassifier  # type: ignore
-except Exception:
+except Exception:  # pragma: no cover - lightgbm may be absent
     LGBMClassifier = None  # type: ignore
 
 @dataclass
@@ -95,6 +96,22 @@ def _fit_model(X: pd.DataFrame, y: pd.Series, cfg: TrainConfig):
             return model
         raise
 
+
+def _dataset_fingerprint(X: pd.DataFrame, y: pd.Series) -> str:
+    h = hashlib.sha256()
+    h.update(pd.util.hash_pandas_object(X, index=True).values.tobytes())
+    h.update(pd.util.hash_pandas_object(y, index=True).values.tobytes())
+    return h.hexdigest()
+
+
+def _get_current_git_sha() -> str:
+    try:
+        return (
+            subprocess.check_output(["git", "rev-parse", "HEAD"]).decode().strip()
+        )
+    except Exception:  # pragma: no cover - git may be absent
+        return "unknown"
+
 def _save_local(model, cfg: TrainConfig, metadata: dict) -> Path:
     import json
 
@@ -105,17 +122,35 @@ def _save_local(model, cfg: TrainConfig, metadata: dict) -> Path:
     (cfg.outdir / f"{cfg.symbol.lower()}_metadata.json").write_text(json.dumps(metadata))
     return path
 
-def _maybe_publish_registry(model_bytes: bytes, metadata: dict, cfg: TrainConfig) -> str | None:
+
+def _maybe_publish_registry(
+    model: object,
+    metadata: dict,
+    cfg: TrainConfig,
+    metrics: dict,
+    dataset_hash: str,
+    config: dict,
+) -> None:
     if not cfg.publish_to_registry:
         return None
     try:
-        from cointrainer import registry  # lazy import
-        ts = time.strftime("%Y%m%d-%H%M%S")
-        key = f"models/regime/{cfg.symbol}/{ts}_regime_lgbm.pkl"
-        registry.save_model(key, model_bytes, metadata)
-        return key
+        from cointrainer.registry import SupabaseRegistry
+
+        reg = SupabaseRegistry()
+        reg.publish_regime_model(
+            model_obj=model,
+            symbol=cfg.symbol,
+            horizon=f"{cfg.horizon}m",
+            feature_list=metadata["feature_list"],
+            label_order=metadata["label_order"],
+            thresholds={"hold": cfg.hold},
+            metrics=metrics,
+            config=config,
+            code_sha=_get_current_git_sha(),
+            data_fingerprint=dataset_hash,
+        )
     except Exception:
-        return None
+        print("publish skipped")
 
 def train_from_csv7(
     csv_path: Path | str, cfg: TrainConfig, *, limit_rows: int | None = None
@@ -144,16 +179,15 @@ def train_from_csv7(
     # Save local
     _save_local(model, cfg, metadata)
 
-    # Optional registry publish
-    try:
-        import io
-
-        import joblib
-        buf = io.BytesIO()
-        joblib.dump(model, buf)
-        _maybe_publish_registry(buf.getvalue(), metadata, cfg)
-    except Exception:
-        pass
+    # Metrics + optional registry publish
+    preds = model.predict(X)
+    metrics = {
+        "accuracy": float(accuracy_score(y, preds)),
+        "f1": float(f1_score(y, preds, average="macro")),
+    }
+    fingerprint = _dataset_fingerprint(X, y)
+    config = {**vars(cfg), "outdir": str(cfg.outdir)}
+    _maybe_publish_registry(model, metadata, cfg, metrics, fingerprint, config)
 
     # Optional predictions CSV for inspection
     if cfg.write_predictions:
