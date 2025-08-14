@@ -96,6 +96,28 @@ If you pass `--publish` and your registry environment is configured, the trainer
 
 _On Windows, use `python -m cointrainer` if the `cointrainer` command is not found._
 
+### Batch training from a folder of CSVs
+
+If you have many CSVs (either headerless CSV7 or normalized OHLCV CSVs), run:
+
+```bash
+# Train every *.csv in the folder (non-recursive)
+cointrainer csv-train-batch --folder ./datasets --glob "*.csv" --symbol-from filename --horizon 15 --hold 0.0015
+
+# Options:
+# --recursive           # search subfolders
+# --symbol-from parent  # derive symbol from parent folder name
+# --symbol-from fixed --symbol XRPUSD  # force a symbol for all files
+# --limit-rows 250000   # only train on the last 250k rows of each file
+# --publish             # publish each model to the registry if env is set
+```
+
+Results:
+
+Models in local_models/<symbol>_regime_lgbm.pkl
+
+Summary in local_models/batch_train_summary.json
+
 ### Runtime usage
 
 ```python
