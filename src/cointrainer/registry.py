@@ -8,10 +8,14 @@ importing :mod:`cointrainer.registry` has no heavy side effects.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
+import io
 import json
 import logging
 import os
+import pickle
+import platform
 import tempfile
 import uuid
 from datetime import datetime
@@ -288,10 +292,121 @@ def load_latest(prefix: str) -> bytes:
         raise RegistryError(str(exc)) from exc
 
 
+# ---------------------------------------------------------------------------
+# Supabase registry publisher ------------------------------------------------
+# ---------------------------------------------------------------------------
+
+
+def _sha256_bytes(data: bytes) -> str:
+    """Return SHA256 hex digest for ``data``."""
+
+    return hashlib.sha256(data).hexdigest()
+
+
+def _now_version() -> str:
+    """Return timestamp string ``YYYYMMDD-HHMMSS`` for current UTC time."""
+
+    return datetime.utcnow().strftime("%Y%m%d-%H%M%S")
+
+
+def _detect_lgbm_version() -> str:
+    """Return LightGBM version if installed, otherwise ``unknown``."""
+
+    try:  # pragma: no cover - optional dependency
+        import lightgbm as lgb  # type: ignore
+
+        return getattr(lgb, "__version__", "unknown")
+    except Exception:  # pragma: no cover - optional dependency
+        return "unknown"
+
+
+class SupabaseRegistry:
+    """Publisher for uploading regime models to Supabase Storage."""
+
+    def __init__(
+        self,
+        url: str | None = None,
+        key: str | None = None,
+        bucket: str | None = None,
+        regime_prefix: str | None = None,
+    ) -> None:
+        url = url or os.getenv("SUPABASE_URL")
+        key = key or os.getenv("SUPABASE_SERVICE_KEY")
+        if not url or not key:
+            raise ValueError("SUPABASE_URL and SUPABASE_SERVICE_KEY must be set")
+
+        bucket = bucket or os.getenv("CT_MODELS_BUCKET", "models")
+        regime_prefix = regime_prefix or os.getenv("CT_REGIME_PREFIX", "models/regime")
+
+        self.client = create_client(url, key)
+        self.bucket = bucket
+        self.regime_prefix = regime_prefix.rstrip("/")
+
+    def publish_regime_model(
+        self,
+        model: Any,
+        *,
+        symbol: str,
+        feature_list: list[str],
+        label_order: list[int],
+        horizon: str,
+        thresholds: dict[str, Any],
+        code_sha: str,
+        data_fingerprint: str,
+    ) -> dict:
+        """Upload ``model`` and update ``LATEST.json`` pointer for ``symbol``."""
+
+        artifact_bytes = pickle.dumps(model)
+        sha256 = _sha256_bytes(artifact_bytes)
+        version = _now_version()
+        artifact_key = f"{self.regime_prefix}/{symbol}/{version}_regime_lgbm.pkl"
+        storage = self.client.storage.from_(self.bucket)
+        storage.upload(
+            path=artifact_key,
+            file=io.BytesIO(artifact_bytes),
+            file_options={"content-type": "application/pickle", "upsert": "false"},
+        )
+
+        pointer = {
+            "key": artifact_key,
+            "schema_version": "1",
+            "feature_list": feature_list,
+            "label_order": label_order,
+            "horizon": horizon,
+            "thresholds": thresholds,
+            "hash": f"sha256:{sha256}",
+            "py_version": platform.python_version(),
+            "lgbm_version": _detect_lgbm_version(),
+            "code_sha": code_sha,
+            "data_fingerprint": data_fingerprint,
+        }
+
+        latest_key = f"{self.regime_prefix}/{symbol}/LATEST.json"
+        storage.upload(
+            path=latest_key,
+            file=io.BytesIO(json.dumps(pointer).encode()),
+            file_options={"content-type": "application/json", "upsert": "true"},
+        )
+
+        with contextlib.suppress(Exception):  # optional table insert
+            self.client.table("models").upsert(
+                {"key": artifact_key, "hash": f"sha256:{sha256}"},
+                on_conflict="key",
+            ).execute()
+
+        return {
+            "version": version,
+            "artifact_key": artifact_key,
+            "sha256": sha256,
+            "latest_key": latest_key,
+        }
+
+
 __all__ = [
     "ModelRegistry",
     "SupabaseRegistry",
     "RegistryError",
+    "SupabaseRegistry",
     "load_latest",
     "load_pointer",
     "save_model",
