@@ -12,20 +12,14 @@ import contextlib
 import hashlib
 import io
 import json
-import logging
 import os
 import pickle
 import platform
 import tempfile
-import time
-from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 import joblib
-
-logger = logging.getLogger(__name__)
-
 
 # ---------------------------------------------------------------------------
 # Legacy registry class -----------------------------------------------------
@@ -92,7 +86,7 @@ class ModelRegistry:
             finally:
                 os.unlink(tmp.name)
 
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(UTC).isoformat()
         entry = {
             "name": name,
             "path": path,
@@ -139,7 +133,7 @@ class ModelRegistry:
             finally:
                 os.unlink(tmp.name)
 
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(UTC).isoformat()
         entry = {
             "name": name,
             "path": path,
@@ -163,53 +157,22 @@ class RegistryError(Exception):
     pass
 
 
-def _get_client() -> Any:  # pragma: no cover - thin wrapper
-    """Return a Supabase client using environment variables."""
 def _debug(msg: str) -> None:
     if os.getenv("CT_REGISTRY_DEBUG") == "1":
         print(f"[registry] {msg}")
 
 
-def _get_client():
-    # Lazy import to keep runtime light
-    try:
-        from supabase import create_client
-    except Exception as e:  # pragma: no cover - import error path
-        raise RegistryError(f"supabase client unavailable: {e}")
+def _get_client() -> Any:  # pragma: no cover - thin wrapper
+    """Return a Supabase client using environment variables."""
     url = os.getenv("SUPABASE_URL")
-    key = os.getenv("SUPABASE_KEY")
+    key = os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_KEY")
     if not url or not key:
-        raise RegistryError("SUPABASE_URL and SUPABASE_KEY must be set")
-
+        raise RegistryError("SUPABASE_URL and SUPABASE_SERVICE_KEY must be set")
     return create_client(url, key)
 
 
 def _get_bucket() -> str:
     """Return the name of the Supabase storage bucket."""
-
-    return os.getenv("MODELS_BUCKET", "models")
-
-
-def _upload(path: str, data: bytes) -> None:
-    client = _get_client()
-    bucket = _get_bucket()
-    client.storage.from_(bucket).upload(path, data, {"upsert": True})
-
-
-def _download(path: str) -> bytes:
-    client = _get_client()
-    bucket = _get_bucket()
-    return client.storage.from_(bucket).download(path)
-
-
-def _move(src: str, dst: str) -> None:
-    client = _get_client()
-    bucket = _get_bucket()
-    client.storage.from_(bucket).move(src, dst)
-    return create_client(url, key)
-
-
-def _get_bucket() -> str:
     bucket = os.getenv("CT_MODELS_BUCKET", "models")
     if not bucket:
         raise RegistryError("CT_MODELS_BUCKET not set")
@@ -244,11 +207,10 @@ def save_model(key: str, blob: bytes, metadata: dict) -> None:
     meta.setdefault("hash", _sha256(blob))
     pointer_bytes = json.dumps(meta, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
 
-    tmp = f"{pointer_path}.tmp-{int(time.time())}"
-    _debug(f"write pointer tmp {bucket}/{tmp}")
-    cli.storage.from_(bucket).upload(tmp, pointer_bytes, {"contentType": "application/json", "upsert": "true"})
-    _debug(f"move pointer -> {bucket}/{pointer_path}")
-    cli.storage.from_(bucket).upload(pointer_path, pointer_bytes, {"contentType": "application/json", "upsert": "true"})
+    _debug(f"write pointer -> {bucket}/{pointer_path}")
+    cli.storage.from_(bucket).upload(
+        pointer_path, pointer_bytes, {"contentType": "application/json", "upsert": "true"}
+    )
 
 
 def load_pointer(prefix: str) -> dict:
@@ -261,14 +223,14 @@ def load_pointer(prefix: str) -> dict:
     try:
         data = cli.storage.from_(bucket).download(pointer)
     except Exception as e:  # pragma: no cover - network errors
-        raise RegistryError(f"pointer download failed: {e}")
+        raise RegistryError(f"pointer download failed: {e}") from e
     try:
         return json.loads(data.decode("utf-8"))
-    except Exception as e:
-        raise RegistryError(f"invalid pointer JSON: {e}")
+    except Exception as e:  # pragma: no cover - invalid JSON
+        raise RegistryError(f"invalid pointer JSON: {e}") from e
 
 
-def load_latest(prefix: str, *, allow_fallback: bool = False) -> bytes:
+def load_latest(prefix: str) -> bytes:
     """Use pointer metadata to download model bytes."""
 
     meta = load_pointer(prefix)
@@ -281,7 +243,7 @@ def load_latest(prefix: str, *, allow_fallback: bool = False) -> bytes:
     try:
         return cli.storage.from_(bucket).download(key)
     except Exception as e:  # pragma: no cover - network errors
-        raise RegistryError(f"model download failed: {e}")
+        raise RegistryError(f"model download failed: {e}") from e
 
 
 # ---------------------------------------------------------------------------
@@ -298,7 +260,7 @@ def _sha256_bytes(data: bytes) -> str:
 def _now_version() -> str:
     """Return timestamp string ``YYYYMMDD-HHMMSS`` for current UTC time."""
 
-    return datetime.utcnow().strftime("%Y%m%d-%H%M%S")
+    return datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
 
 
 def _detect_lgbm_version() -> str:
@@ -312,7 +274,7 @@ def _detect_lgbm_version() -> str:
         return "unknown"
 
 
-class SupabaseRegistry:  # noqa: F811
+class SupabaseRegistry:
     """Publisher for uploading regime models to Supabase Storage."""
 
     def __init__(
@@ -397,7 +359,6 @@ class SupabaseRegistry:  # noqa: F811
 __all__ = [
     "ModelRegistry",
     "RegistryError",
-    "SupabaseRegistry",
     "SupabaseRegistry",
     "load_latest",
     "load_pointer",
