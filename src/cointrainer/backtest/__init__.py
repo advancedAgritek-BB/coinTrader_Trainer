@@ -1,32 +1,30 @@
-from __future__ import annotations
-
-__all__ = []
-"""Backtesting helpers for cointrainer."""
-
-from .optimize import optimize_grid, optimize_optuna
-from .run import backtest_csv
-
-__all__ = ["optimize_grid", "optimize_optuna", "backtest_csv"]
 """Backtesting utilities for cointrainer."""
 
-from .sim import simulate
+from __future__ import annotations
+
 from .metrics import (
+    cagr,
     drawdown_curve,
+    hit_rate,
     max_drawdown,
     sharpe,
     sortino,
-    cagr,
-    hit_rate,
     summarize,
 )
+from .optimize import optimize_grid, optimize_optuna
+from .run import backtest_csv
+from .sim import simulate
 
 __all__ = [
-    "simulate",
-    "drawdown_curve",
-    "max_drawdown",
-    "sharpe",
-    "sortino",
+    "backtest_csv",
     "cagr",
+    "drawdown_curve",
     "hit_rate",
+    "max_drawdown",
+    "optimize_grid",
+    "optimize_optuna",
+    "sharpe",
+    "simulate",
+    "sortino",
     "summarize",
 ]
