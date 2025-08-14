@@ -11,7 +11,7 @@ from cointrainer.features.simple_indicators import atr, ema, obv, roc, rsi
 from cointrainer.io.csv7 import read_csv7
 
 try:
-    # Optional at import time; actual training imports happen inside train()
+    # Optional at import time; actual training imports happen inside _fit_model()
     from lightgbm import LGBMClassifier  # type: ignore
 except Exception:
     LGBMClassifier = None  # type: ignore
@@ -28,12 +28,13 @@ class TrainConfig:
     outdir: Path = Path("local_models")
     write_predictions: bool = True
     publish_to_registry: bool = False  # if True and env is present, also publish to registry
-    device_type: str = "gpu"
-    gpu_platform_id: int | None = None
-    gpu_device_id: int | None = None
-    max_bin: int = 63
-    gpu_use_dp: bool = False
-    n_jobs: int | None = None
+    # GPU / performance knobs
+    device_type: str = "gpu"          # "cpu" | "gpu" | "cuda"
+    gpu_platform_id: int | None = None  # -1 means default
+    gpu_device_id: int | None = None    # -1 means default
+    max_bin: int = 63                  # GPU best practice
+    gpu_use_dp: bool = False           # single-precision by default
+    n_jobs: int | None = None          # threads for LightGBM wrapper
 
 FEATURE_LIST = ["ema_8","ema_21","rsi_14","atr_14","roc_5","obv"]
 
@@ -69,6 +70,12 @@ def _fit_model(X: pd.DataFrame, y: pd.Series, cfg: TrainConfig):
         "class_weight": "balanced",
         "n_jobs": cfg.n_jobs if cfg.n_jobs is not None else -1,
         "random_state": cfg.random_state,
+        raise RuntimeError("LightGBM is not installed. Install with: pip install lightgbm")
+
+    params = {
+        "objective": "multiclass",
+        "num_class": 3,
+        "class_weight": "balanced",
         "device_type": cfg.device_type,
         "max_bin": cfg.max_bin,
         "gpu_use_dp": cfg.gpu_use_dp,
@@ -91,6 +98,18 @@ def _fit_model(X: pd.DataFrame, y: pd.Series, cfg: TrainConfig):
             model.fit(X, y)
             return model
         raise
+    model = LGBMClassifier(
+        **params,
+        n_estimators=cfg.n_estimators,
+        learning_rate=cfg.learning_rate,
+        num_leaves=cfg.num_leaves,
+        random_state=cfg.random_state,
+        n_jobs=cfg.n_jobs,
+        subsample=0.8,
+        colsample_bytree=0.8,
+    )
+    model.fit(X.values, y.values)
+    return model
 
 def _save_local(model, cfg: TrainConfig, metadata: dict) -> Path:
     import json
