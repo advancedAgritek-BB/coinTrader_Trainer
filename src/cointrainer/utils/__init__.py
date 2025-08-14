@@ -1,1 +1,1 @@
-"""Utility helpers for batch training and file handling."""
+"""Utility helpers for batch operations and more."""
