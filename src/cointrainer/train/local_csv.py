@@ -83,8 +83,17 @@ def _maybe_publish_registry(model_bytes: bytes, metadata: dict, cfg: TrainConfig
     except Exception:
         return None
 
-def train_from_csv7(csv_path: Path | str, cfg: TrainConfig) -> tuple[object, dict]:
+def train_from_csv7(
+    csv_path: Path | str, cfg: TrainConfig, limit_rows: int | None = None
+) -> tuple[object, dict]:
     df = read_csv7(csv_path)
+    if limit_rows is not None:
+    csv_path: Path | str, cfg: TrainConfig, *, limit_rows: int | None = None
+) -> tuple[object, dict]:
+    df = read_csv7(csv_path)
+    if limit_rows and limit_rows > 0:
+        # Take the tail (most recent) rows
+        df = df.tail(int(limit_rows))
     X_all = make_features(df).dropna()
     y_all = make_labels(df.loc[X_all.index, "close"], cfg.horizon, cfg.hold)
     m = y_all.notna()
