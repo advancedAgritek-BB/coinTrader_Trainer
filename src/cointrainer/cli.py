@@ -59,7 +59,6 @@ def _cmd_csv_train(args: argparse.Namespace) -> None:
     from cointrainer.train.local_csv import (
         FEATURE_LIST,
         TrainConfig,
-        _dataset_fingerprint,
         _fit_model,
         _maybe_publish_registry,
         _save_local,
@@ -120,7 +119,9 @@ def _cmd_csv_train(args: argparse.Namespace) -> None:
         }
         path = _save_local(model, cfg, meta)
         try:
-            import io, joblib
+            import io
+
+            import joblib
 
             buf = io.BytesIO()
             joblib.dump(model, buf)
@@ -145,7 +146,6 @@ def _cmd_csv_train_batch(args: argparse.Namespace) -> None:
     from cointrainer.train.local_csv import (
         FEATURE_LIST,
         TrainConfig,
-        _dataset_fingerprint,
         _fit_model,
         _maybe_publish_registry,
         _save_local,
@@ -188,7 +188,14 @@ def _cmd_csv_train_batch(args: argparse.Namespace) -> None:
             f"gpu_platform_id={cfg.gpu_platform_id if cfg.gpu_platform_id is not None else -1} "
             f"gpu_device_id={cfg.gpu_device_id if cfg.gpu_device_id is not None else -1}"
         )
-        item = {"file": str(f), "symbol": symbol, "status": "ok", "model": None, "pointer": None, "error": None}
+        item = {
+            "file": str(f),
+            "symbol": symbol,
+            "status": "ok",
+            "model": None,
+            "pointer": None,
+            "error": None,
+        }
         try:
             if is_csv7(f):
                 train_from_csv7(f, cfg, limit_rows=args.limit_rows)
@@ -213,7 +220,9 @@ def _cmd_csv_train_batch(args: argparse.Namespace) -> None:
                 }
                 path = _save_local(model, cfg, meta)
                 try:
-                    import io, joblib
+                    import io
+
+                    import joblib
 
                     buf = io.BytesIO()
                     joblib.dump(model, buf)
@@ -238,13 +247,14 @@ def _cmd_csv_train_batch(args: argparse.Namespace) -> None:
             item["pointer"] = f"{prefix}/LATEST.json"
         summary.append(item)
         print(
-            f"[{item['status'].upper()}] {symbol} <- {f}  model={item['model']}  pointer={item['pointer'] or '-'}"
+            f"[{item['status'].upper()}] {symbol} <- {f}  "
+            f"model={item['model']}  pointer={item['pointer'] or '-'}"
         )
 
     (outdir / "batch_train_summary.json").write_text(json.dumps(summary, indent=2))
-    print(
-        f"\nBatch finished: {sum(s['status']=='ok' for s in summary)} ok / {len(summary) - sum(s['status']=='ok' for s in summary)} failed."
-    )
+    ok_count = sum(s["status"] == "ok" for s in summary)
+    fail_count = len(summary) - ok_count
+    print(f"\nBatch finished: {ok_count} ok / {fail_count} failed.")
     print(f"Summary: {outdir / 'batch_train_summary.json'}")
 
 
@@ -380,6 +390,40 @@ def main(argv: list[str] | None = None) -> None:
     csv_train_batch.add_argument("--n-jobs", type=int, default=None)
     csv_train_batch.set_defaults(func=_cmd_csv_train_batch)
 
+    op = sub.add_parser(
+        "optimize",
+        help="Search best training+backtest settings for a symbol on a CSV.",
+    )
+    op.add_argument("--file", required=True)
+    op.add_argument("--symbol", required=True)
+    op.add_argument("--horizons", nargs="+", type=int, default=[15, 30, 60])
+    op.add_argument(
+        "--holds",
+        nargs="+",
+        type=float,
+        default=[0.001, 0.0015, 0.002, 0.003],
+    )
+    op.add_argument(
+        "--open-thrs",
+        nargs="+",
+        type=float,
+        default=[0.52, 0.55, 0.58],
+    )
+    op.add_argument(
+        "--positions",
+        nargs="+",
+        default=["gated", "sized"],
+        choices=["gated", "sized"],
+    )
+    op.add_argument("--fee-bps", type=float, default=2.0)
+    op.add_argument("--slip-bps", type=float, default=0.0)
+    op.add_argument("--device-type", default="gpu", choices=["cpu", "gpu", "cuda"])
+    op.add_argument("--max-bin", type=int, default=63)
+    op.add_argument("--n-jobs", type=int, default=0)
+    op.add_argument("--limit-rows", type=int, default=None)
+    op.add_argument("--outdir", default="out/opt")
+    op.add_argument("--optuna", action="store_true", help="Use Optuna Bayesian search")
+    op.add_argument("--trials", type=int, default=30, help="Optuna trial count")
     bt = sub.add_parser("backtest", help="Backtest a trained model on a CSV (normalized or CSV7).")
     bt.add_argument("--file", required=True)
     bt.add_argument("--symbol", required=True)
@@ -426,6 +470,32 @@ def main(argv: list[str] | None = None) -> None:
             print("0.1.0")
         return
 
+    if args.cmd == "optimize":
+        from pathlib import Path
+
+        from cointrainer.backtest.optimize import optimize_grid, optimize_optuna
+
+        fn = optimize_optuna if args.optuna else optimize_grid
+        kwargs = {
+            "csv_path": Path(args.file),
+            "symbol": args.symbol.upper(),
+            "horizons": args.horizons,
+            "holds": args.holds,
+            "open_thrs": args.open_thrs,
+            "position_modes": args.positions,
+            "fee_bps": args.fee_bps,
+            "slip_bps": args.slip_bps,
+            "device_type": args.device_type,
+            "max_bin": args.max_bin,
+            "n_jobs": args.n_jobs,
+            "limit_rows": args.limit_rows,
+            "outdir": Path(args.outdir),
+        }
+        if args.optuna:
+            kwargs["n_trials"] = args.trials
+        res = fn(**kwargs)
+        print("[optimize] best:", res["best"])
+        print("[optimize] leaderboard:", res["leaderboard"])
     if args.cmd == "backtest":
         from cointrainer.backtest.run import backtest_csv
         from pathlib import Path
