@@ -175,6 +175,80 @@ path and updates ``LATEST.json`` with metadata:
 downloading the referenced pickle.  If a hash is present it is verified before
 the model is deserialised.
 
+## Publishing models to Supabase Storage
+
+Environment variables (use a **service role** key for write access):
+
+```bash
+SUPABASE_URL=https://<project-ref>.supabase.co
+SUPABASE_KEY=<SERVICE_ROLE_KEY>
+CT_MODELS_BUCKET=models     # create this bucket in Supabase Storage
+CT_SYMBOL=XRPUSD            # default symbol for training, optional
+```
+
+Train and publish a model:
+
+```bash
+cointrainer csv-train --file ./data/XRPUSD_1m.normalized.csv --symbol XRPUSD --horizon 15 --hold 0.0015 --publish
+```
+
+If successful, you will see console lines like:
+
+```
+[publish] Uploaded: models/regime/XRPUSD/2025..._regime_lgbm.pkl
+[publish] Pointer:  models/regime/XRPUSD/LATEST.json
+```
+
+Diagnostics:
+
+```
+cointrainer registry-smoke --symbol XRPUSD      # upload/list/download a tiny blob
+cointrainer registry-list  --symbol XRPUSD      # list objects under the prefix
+cointrainer registry-pointer --symbol XRPUSD    # print LATEST.json
+```
+
+Debug logging (optional):
+
+```bash
+export CT_REGISTRY_DEBUG=1   # prints registry operations during save/load
+```
+
+## How to verify end‑to‑end (PowerShell)
+
+```powershell
+# 1) Set env with a service role key and bucket name
+$env:SUPABASE_URL  = "https://<your-project-ref>.supabase.co"
+$env:SUPABASE_KEY  = "<SERVICE_ROLE_KEY>"
+$env:CT_MODELS_BUCKET = "models"
+$env:CT_SYMBOL     = "XRPUSD"
+$env:CT_REGISTRY_DEBUG = "1"   # optional
+
+# 2) Publish a single model
+python -m cointrainer.cli csv-train `
+  --file .\data\XRPUSD_1m.normalized.csv `
+  --symbol $env:CT_SYMBOL `
+  --horizon 15 `
+  --hold 0.0015 `
+  --publish
+
+# Expected console:
+# [publish] Uploaded: models/regime/XRPUSD/<timestamp>_regime_lgbm.pkl
+# [publish] Pointer:  models/regime/XRPUSD/LATEST.json
+# [registry] upload models/... (debug lines if CT_REGISTRY_DEBUG=1)
+
+# 3) Show the pointer
+python -m cointrainer.cli registry-pointer --symbol $env:CT_SYMBOL
+
+# 4) Batch publish all CSVs in a folder (GPU enabled if you added those flags)
+python -m cointrainer.cli csv-train-batch `
+  --folder .\my_csvs `
+  --glob "*.csv" `
+  --symbol-from filename `
+  --horizon 15 `
+  --hold 0.0015 `
+  --publish
+```
+
 ## Environment
 
 Set environment variables so the runtime can locate models:
