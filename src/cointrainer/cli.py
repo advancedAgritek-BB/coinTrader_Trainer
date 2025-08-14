@@ -58,6 +58,7 @@ def _cmd_csv_train(args: argparse.Namespace) -> None:
     from cointrainer.train.local_csv import (
         FEATURE_LIST,
         TrainConfig,
+        _fit_model,
         _maybe_publish_registry,
         _save_local,
         make_features,
@@ -70,6 +71,19 @@ def _cmd_csv_train(args: argparse.Namespace) -> None:
         horizon=args.horizon,
         hold=args.hold,
         publish_to_registry=args.publish,
+        outdir=Path(args.outdir),
+        write_predictions=args.write_predictions,
+        device_type=args.device_type,
+        gpu_platform_id=args.gpu_platform_id,
+        gpu_device_id=args.gpu_device_id,
+        max_bin=args.max_bin,
+        gpu_use_dp=args.gpu_use_dp,
+        n_jobs=args.n_jobs,
+    )
+    print(
+        f"[train] device={cfg.device_type} max_bin={cfg.max_bin} "
+        f"gpu_platform_id={cfg.gpu_platform_id if cfg.gpu_platform_id is not None else -1} "
+        f"gpu_device_id={cfg.gpu_device_id if cfg.gpu_device_id is not None else -1}"
     )
     # Try CSV7 path first
     try:
@@ -88,17 +102,7 @@ def _cmd_csv_train(args: argparse.Namespace) -> None:
         y = y.loc[m]
         model = None
         try:
-            from lightgbm import LGBMClassifier
-
-            model = LGBMClassifier(
-                n_estimators=400,
-                learning_rate=0.05,
-                num_leaves=63,
-                objective="multiclass",
-                class_weight="balanced",
-                n_jobs=-1,
-                random_state=42,
-            ).fit(X, y)
+            model = _fit_model(X, y, cfg)
         except Exception as e:  # pragma: no cover - optional dependency
             raise SystemExit(
                 f"LightGBM not available for normalized CSV path: {e}"
@@ -127,11 +131,7 @@ def _cmd_csv_train(args: argparse.Namespace) -> None:
 
 
 def _cmd_csv_train_batch(args: argparse.Namespace) -> None:
-    """Placeholder for batch CSV training.
-
-    The test suite only verifies that the CLI exposes this command, so the
-    implementation is intentionally minimal."""
-    pass
+    """Train regime models from a directory of CSV files."""
     import json
     from pathlib import Path
 
@@ -170,6 +170,17 @@ def _cmd_csv_train_batch(args: argparse.Namespace) -> None:
             hold=args.hold,
             publish_to_registry=args.publish,
             outdir=outdir,
+            device_type=args.device_type,
+            gpu_platform_id=args.gpu_platform_id,
+            gpu_device_id=args.gpu_device_id,
+            max_bin=args.max_bin,
+            gpu_use_dp=args.gpu_use_dp,
+            n_jobs=args.n_jobs,
+        )
+        print(
+            f"[train] device={cfg.device_type} max_bin={cfg.max_bin} "
+            f"gpu_platform_id={cfg.gpu_platform_id if cfg.gpu_platform_id is not None else -1} "
+            f"gpu_device_id={cfg.gpu_device_id if cfg.gpu_device_id is not None else -1}"
         )
         item = {"file": str(f), "symbol": symbol, "status": "ok", "model": None, "error": None}
         try:
@@ -185,7 +196,7 @@ def _cmd_csv_train_batch(args: argparse.Namespace) -> None:
                 m = y.index.intersection(X.index)
                 X = X.loc[m]
                 y = y.loc[m]
-                model = _fit_model(X, y)
+                model = _fit_model(X, y, cfg)
                 meta = {
                     "schema_version": "1",
                     "feature_list": FEATURE_LIST,
@@ -290,27 +301,35 @@ def main(argv: list[str] | None = None) -> None:
     csv_train.add_argument(
         "--publish", action="store_true", help="Publish to registry if configured"
     )
+    csv_train.add_argument(
+        "--outdir", default="local_models", help="Where to write model/predictions"
+    )
+    csv_train.add_argument(
+        "--write-predictions",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Write predictions CSV alongside model (disable with --no-write-predictions)",
+    )
+    csv_train.add_argument(
+        "--device-type", default="gpu", choices=["cpu", "gpu", "cuda"]
+    )
+    csv_train.add_argument("--gpu-platform-id", type=int, default=None)
+    csv_train.add_argument("--gpu-device-id", type=int, default=None)
+    csv_train.add_argument("--max-bin", type=int, default=63)
+    csv_train.add_argument("--gpu-use-dp", action="store_true")
+    csv_train.add_argument("--n-jobs", type=int, default=None)
     csv_train.set_defaults(func=_cmd_csv_train)
 
     csv_train_batch = subparsers.add_parser(
         "csv-train-batch",
-        help="Train regime models from a directory of CSV files",
-    )
-    csv_train_batch.add_argument(
-        "--dir", required=True, help="Directory containing CSV files"
-    )
-    csv_train_batch.add_argument(
-        "--pattern", default="*.csv", help="Filename pattern to match"
-    )
-    csv_train_batch.add_argument("--horizon", type=int, default=15)
-    csv_train_batch.add_argument("--hold", type=float, default=0.0015)
-    csv_train_batch.add_argument(
-        "--publish", action="store_true", help="Publish to registry if configured"
-    )
         help="Train a model for each CSV in a folder (CSV7 or normalized).",
     )
-    csv_train_batch.add_argument("--folder", required=True, help="Folder containing CSV files")
-    csv_train_batch.add_argument("--glob", default="*.csv", help="Glob pattern (default: *.csv)")
+    csv_train_batch.add_argument(
+        "--folder", required=True, help="Folder containing CSV files"
+    )
+    csv_train_batch.add_argument(
+        "--glob", default="*.csv", help="Glob pattern (default: *.csv)"
+    )
     csv_train_batch.add_argument(
         "--recursive", action="store_true", help="Recurse into subfolders"
     )
@@ -339,6 +358,14 @@ def main(argv: list[str] | None = None) -> None:
         "--limit-rows", type=int, default=None,
         help="Limit to last N rows per file (optional)",
     )
+    csv_train_batch.add_argument(
+        "--device-type", default="gpu", choices=["cpu", "gpu", "cuda"]
+    )
+    csv_train_batch.add_argument("--gpu-platform-id", type=int, default=None)
+    csv_train_batch.add_argument("--gpu-device-id", type=int, default=None)
+    csv_train_batch.add_argument("--max-bin", type=int, default=63)
+    csv_train_batch.add_argument("--gpu-use-dp", action="store_true")
+    csv_train_batch.add_argument("--n-jobs", type=int, default=None)
     csv_train_batch.set_defaults(func=_cmd_csv_train_batch)
 
     args = parser.parse_args(argv)
