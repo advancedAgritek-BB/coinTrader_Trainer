@@ -424,6 +424,19 @@ def main(argv: list[str] | None = None) -> None:
     op.add_argument("--outdir", default="out/opt")
     op.add_argument("--optuna", action="store_true", help="Use Optuna Bayesian search")
     op.add_argument("--trials", type=int, default=30, help="Optuna trial count")
+    bt = sub.add_parser("backtest", help="Backtest a trained model on a CSV (normalized or CSV7).")
+    bt.add_argument("--file", required=True)
+    bt.add_argument("--symbol", required=True)
+    bt.add_argument("--model", default=None, help="Path to local .pkl model")
+    bt.add_argument("--from-registry", action="store_true", help="Load model from Supabase (LATEST.json)")
+    bt.add_argument("--open-thr", type=float, default=0.55)
+    bt.add_argument("--close-thr", type=float, default=None)
+    bt.add_argument("--fee-bps", type=float, default=2.0)
+    bt.add_argument("--slip-bps", type=float, default=0.0)
+    bt.add_argument("--position", default="gated", choices=["gated","sized"])
+    bt.add_argument("--start", default=None)
+    bt.add_argument("--end", default=None)
+    bt.add_argument("--outdir", default="out/backtests")
 
     # registry-smoke
     rs = sub.add_parser(
@@ -483,6 +496,27 @@ def main(argv: list[str] | None = None) -> None:
         res = fn(**kwargs)
         print("[optimize] best:", res["best"])
         print("[optimize] leaderboard:", res["leaderboard"])
+    if args.cmd == "backtest":
+        from cointrainer.backtest.run import backtest_csv
+        from pathlib import Path
+        prefix = None
+        if args.from_registry:
+            prefix = f"models/regime/{args.symbol.upper()}"
+        res = backtest_csv(
+            path=Path(args.file),
+            symbol=args.symbol.upper(),
+            model_local=Path(args.model) if args.model else None,
+            model_registry_prefix=prefix,
+            outdir=Path(args.outdir),
+            open_thr=args.open_thr,
+            close_thr=args.close_thr,
+            fee_bps=args.fee_bps,
+            slip_bps=args.slip_bps,
+            position_mode=args.position,
+            start=args.start,
+            end=args.end,
+        )
+        print("[backtest] summary:", res["stats"])
         return
 
     if args.cmd == "registry-smoke":
