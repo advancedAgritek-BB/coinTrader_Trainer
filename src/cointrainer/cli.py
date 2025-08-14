@@ -410,38 +410,35 @@ def main(argv: list[str] | None = None) -> None:
     ab.add_argument("--outdir", default="out/autobacktest")
     op = sub.add_parser(
         "optimize",
-        help="Search best training+backtest settings for a symbol on a CSV.",
+        help="Optimize training + signal policy using Optuna (fallback to grid if Optuna missing).",
     )
     op.add_argument("--file", required=True)
     op.add_argument("--symbol", required=True)
-    op.add_argument("--horizons", nargs="+", type=int, default=[15, 30, 60])
-    op.add_argument(
-        "--holds",
-        nargs="+",
-        type=float,
-        default=[0.001, 0.0015, 0.002, 0.003],
-    )
-    op.add_argument(
-        "--open-thrs",
-        nargs="+",
-        type=float,
-        default=[0.52, 0.55, 0.58],
-    )
-    op.add_argument(
-        "--positions",
-        nargs="+",
-        default=["gated", "sized"],
-        choices=["gated", "sized"],
-    )
+    op.add_argument("--n-trials", type=int, default=100)
+    op.add_argument("--folds", type=int, default=4)
+    op.add_argument("--val-len", type=int, default=100000)
+    op.add_argument("--gap", type=int, default=500)
+    op.add_argument("--limit-rows", type=int, default=800000)
     op.add_argument("--fee-bps", type=float, default=2.0)
     op.add_argument("--slip-bps", type=float, default=0.0)
-    op.add_argument("--device-type", default="gpu", choices=["cpu", "gpu", "cuda"])
+    op.add_argument("--device-type", default="gpu", choices=["cpu","gpu","cuda"])
     op.add_argument("--max-bin", type=int, default=63)
     op.add_argument("--n-jobs", type=int, default=0)
-    op.add_argument("--limit-rows", type=int, default=None)
+    op.add_argument("--seed", type=int, default=42)
+    op.add_argument(
+        "--storage",
+        default=None,
+        help="Optuna storage URL (e.g., sqlite:///out/opt/studies/SYMBOL.db)",
+    )
+    op.add_argument(
+        "--study-name", default=None, help="Study name (defaults to SYMBOL)"
+    )
     op.add_argument("--outdir", default="out/opt")
-    op.add_argument("--optuna", action="store_true", help="Use Optuna Bayesian search")
-    op.add_argument("--trials", type=int, default=30, help="Optuna trial count")
+    op.add_argument(
+        "--publish-best",
+        action="store_true",
+        help="Retrain best on full data and publish to Supabase",
+    )
     bt = sub.add_parser("backtest", help="Backtest a trained model on a CSV (normalized or CSV7).")
     bt.add_argument("--file", required=True)
     bt.add_argument("--symbol", required=True)
@@ -511,29 +508,62 @@ def main(argv: list[str] | None = None) -> None:
     if args.cmd == "optimize":
         from pathlib import Path
 
-        from cointrainer.backtest.optimize import optimize_grid, optimize_optuna
+        from cointrainer.backtest.optuna_opt import (
+            OptunaConfig,
+            optimize_optuna,
+            publish_best_model,
+        )
+        from cointrainer.backtest.optimize import optimize_grid
 
-        fn = optimize_optuna if args.optuna else optimize_grid
-        kwargs = {
-            "csv_path": Path(args.file),
-            "symbol": args.symbol.upper(),
-            "horizons": args.horizons,
-            "holds": args.holds,
-            "open_thrs": args.open_thrs,
-            "position_modes": args.positions,
-            "fee_bps": args.fee_bps,
-            "slip_bps": args.slip_bps,
-            "device_type": args.device_type,
-            "max_bin": args.max_bin,
-            "n_jobs": args.n_jobs,
-            "limit_rows": args.limit_rows,
-            "outdir": Path(args.outdir),
-        }
-        if args.optuna:
-            kwargs["n_trials"] = args.trials
-        res = fn(**kwargs)
-        print("[optimize] best:", res["best"])
-        print("[optimize] leaderboard:", res["leaderboard"])
+        csv_path = Path(args.file)
+        symbol = args.symbol.upper()
+        outdir = Path(args.outdir)
+
+        try:
+            cfg = OptunaConfig(
+                n_trials=args.n_trials,
+                n_folds=args.folds,
+                val_len=args.val_len,
+                gap=args.gap,
+                limit_rows=args.limit_rows,
+                fee_bps=args.fee_bps,
+                slip_bps=args.slip_bps,
+                device_type=args.device_type,
+                max_bin=args.max_bin,
+                n_jobs=args.n_jobs,
+                seed=args.seed,
+                storage=args.storage,
+                study_name=(args.study_name or f"{symbol}_study"),
+                publish_best=args.publish_best,
+            )
+            res = optimize_optuna(csv_path, symbol, outdir=outdir, cfg=cfg)
+            print("[optimize] best:", res["best"])
+            print("[optimize] leaderboard:", res["leaderboard_path"])
+
+            if args.publish_best:
+                key = publish_best_model(csv_path, symbol, outdir, res["best"])
+                print(f"[optimize] Published best model to: {key}")
+            return
+        except RuntimeError as e:
+            print("[optimize] Optuna not available → falling back to grid search")
+            res = optimize_grid(
+                csv_path=csv_path,
+                symbol=symbol,
+                horizons=[15, 30, 60],
+                holds=[0.001, 0.0015, 0.002, 0.003],
+                open_thrs=[0.52, 0.55, 0.58],
+                position_modes=["gated", "sized"],
+                fee_bps=args.fee_bps,
+                slip_bps=args.slip_bps,
+                device_type=args.device_type,
+                max_bin=args.max_bin,
+                n_jobs=args.n_jobs,
+                limit_rows=args.limit_rows,
+                outdir=outdir,
+            )
+            print("[optimize-grid] best:", res["best"])
+            print("[optimize-grid] leaderboard:", res["leaderboard"])
+            return
     if args.cmd == "backtest":
         from cointrainer.backtest.run import backtest_csv
         from pathlib import Path
