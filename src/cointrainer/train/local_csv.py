@@ -62,20 +62,16 @@ def _fit_model(X: pd.DataFrame, y: pd.Series, cfg: TrainConfig):
         raise RuntimeError(
             "LightGBM is not installed. Install with: pip install lightgbm"
         )
+
     params = {
         "n_estimators": cfg.n_estimators,
         "learning_rate": cfg.learning_rate,
         "num_leaves": cfg.num_leaves,
         "objective": "multiclass",
+        "num_class": 3,
         "class_weight": "balanced",
         "n_jobs": cfg.n_jobs if cfg.n_jobs is not None else -1,
         "random_state": cfg.random_state,
-        raise RuntimeError("LightGBM is not installed. Install with: pip install lightgbm")
-
-    params = {
-        "objective": "multiclass",
-        "num_class": 3,
-        "class_weight": "balanced",
         "device_type": cfg.device_type,
         "max_bin": cfg.max_bin,
         "gpu_use_dp": cfg.gpu_use_dp,
@@ -98,18 +94,6 @@ def _fit_model(X: pd.DataFrame, y: pd.Series, cfg: TrainConfig):
             model.fit(X, y)
             return model
         raise
-    model = LGBMClassifier(
-        **params,
-        n_estimators=cfg.n_estimators,
-        learning_rate=cfg.learning_rate,
-        num_leaves=cfg.num_leaves,
-        random_state=cfg.random_state,
-        n_jobs=cfg.n_jobs,
-        subsample=0.8,
-        colsample_bytree=0.8,
-    )
-    model.fit(X.values, y.values)
-    return model
 
 def _save_local(model, cfg: TrainConfig, metadata: dict) -> Path:
     import json
