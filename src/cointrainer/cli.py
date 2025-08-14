@@ -126,6 +126,103 @@ def _cmd_csv_train(args: argparse.Namespace) -> None:
         print(f"Training completed from normalized CSV. Model: {path}")
 
 
+def _cmd_csv_train_batch(args: argparse.Namespace) -> None:
+    import json
+    from pathlib import Path
+
+    import pandas as pd
+
+    from cointrainer.train.local_csv import (
+        FEATURE_LIST,
+        TrainConfig,
+        _fit_model,
+        _maybe_publish_registry,
+        _save_local,
+        make_features,
+        make_labels,
+        train_from_csv7,
+    )
+    from cointrainer.utils.batch import (
+        derive_symbol,
+        is_csv7,
+        is_normalized_csv,
+        iter_csv_files,
+    )
+
+    files = iter_csv_files(args.folder, glob=args.glob, recursive=args.recursive)
+    if not files:
+        raise SystemExit(f"No CSV files matched {args.glob} in {args.folder}")
+
+    summary = []
+    outdir = Path(args.outdir)
+    outdir.mkdir(parents=True, exist_ok=True)
+
+    for f in files:
+        symbol = derive_symbol(f, mode=args.symbol_from, fixed=args.symbol)
+        cfg = TrainConfig(
+            symbol=symbol,
+            horizon=args.horizon,
+            hold=args.hold,
+            publish_to_registry=args.publish,
+            outdir=outdir,
+        )
+        item = {"file": str(f), "symbol": symbol, "status": "ok", "model": None, "error": None}
+        try:
+            if is_csv7(f):
+                train_from_csv7(f, cfg, limit_rows=args.limit_rows)
+                item["model"] = str(outdir / f"{symbol.lower()}_regime_lgbm.pkl")
+            elif is_normalized_csv(f):
+                df = pd.read_csv(f, parse_dates=[0], index_col=0).sort_index()
+                if args.limit_rows:
+                    df = df.tail(int(args.limit_rows))
+                X = make_features(df).dropna()
+                y = make_labels(df.loc[X.index, "close"], cfg.horizon, cfg.hold).dropna()
+                m = y.index.intersection(X.index)
+                X = X.loc[m]
+                y = y.loc[m]
+                model = _fit_model(X, y)
+                meta = {
+                    "schema_version": "1",
+                    "feature_list": FEATURE_LIST,
+                    "label_order": [-1, 0, 1],
+                    "horizon": f"{cfg.horizon}m",
+                    "thresholds": {"hold": cfg.hold},
+                    "symbol": cfg.symbol,
+                }
+                path = _save_local(model, cfg, meta)
+                try:
+                    import io
+
+                    import joblib
+
+                    buf = io.BytesIO()
+                    joblib.dump(model, buf)
+                    _maybe_publish_registry(buf.getvalue(), meta, cfg)
+                except Exception:
+                    pass
+                item["model"] = str(path)
+            else:
+                raise RuntimeError(
+                    "Unrecognized CSV format (not CSV7 and not normalized OHLCV)."
+                )
+        except Exception as e:  # pragma: no cover - defensive
+            item["status"] = "error"
+            item["error"] = str(e)
+        summary.append(item)
+        print(
+            f"[{item['status'].upper()}] {symbol} <- {f}  "
+            f"{('model='+item['model']) if item['model'] else ''} "
+            f"{('err='+item['error']) if item['error'] else ''}"
+        )
+
+    (outdir / "batch_train_summary.json").write_text(json.dumps(summary, indent=2))
+    ok = sum(1 for s in summary if s["status"] == "ok")
+    fail = len(summary) - ok
+    print(
+        f"\nBatch finished: {ok} ok / {fail} failed. Summary: {outdir / 'batch_train_summary.json'}"
+    )
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="cointrainer")
     parser.add_argument("--version", action="store_true", help="Show version and exit")
@@ -189,6 +286,42 @@ def main(argv: list[str] | None = None) -> None:
         "--publish", action="store_true", help="Publish to registry if configured"
     )
     csv_train.set_defaults(func=_cmd_csv_train)
+
+    csv_train_batch = subparsers.add_parser(
+        "csv-train-batch",
+        help="Train a model for each CSV in a folder (CSV7 or normalized).",
+    )
+    csv_train_batch.add_argument("--folder", required=True, help="Folder containing CSV files")
+    csv_train_batch.add_argument("--glob", default="*.csv", help="Glob pattern (default: *.csv)")
+    csv_train_batch.add_argument(
+        "--recursive", action="store_true", help="Recurse into subfolders"
+    )
+    csv_train_batch.add_argument(
+        "--symbol-from",
+        default="filename",
+        choices=["filename", "parent", "fixed"],
+        help="How to derive symbol",
+    )
+    csv_train_batch.add_argument(
+        "--symbol", default=None, help="If --symbol-from fixed, use this value"
+    )
+    csv_train_batch.add_argument(
+        "--horizon", type=int, default=15, help="Label horizon in bars"
+    )
+    csv_train_batch.add_argument(
+        "--hold", type=float, default=0.0015, help="Hold band (e.g., 0.0015)"
+    )
+    csv_train_batch.add_argument(
+        "--publish", action="store_true", help="Publish to registry if configured"
+    )
+    csv_train_batch.add_argument(
+        "--outdir", default="local_models", help="Where to write model/predictions"
+    )
+    csv_train_batch.add_argument(
+        "--limit-rows", type=int, default=None,
+        help="Limit to last N rows per file (optional)",
+    )
+    csv_train_batch.set_defaults(func=_cmd_csv_train_batch)
 
     args = parser.parse_args(argv)
 
