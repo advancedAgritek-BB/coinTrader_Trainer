@@ -162,7 +162,16 @@ def run_backtest(
     import backtrader as bt
 
     class _SignalStrategy(bt.Strategy):
-        params: ClassVar[dict[str, Any]] = {"signals": None}
+        """Backtrader strategy executing precomputed signals.
+
+        Parameters
+        ----------
+        signals : Iterable[int | float], optional
+            Sequence of trading signals aligned to the data feed. Defaults
+            to an empty list. Passing ``None`` raises :class:`ValueError`.
+        """
+
+        params: ClassVar[dict[str, Any]] = {"signals": []}
 
         def __init__(self):
             if self.p.signals is None:
