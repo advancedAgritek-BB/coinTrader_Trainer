@@ -163,6 +163,8 @@ class RegistryError(Exception):
     pass
 
 
+def _get_client() -> Any:  # pragma: no cover - thin wrapper
+    """Return a Supabase client using environment variables."""
 def _debug(msg: str) -> None:
     if os.getenv("CT_REGISTRY_DEBUG") == "1":
         print(f"[registry] {msg}")
@@ -178,6 +180,32 @@ def _get_client():
     key = os.getenv("SUPABASE_KEY")
     if not url or not key:
         raise RegistryError("SUPABASE_URL and SUPABASE_KEY must be set")
+
+    return create_client(url, key)
+
+
+def _get_bucket() -> str:
+    """Return the name of the Supabase storage bucket."""
+
+    return os.getenv("MODELS_BUCKET", "models")
+
+
+def _upload(path: str, data: bytes) -> None:
+    client = _get_client()
+    bucket = _get_bucket()
+    client.storage.from_(bucket).upload(path, data, {"upsert": True})
+
+
+def _download(path: str) -> bytes:
+    client = _get_client()
+    bucket = _get_bucket()
+    return client.storage.from_(bucket).download(path)
+
+
+def _move(src: str, dst: str) -> None:
+    client = _get_client()
+    bucket = _get_bucket()
+    client.storage.from_(bucket).move(src, dst)
     return create_client(url, key)
 
 
@@ -284,7 +312,7 @@ def _detect_lgbm_version() -> str:
         return "unknown"
 
 
-class SupabaseRegistry:
+class SupabaseRegistry:  # noqa: F811
     """Publisher for uploading regime models to Supabase Storage."""
 
     def __init__(
@@ -368,8 +396,8 @@ class SupabaseRegistry:
 
 __all__ = [
     "ModelRegistry",
-    "SupabaseRegistry",
     "RegistryError",
+    "SupabaseRegistry",
     "SupabaseRegistry",
     "load_latest",
     "load_pointer",
