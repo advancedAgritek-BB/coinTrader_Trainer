@@ -11,7 +11,7 @@ from cointrainer.features.simple_indicators import atr, ema, obv, roc, rsi
 from cointrainer.io.csv7 import read_csv7
 
 try:
-    # Optional at import time; actual training imports happen inside train()
+    # Optional at import time; actual training imports happen inside _fit_model()
     from lightgbm import LGBMClassifier  # type: ignore
 except Exception:
     LGBMClassifier = None  # type: ignore
@@ -28,6 +28,13 @@ class TrainConfig:
     outdir: Path = Path("local_models")
     write_predictions: bool = True
     publish_to_registry: bool = False   # if True and env is present, also publish to registry
+    # GPU / performance knobs
+    device_type: str = "gpu"          # "cpu" | "gpu" | "cuda"
+    gpu_platform_id: int | None = None  # -1 means default
+    gpu_device_id: int | None = None    # -1 means default
+    max_bin: int = 63                  # GPU best practice
+    gpu_use_dp: bool = False           # single-precision by default
+    n_jobs: int | None = None          # threads for LightGBM wrapper
 
 FEATURE_LIST = ["ema_8","ema_21","rsi_14","atr_14","roc_5","obv"]
 
@@ -50,15 +57,34 @@ def make_labels(close: pd.Series, horizon: int, hold: float) -> pd.Series:
     y = np.where(future_ret >  hold,  1, np.where(future_ret < -hold, -1, 0))
     return pd.Series(y, index=close.index)
 
-def _fit_model(X: pd.DataFrame, y: pd.Series):
+def _fit_model(X: pd.DataFrame, y: pd.Series, cfg: TrainConfig):
     if LGBMClassifier is None:
         raise RuntimeError("LightGBM is not installed. Install with: pip install lightgbm")
+
+    params = {
+        "objective": "multiclass",
+        "num_class": 3,
+        "class_weight": "balanced",
+        "device_type": cfg.device_type,
+        "max_bin": cfg.max_bin,
+        "gpu_use_dp": cfg.gpu_use_dp,
+    }
+    if cfg.gpu_platform_id is not None:
+        params["gpu_platform_id"] = cfg.gpu_platform_id
+    if cfg.gpu_device_id is not None:
+        params["gpu_device_id"] = cfg.gpu_device_id
+
     model = LGBMClassifier(
-        n_estimators=400, learning_rate=0.05, num_leaves=63,
-        objective="multiclass", class_weight="balanced",
-        n_jobs=-1, random_state=42
+        **params,
+        n_estimators=cfg.n_estimators,
+        learning_rate=cfg.learning_rate,
+        num_leaves=cfg.num_leaves,
+        random_state=cfg.random_state,
+        n_jobs=cfg.n_jobs,
+        subsample=0.8,
+        colsample_bytree=0.8,
     )
-    model.fit(X, y)
+    model.fit(X.values, y.values)
     return model
 
 def _save_local(model, cfg: TrainConfig, metadata: dict) -> Path:
@@ -84,10 +110,6 @@ def _maybe_publish_registry(model_bytes: bytes, metadata: dict, cfg: TrainConfig
         return None
 
 def train_from_csv7(
-    csv_path: Path | str, cfg: TrainConfig, limit_rows: int | None = None
-) -> tuple[object, dict]:
-    df = read_csv7(csv_path)
-    if limit_rows is not None:
     csv_path: Path | str, cfg: TrainConfig, *, limit_rows: int | None = None
 ) -> tuple[object, dict]:
     df = read_csv7(csv_path)
@@ -100,7 +122,7 @@ def train_from_csv7(
     X = X_all[m]
     y = y_all[m]
 
-    model = _fit_model(X, y)
+    model = _fit_model(X, y, cfg)
 
     metadata = {
         "schema_version": "1",
