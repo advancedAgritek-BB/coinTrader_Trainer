@@ -119,16 +119,19 @@ def _cmd_csv_train(args: argparse.Namespace) -> None:
             "symbol": cfg.symbol,
         }
         path = _save_local(model, cfg, meta)
-        from sklearn.metrics import accuracy_score, f1_score
+        try:
+            import io, joblib
 
-        preds = model.predict(X)
-        metrics = {
-            "accuracy": float(accuracy_score(y, preds)),
-            "f1": float(f1_score(y, preds, average="macro")),
-        }
-        fingerprint = _dataset_fingerprint(X, y)
-        config = {**vars(cfg), "outdir": str(cfg.outdir)}
-        _maybe_publish_registry(model, meta, cfg, metrics, fingerprint, config)
+            buf = io.BytesIO()
+            joblib.dump(model, buf)
+            key = _maybe_publish_registry(buf.getvalue(), meta, cfg)
+            if key:
+                print(f"[publish] Uploaded: {key}")
+                print(f"[publish] Pointer:  {key.rsplit('/',1)[0]}/LATEST.json")
+            elif cfg.publish_to_registry:
+                print("[publish] Skipped (no registry configured or --publish not set)")
+        except Exception as e:
+            print(f"[publish] ERROR: {e}")
         print(f"Training completed from normalized CSV. Model: {path}")
 
 
@@ -185,7 +188,7 @@ def _cmd_csv_train_batch(args: argparse.Namespace) -> None:
             f"gpu_platform_id={cfg.gpu_platform_id if cfg.gpu_platform_id is not None else -1} "
             f"gpu_device_id={cfg.gpu_device_id if cfg.gpu_device_id is not None else -1}"
         )
-        item = {"file": str(f), "symbol": symbol, "status": "ok", "model": None, "error": None}
+        item = {"file": str(f), "symbol": symbol, "status": "ok", "model": None, "pointer": None, "error": None}
         try:
             if is_csv7(f):
                 train_from_csv7(f, cfg, limit_rows=args.limit_rows)
@@ -209,16 +212,19 @@ def _cmd_csv_train_batch(args: argparse.Namespace) -> None:
                     "symbol": cfg.symbol,
                 }
                 path = _save_local(model, cfg, meta)
-                from sklearn.metrics import accuracy_score, f1_score
+                try:
+                    import io, joblib
 
-                preds = model.predict(X)
-                metrics = {
-                    "accuracy": float(accuracy_score(y, preds)),
-                    "f1": float(f1_score(y, preds, average="macro")),
-                }
-                fingerprint = _dataset_fingerprint(X, y)
-                config = {**vars(cfg), "outdir": str(cfg.outdir)}
-                _maybe_publish_registry(model, meta, cfg, metrics, fingerprint, config)
+                    buf = io.BytesIO()
+                    joblib.dump(model, buf)
+                    key = _maybe_publish_registry(buf.getvalue(), meta, cfg)
+                    if key:
+                        print(f"[publish] Uploaded: {key}")
+                        print(f"[publish] Pointer:  {key.rsplit('/',1)[0]}/LATEST.json")
+                    elif cfg.publish_to_registry:
+                        print("[publish] Skipped (no registry configured or --publish not set)")
+                except Exception as e:
+                    print(f"[publish] ERROR: {e}")
                 item["model"] = str(path)
             else:
                 raise RuntimeError(
@@ -227,19 +233,19 @@ def _cmd_csv_train_batch(args: argparse.Namespace) -> None:
         except Exception as e:  # pragma: no cover - defensive
             item["status"] = "error"
             item["error"] = str(e)
+        prefix = f"models/regime/{symbol}"
+        if args.publish:
+            item["pointer"] = f"{prefix}/LATEST.json"
         summary.append(item)
         print(
-            f"[{item['status'].upper()}] {symbol} <- {f}  "
-            f"{('model='+item['model']) if item['model'] else ''} "
-            f"{('err='+item['error']) if item['error'] else ''}"
+            f"[{item['status'].upper()}] {symbol} <- {f}  model={item['model']}  pointer={item['pointer'] or '-'}"
         )
 
     (outdir / "batch_train_summary.json").write_text(json.dumps(summary, indent=2))
-    ok = sum(1 for s in summary if s["status"] == "ok")
-    fail = len(summary) - ok
     print(
-        f"\nBatch finished: {ok} ok / {fail} failed. Summary: {outdir / 'batch_train_summary.json'}"
+        f"\nBatch finished: {sum(s['status']=='ok' for s in summary)} ok / {len(summary) - sum(s['status']=='ok' for s in summary)} failed."
     )
+    print(f"Summary: {outdir / 'batch_train_summary.json'}")
 
 
 def main(argv: list[str] | None = None) -> None:
