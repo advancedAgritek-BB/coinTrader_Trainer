@@ -1,42 +1,41 @@
+import json
 import os
-import pickle
 import sys
-
+import pickle
 import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), "src"))
 
 from cointrainer import registry
 
+class _FakeBucket:
+    def __init__(self, store: dict):
+        self._store = store
+    def upload(self, key, data, opts=None):
+        if isinstance(data, (bytes, bytearray)):
+            self._store[key] = bytes(data)
+        else:
+            self._store[key] = data if isinstance(data, bytes) else str(data).encode("utf-8")
+        return {}
+    def download(self, key):
+        if key not in self._store:
+            raise RuntimeError("not found")
+        return self._store[key]
 
-def _fs_backend(tmp_path):
-    """Return helper functions that mimic Supabase storage using ``tmp_path``."""
+class _FakeStorage:
+    def __init__(self, store: dict):
+        self._store = store
+    def from_(self, bucket):
+        return _FakeBucket(self._store)
 
-    root = tmp_path
+class _FakeClient:
+    def __init__(self, store: dict):
+        self.storage = _FakeStorage(store)
 
-    def upload(path: str, data: bytes, _opts=None):  # type: ignore[override]
-        dest = root / path
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_bytes(data)
-
-    def download(path: str):  # type: ignore[override]
-        return (root / path).read_bytes()
-
-    def move(src: str, dst: str):  # type: ignore[override]
-        src_p = root / src
-        dst_p = root / dst
-        dst_p.parent.mkdir(parents=True, exist_ok=True)
-        src_p.replace(dst_p)
-
-    return upload, download, move
-
-
-def test_save_and_load_latest(tmp_path, monkeypatch):
-    upload, download, move = _fs_backend(tmp_path)
-
-    monkeypatch.setattr(registry, "_upload", upload, raising=False)
-    monkeypatch.setattr(registry, "_download", download, raising=False)
-    monkeypatch.setattr(registry, "_move", move, raising=False)
+def test_save_and_load_latest(monkeypatch):
+    store = {}
+    monkeypatch.setattr(registry, "_get_client", lambda: _FakeClient(store))
+    monkeypatch.setattr(registry, "_get_bucket", lambda: "models")
 
     blob = pickle.dumps({"predict_proba": None})
     key = "models/regime/BTCUSDT/20250811-153000_regime_lgbm.pkl"
@@ -50,13 +49,10 @@ def test_save_and_load_latest(tmp_path, monkeypatch):
     loaded = registry.load_latest("models/regime/BTCUSDT")
     assert loaded == blob
 
-
-def test_corrupt_pointer_raises(tmp_path, monkeypatch):
-    upload, download, move = _fs_backend(tmp_path)
-
-    monkeypatch.setattr(registry, "_upload", upload, raising=False)
-    monkeypatch.setattr(registry, "_download", download, raising=False)
-    monkeypatch.setattr(registry, "_move", move, raising=False)
+def test_corrupt_pointer_raises(monkeypatch):
+    store = {}
+    monkeypatch.setattr(registry, "_get_client", lambda: _FakeClient(store))
+    monkeypatch.setattr(registry, "_get_bucket", lambda: "models")
 
     blob = pickle.dumps({"predict_proba": None})
     key = "models/regime/BTCUSDT/20250811-153000_regime_lgbm.pkl"
@@ -67,10 +63,7 @@ def test_corrupt_pointer_raises(tmp_path, monkeypatch):
     }
 
     registry.save_model(key, blob, metadata)
-    # Corrupt pointer
-    pointer = tmp_path / "models/regime/BTCUSDT/LATEST.json"
-    pointer.write_text("not-json")
-
+    pointer_path = "models/regime/BTCUSDT/LATEST.json"
+    store[pointer_path] = b"not-json"
     with pytest.raises(registry.RegistryError):
         registry.load_latest("models/regime/BTCUSDT")
-
