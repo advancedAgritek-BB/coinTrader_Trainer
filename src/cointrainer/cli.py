@@ -16,6 +16,7 @@ def _cmd_train_regime(args: argparse.Namespace) -> None:
         federated=args.federated,
         true_federated=args.true_federated,
         config=args.config,
+        publish=args.publish,
     )
 
 
@@ -60,6 +61,7 @@ def _cmd_csv_train(args: argparse.Namespace) -> None:
         TrainConfig,
         _fit_model,
         _maybe_publish_registry,
+        _dataset_fingerprint,
         _save_local,
         make_features,
         make_labels,
@@ -117,16 +119,16 @@ def _cmd_csv_train(args: argparse.Namespace) -> None:
             "symbol": cfg.symbol,
         }
         path = _save_local(model, cfg, meta)
-        try:
-            import io
+        from sklearn.metrics import accuracy_score, f1_score
 
-            import joblib
-
-            buf = io.BytesIO()
-            joblib.dump(model, buf)
-            _maybe_publish_registry(buf.getvalue(), meta, cfg)
-        except Exception:
-            pass
+        preds = model.predict(X)
+        metrics = {
+            "accuracy": float(accuracy_score(y, preds)),
+            "f1": float(f1_score(y, preds, average="macro")),
+        }
+        fingerprint = _dataset_fingerprint(X, y)
+        config = {**vars(cfg), "outdir": str(cfg.outdir)}
+        _maybe_publish_registry(model, meta, cfg, metrics, fingerprint, config)
         print(f"Training completed from normalized CSV. Model: {path}")
 
 
@@ -142,6 +144,7 @@ def _cmd_csv_train_batch(args: argparse.Namespace) -> None:
         TrainConfig,
         _fit_model,
         _maybe_publish_registry,
+        _dataset_fingerprint,
         _save_local,
         make_features,
         make_labels,
@@ -206,16 +209,16 @@ def _cmd_csv_train_batch(args: argparse.Namespace) -> None:
                     "symbol": cfg.symbol,
                 }
                 path = _save_local(model, cfg, meta)
-                try:
-                    import io
+                from sklearn.metrics import accuracy_score, f1_score
 
-                    import joblib
-
-                    buf = io.BytesIO()
-                    joblib.dump(model, buf)
-                    _maybe_publish_registry(buf.getvalue(), meta, cfg)
-                except Exception:
-                    pass
+                preds = model.predict(X)
+                metrics = {
+                    "accuracy": float(accuracy_score(y, preds)),
+                    "f1": float(f1_score(y, preds, average="macro")),
+                }
+                fingerprint = _dataset_fingerprint(X, y)
+                config = {**vars(cfg), "outdir": str(cfg.outdir)}
+                _maybe_publish_registry(model, meta, cfg, metrics, fingerprint, config)
                 item["model"] = str(path)
             else:
                 raise RuntimeError(
@@ -257,6 +260,9 @@ def main(argv: list[str] | None = None) -> None:
     group.add_argument("--true-federated", action="store_true")
     regime.add_argument("--horizon", default="15m")
     regime.add_argument("--config")
+    regime.add_argument(
+        "--publish", action="store_true", help="Publish to registry if configured"
+    )
     regime.set_defaults(func=_cmd_train_regime)
 
     import_data = subparsers.add_parser("import-data")
