@@ -17,7 +17,7 @@ True
 from __future__ import annotations
 
 from collections.abc import Iterable
-from typing import Any
+from typing import Any, ClassVar
 
 import backtrader as bt
 import pandas as pd
@@ -31,12 +31,16 @@ class CryptoStrategy(bt.Strategy):
     signals : Iterable[int | float]
         Sequence of trading signals aligned with the data feed. ``1``
         represents a long position, ``-1`` a short position and ``0``
-        means flat.
+        means flat. This parameter is required and must not be
+        ``None``.
     """
 
-    params = dict(signals=None)
+    params: ClassVar[dict[str, Any]] = {"signals": None}
 
     def __init__(self) -> None:
+        if self.params.signals is None:
+            msg = "signals parameter is required"
+            raise ValueError(msg)
         self.signals = list(self.params.signals)
         self._idx = 0
 
@@ -78,7 +82,8 @@ def run_backtest(
         OHLCV data indexed by datetime or containing a ``'close'`` column.
     signals : Iterable[int | float]
         Sequence of trade signals aligned to ``df``. ``1`` represents a
-        long position, ``-1`` a short position and ``0`` flat.
+        long position, ``-1`` a short position and ``0`` flat. This
+        parameter is required and must not be ``None``.
     slippage : float, optional
         Percentage slippage applied to trades. Defaults to ``0.005``.
     costs : float, optional
