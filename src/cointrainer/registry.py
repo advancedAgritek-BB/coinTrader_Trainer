@@ -17,7 +17,8 @@ import os
 import pickle
 import platform
 import tempfile
-import uuid
+import time
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
@@ -162,134 +163,97 @@ class RegistryError(Exception):
     pass
 
 
-def _get_bucket():  # pragma: no cover - thin wrapper
-    """Return the Supabase storage bucket handle."""
+def _debug(msg: str) -> None:
+    if os.getenv("CT_REGISTRY_DEBUG") == "1":
+        print(f"[registry] {msg}")
 
+
+def _get_client():
+    # Lazy import to keep runtime light
+    try:
+        from supabase import create_client
+    except Exception as e:  # pragma: no cover - import error path
+        raise RegistryError(f"supabase client unavailable: {e}")
     url = os.getenv("SUPABASE_URL")
-    key = os.getenv("SUPABASE_KEY") or os.getenv("SUPABASE_SERVICE_KEY")
+    key = os.getenv("SUPABASE_KEY")
     if not url or not key:
         raise RegistryError("SUPABASE_URL and SUPABASE_KEY must be set")
-
-    bucket_name = os.getenv("MODELS_BUCKET", "models")
-    client = create_client(url, key)
-    return client.storage.from_(bucket_name)
+    return create_client(url, key)
 
 
-def _upload(path: str, data: bytes) -> None:
-    bucket = _get_bucket()
-    bucket.upload(path, data, {"upsert": True})
+def _get_bucket() -> str:
+    bucket = os.getenv("CT_MODELS_BUCKET", "models")
+    if not bucket:
+        raise RegistryError("CT_MODELS_BUCKET not set")
+    return bucket
 
 
-def _download(path: str) -> bytes:
-    bucket = _get_bucket()
-    return bucket.download(path)
-
-
-def _move(src: str, dst: str) -> None:
-    bucket = _get_bucket()
-    bucket.move(src, dst)
+def _sha256(b: bytes) -> str:
+    return "sha256:" + hashlib.sha256(b).hexdigest()
 
 
 def save_model(key: str, blob: bytes, metadata: dict) -> None:
-    """Persist a pickled model ``blob`` under ``key`` with ``metadata``.
+    """Upload model bytes and update ``LATEST.json`` with metadata.
 
-    The model bytes are uploaded and a ``LATEST.json`` pointer is written
-    atomically in the same directory.  ``metadata`` is stored alongside the
-    pointer and augmented with a SHA256 hash of ``blob`` when missing.
+    The model and pointer use ``upsert`` so repeated uploads are idempotent
+    and any failure raises :class:`RegistryError`.
     """
 
+    cli = _get_client()
+    bucket = _get_bucket()
+
+    file_opts = {"contentType": "application/octet-stream", "upsert": "true"}
+    _debug(f"upload {bucket}/{key} (len={len(blob)})")
+    res = cli.storage.from_(bucket).upload(key, blob, file_opts)
+    if isinstance(res, dict) and res.get("error"):
+        raise RegistryError(f"upload error: {res['error']}")
+
     prefix = key.rsplit("/", 1)[0]
+    pointer_path = f"{prefix}/LATEST.json"
+    meta = dict(metadata or {})
+    meta.setdefault("schema_version", "1")
+    meta.setdefault("key", key)
+    meta.setdefault("hash", _sha256(blob))
+    pointer_bytes = json.dumps(meta, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
 
-    meta = dict(metadata)
-    meta.setdefault("hash", f"sha256:{hashlib.sha256(blob).hexdigest()}")
-    pointer = {"key": key, "schema_version": "1", **meta}
-
-    tmp_name = f"{prefix}/LATEST.{uuid.uuid4().hex}.json"
-    try:
-        _upload(key, blob)
-        _upload(tmp_name, json.dumps(pointer).encode())
-        _move(tmp_name, f"{prefix}/LATEST.json")
-    except Exception as exc:  # pragma: no cover - network errors
-        raise RegistryError(f"failed to save model: {exc}") from exc
-
-
-class SupabaseRegistry:
-    """Thin helper for publishing regime models to Supabase."""
-
-    def publish_regime_model(
-        self,
-        *,
-        model_obj: Any,
-        symbol: str,
-        horizon: str,
-        feature_list: list[str],
-        label_order: list[int],
-        thresholds: dict[str, float],
-        metrics: dict | None,
-        config: dict | None,
-        code_sha: str,
-        data_fingerprint: str,
-    ) -> str:
-        """Upload ``model_obj`` and update ``LATEST.json``.
-
-        Parameters mirror the expected metadata fields.  Returns the storage
-        key of the uploaded model.
-        """
-
-        import io
-        import time
-
-        buf = io.BytesIO()
-        joblib.dump(model_obj, buf)
-        blob = buf.getvalue()
-
-        ts = time.strftime("%Y%m%d-%H%M%S")
-        key = f"models/regime/{symbol}/{ts}_regime_lgbm.pkl"
-
-        metadata = {
-            "schema_version": "1",
-            "feature_list": feature_list,
-            "label_order": label_order,
-            "horizon": horizon,
-            "thresholds": thresholds,
-            "symbol": symbol,
-            "metrics": metrics or {},
-            "config": config or {},
-            "code_sha": code_sha,
-            "data_fingerprint": data_fingerprint,
-        }
-
-        save_model(key, blob, metadata)
-        return key
+    tmp = f"{pointer_path}.tmp-{int(time.time())}"
+    _debug(f"write pointer tmp {bucket}/{tmp}")
+    cli.storage.from_(bucket).upload(tmp, pointer_bytes, {"contentType": "application/json", "upsert": "true"})
+    _debug(f"move pointer -> {bucket}/{pointer_path}")
+    cli.storage.from_(bucket).upload(pointer_path, pointer_bytes, {"contentType": "application/json", "upsert": "true"})
 
 
 def load_pointer(prefix: str) -> dict:
-    """Return metadata from ``{prefix}/LATEST.json``."""
+    """Read and return the ``LATEST.json`` metadata for ``prefix``."""
 
-    path = f"{prefix}/LATEST.json"
+    cli = _get_client()
+    bucket = _get_bucket()
+    pointer = f"{prefix}/LATEST.json"
+    _debug(f"download pointer {bucket}/{pointer}")
     try:
-        data = _download(path)
-        return json.loads(data.decode())
-    except Exception as exc:
-        raise RegistryError(str(exc)) from exc
-
-
-def load_latest(prefix: str) -> bytes:
-    """Return bytes for the model referenced by ``{prefix}/LATEST.json``."""
-
-    pointer_path = f"{prefix}/LATEST.json"
+        data = cli.storage.from_(bucket).download(pointer)
+    except Exception as e:  # pragma: no cover - network errors
+        raise RegistryError(f"pointer download failed: {e}")
     try:
-        info = json.loads(_download(pointer_path).decode())
-        key = info["key"]
-        blob = _download(key)
-        expected = info.get("hash")
-        if expected:
-            digest = f"sha256:{hashlib.sha256(blob).hexdigest()}"
-            if digest != expected:
-                raise RegistryError("hash mismatch")
-        return blob
-    except Exception as exc:
-        raise RegistryError(str(exc)) from exc
+        return json.loads(data.decode("utf-8"))
+    except Exception as e:
+        raise RegistryError(f"invalid pointer JSON: {e}")
+
+
+def load_latest(prefix: str, *, allow_fallback: bool = False) -> bytes:
+    """Use pointer metadata to download model bytes."""
+
+    meta = load_pointer(prefix)
+    key = meta.get("key")
+    if not key:
+        raise RegistryError("pointer missing 'key'")
+    cli = _get_client()
+    bucket = _get_bucket()
+    _debug(f"download model {bucket}/{key}")
+    try:
+        return cli.storage.from_(bucket).download(key)
+    except Exception as e:  # pragma: no cover - network errors
+        raise RegistryError(f"model download failed: {e}")
 
 
 # ---------------------------------------------------------------------------
