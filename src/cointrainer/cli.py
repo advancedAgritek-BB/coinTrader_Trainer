@@ -59,9 +59,9 @@ def _cmd_csv_train(args: argparse.Namespace) -> None:
     from cointrainer.train.local_csv import (
         FEATURE_LIST,
         TrainConfig,
+        _dataset_fingerprint,
         _fit_model,
         _maybe_publish_registry,
-        _dataset_fingerprint,
         _save_local,
         make_features,
         make_labels,
@@ -142,9 +142,9 @@ def _cmd_csv_train_batch(args: argparse.Namespace) -> None:
     from cointrainer.train.local_csv import (
         FEATURE_LIST,
         TrainConfig,
+        _dataset_fingerprint,
         _fit_model,
         _maybe_publish_registry,
-        _dataset_fingerprint,
         _save_local,
         make_features,
         make_labels,
@@ -246,9 +246,9 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="cointrainer")
     parser.add_argument("--version", action="store_true", help="Show version and exit")
 
-    subparsers = parser.add_subparsers(dest="command")
+    sub = parser.add_subparsers(dest="cmd")
 
-    train_parser = subparsers.add_parser("train")
+    train_parser = sub.add_parser("train")
     train_sub = train_parser.add_subparsers(dest="trainer")
 
     regime = train_sub.add_parser("regime")
@@ -265,7 +265,7 @@ def main(argv: list[str] | None = None) -> None:
     )
     regime.set_defaults(func=_cmd_train_regime)
 
-    import_data = subparsers.add_parser("import-data")
+    import_data = sub.add_parser("import-data")
     import_sub = import_data.add_subparsers(dest="source")
 
     supabase = import_sub.add_parser("supabase")
@@ -276,12 +276,12 @@ def main(argv: list[str] | None = None) -> None:
     supabase.add_argument("--out", required=True)
     supabase.set_defaults(func=_cmd_import_data_supabase)
 
-    import_csv = subparsers.add_parser("import-csv")
+    import_csv = sub.add_parser("import-csv")
     import_csv.add_argument("--file", required=True)
     import_csv.add_argument("--out", required=True)
     import_csv.set_defaults(func=_cmd_import_csv)
 
-    import_csv7 = subparsers.add_parser(
+    import_csv7 = sub.add_parser(
         "import-csv7",
         help="Ingest headerless 7-col CSV (ts,o,h,l,c,v,trades)",
     )
@@ -292,7 +292,7 @@ def main(argv: list[str] | None = None) -> None:
     )
     import_csv7.set_defaults(func=_cmd_import_csv7)
 
-    csv_train = subparsers.add_parser(
+    csv_train = sub.add_parser(
         "csv-train",
         help="Train a regime model from CSV7 or normalized CSV",
     )
@@ -326,7 +326,7 @@ def main(argv: list[str] | None = None) -> None:
     csv_train.add_argument("--n-jobs", type=int, default=None)
     csv_train.set_defaults(func=_cmd_csv_train)
 
-    csv_train_batch = subparsers.add_parser(
+    csv_train_batch = sub.add_parser(
         "csv-train-batch",
         help="Train a model for each CSV in a folder (CSV7 or normalized).",
     )
@@ -374,6 +374,29 @@ def main(argv: list[str] | None = None) -> None:
     csv_train_batch.add_argument("--n-jobs", type=int, default=None)
     csv_train_batch.set_defaults(func=_cmd_csv_train_batch)
 
+    # registry-smoke
+    rs = sub.add_parser(
+        "registry-smoke",
+        help="Upload & download a tiny test blob to verify credentials/bucket.",
+    )
+    rs.add_argument(
+        "--symbol", default=None, help="Symbol (default from CT_SYMBOL or XRPUSD)"
+    )
+
+    # registry-list
+    rl = sub.add_parser(
+        "registry-list",
+        help="List objects under models/regime/<SYMBOL> in Storage.",
+    )
+    rl.add_argument("--symbol", default=None)
+
+    # registry-pointer
+    rp = sub.add_parser(
+        "registry-pointer",
+        help="Print LATEST.json for models/regime/<SYMBOL>.",
+    )
+    rp.add_argument("--symbol", default=None)
+
     args = parser.parse_args(argv)
 
     if args.version:
@@ -381,6 +404,55 @@ def main(argv: list[str] | None = None) -> None:
             print(version("cointrader-trainer"))
         except PackageNotFoundError:
             print("0.1.0")
+        return
+
+    if args.cmd == "registry-smoke":
+        import os
+        import time
+
+        from cointrainer.registry import _get_bucket, _get_client
+
+        symbol = (args.symbol or os.getenv("CT_SYMBOL") or "XRPUSD").upper()
+        cli = _get_client()
+        bucket = _get_bucket()
+        prefix = f"models/regime/{symbol}"
+        path = f"{prefix}/__smoke__.bin"
+        blob = f"smoke-{int(time.time())}".encode("utf-8")  # noqa: UP012
+        print(f"Uploading {bucket}/{path}")
+        cli.storage.from_(bucket).upload(
+            path,
+            blob,
+            {"contentType": "application/octet-stream", "upsert": "true"},
+        )
+        print(f"Listing {bucket}/{prefix}")
+        print(cli.storage.from_(bucket).list(prefix=prefix))
+        print(f"Downloading {bucket}/{path}")
+        out = cli.storage.from_(bucket).download(path)
+        print("Downloaded bytes:", len(out))
+        return
+
+    if args.cmd == "registry-list":
+        import os
+
+        from cointrainer.registry import _get_bucket, _get_client
+
+        symbol = (args.symbol or os.getenv("CT_SYMBOL") or "XRPUSD").upper()
+        cli = _get_client()
+        bucket = _get_bucket()
+        prefix = f"models/regime/{symbol}"
+        print(cli.storage.from_(bucket).list(prefix=prefix))
+        return
+
+    if args.cmd == "registry-pointer":
+        import json
+        import os
+
+        from cointrainer.registry import load_pointer
+
+        symbol = (args.symbol or os.getenv("CT_SYMBOL") or "XRPUSD").upper()
+        prefix = f"models/regime/{symbol}"
+        meta = load_pointer(prefix)
+        print(json.dumps(meta, indent=2))
         return
 
     if hasattr(args, "func"):

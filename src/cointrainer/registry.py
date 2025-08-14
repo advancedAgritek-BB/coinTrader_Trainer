@@ -162,32 +162,39 @@ class RegistryError(Exception):
     pass
 
 
-def _get_bucket():  # pragma: no cover - thin wrapper
-    """Return the Supabase storage bucket handle."""
+def _get_client() -> Any:  # pragma: no cover - thin wrapper
+    """Return a Supabase client using environment variables."""
 
     url = os.getenv("SUPABASE_URL")
     key = os.getenv("SUPABASE_KEY") or os.getenv("SUPABASE_SERVICE_KEY")
     if not url or not key:
         raise RegistryError("SUPABASE_URL and SUPABASE_KEY must be set")
 
-    bucket_name = os.getenv("MODELS_BUCKET", "models")
-    client = create_client(url, key)
-    return client.storage.from_(bucket_name)
+    return create_client(url, key)
+
+
+def _get_bucket() -> str:
+    """Return the name of the Supabase storage bucket."""
+
+    return os.getenv("MODELS_BUCKET", "models")
 
 
 def _upload(path: str, data: bytes) -> None:
+    client = _get_client()
     bucket = _get_bucket()
-    bucket.upload(path, data, {"upsert": True})
+    client.storage.from_(bucket).upload(path, data, {"upsert": True})
 
 
 def _download(path: str) -> bytes:
+    client = _get_client()
     bucket = _get_bucket()
-    return bucket.download(path)
+    return client.storage.from_(bucket).download(path)
 
 
 def _move(src: str, dst: str) -> None:
+    client = _get_client()
     bucket = _get_bucket()
-    bucket.move(src, dst)
+    client.storage.from_(bucket).move(src, dst)
 
 
 def save_model(key: str, blob: bytes, metadata: dict) -> None:
@@ -320,7 +327,7 @@ def _detect_lgbm_version() -> str:
         return "unknown"
 
 
-class SupabaseRegistry:
+class SupabaseRegistry:  # noqa: F811
     """Publisher for uploading regime models to Supabase Storage."""
 
     def __init__(
@@ -404,8 +411,8 @@ class SupabaseRegistry:
 
 __all__ = [
     "ModelRegistry",
-    "SupabaseRegistry",
     "RegistryError",
+    "SupabaseRegistry",
     "SupabaseRegistry",
     "load_latest",
     "load_pointer",
