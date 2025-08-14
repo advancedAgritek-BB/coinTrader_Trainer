@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+from typing import Any, ClassVar
+
 import numpy as np
 import pandas as pd
+
+from backtest import run_backtest as bt_run
 
 
 def simulate_signal_pnl(
@@ -158,9 +162,12 @@ def run_backtest(
     import backtrader as bt
 
     class _SignalStrategy(bt.Strategy):
-        params = dict(signals=None)
+        params: ClassVar[dict[str, Any]] = {"signals": None}
 
         def __init__(self):
+            if self.p.signals is None:
+                msg = "signals parameter is required"
+                raise ValueError(msg)
             self._idx = 0
 
         def next(self):
@@ -189,9 +196,6 @@ def run_backtest(
     cerebro.broker.setcommission(commission=commission)
     cerebro.run()
     return float(cerebro.broker.getvalue())
-
-
-from backtest import run_backtest as bt_run
 
 
 def full_strategy_eval(
@@ -223,10 +227,11 @@ def full_strategy_eval(
     calmar_ratio = float(pnl_metrics.get("calmar_ratio", 0.0))
 
     stats = bt_run(df, preds, **bt_kwargs)
-    if isinstance(stats, dict):
-        final_val = float(stats.get("final_value", 0.0))
-    else:
-        final_val = float(stats)
+    final_val = (
+        float(stats.get("final_value", 0.0))
+        if isinstance(stats, dict)
+        else float(stats)
+    )
 
     metrics = dict(pnl_metrics)
     metrics["calmar_ratio"] = calmar_ratio
