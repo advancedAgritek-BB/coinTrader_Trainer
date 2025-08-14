@@ -118,6 +118,33 @@ Models in local_models/<symbol>_regime_lgbm.pkl
 
 Summary in local_models/batch_train_summary.json
 
+## Optimizer (Optuna)
+
+Run a study with walk‑forward CV, pruning, and GPU acceleration:
+
+```bash
+cointrainer optimize --file ./data/XRPUSD_1m.normalized.csv --symbol XRPUSD \
+  --n-trials 120 --folds 4 --val-len 100000 --gap 500 --limit-rows 800000 \
+  --device-type gpu --max-bin 63 --n-jobs 0 \
+  --storage sqlite:///out/opt/studies/XRPUSD.db --study-name XRPUSD_opt \
+  --publish-best
+```
+
+Artifacts:
+
+* `out/opt/XRPUSD/leaderboard.csv` – top 50 trials with metrics
+* `out/opt/XRPUSD/best.json` – best params (training + signal)
+* (if `--storage` provided) a resumeable study DB
+* Published model + pointer in Supabase when `--publish-best` is set
+
+Tips
+
+* Start with `--limit-rows 600000` for fast iterations; remove later for full retrain.
+* Use GPU (`--device-type gpu --max-bin 63`) on Radeon for large datasets.
+* For parallel tuning, run multiple `optimize` processes pointing to the same `--storage`.
+
+Objective balances CAGR and Sharpe, penalizes drawdown > 35%, and avoids pathological trading rates.
+
 ## Backtesting & Auto‑optimization
 
 ### One-off backtest
