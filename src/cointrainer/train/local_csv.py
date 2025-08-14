@@ -1,13 +1,11 @@
 from __future__ import annotations
 
 import hashlib
-import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from sklearn.metrics import accuracy_score, f1_score
 
 from cointrainer.features.simple_indicators import atr, ema, obv, roc, rsi
 from cointrainer.io.csv7 import read_csv7
@@ -103,15 +101,6 @@ def _dataset_fingerprint(X: pd.DataFrame, y: pd.Series) -> str:
     h.update(pd.util.hash_pandas_object(y, index=True).values.tobytes())
     return h.hexdigest()
 
-
-def _get_current_git_sha() -> str:
-    try:
-        return (
-            subprocess.check_output(["git", "rev-parse", "HEAD"]).decode().strip()
-        )
-    except Exception:  # pragma: no cover - git may be absent
-        return "unknown"
-
 def _save_local(model, cfg: TrainConfig, metadata: dict) -> Path:
     import json
 
@@ -123,34 +112,20 @@ def _save_local(model, cfg: TrainConfig, metadata: dict) -> Path:
     return path
 
 
-def _maybe_publish_registry(
-    model: object,
-    metadata: dict,
-    cfg: TrainConfig,
-    metrics: dict,
-    dataset_hash: str,
-    config: dict,
-) -> None:
+def _maybe_publish_registry(blob: bytes, metadata: dict, cfg: TrainConfig) -> str | None:
     if not cfg.publish_to_registry:
         return None
     try:
-        from cointrainer.registry import SupabaseRegistry
+        import time
 
-        reg = SupabaseRegistry()
-        reg.publish_regime_model(
-            model_obj=model,
-            symbol=cfg.symbol,
-            horizon=f"{cfg.horizon}m",
-            feature_list=metadata["feature_list"],
-            label_order=metadata["label_order"],
-            thresholds={"hold": cfg.hold},
-            metrics=metrics,
-            config=config,
-            code_sha=_get_current_git_sha(),
-            data_fingerprint=dataset_hash,
-        )
+        from cointrainer.registry import save_model
+
+        ts = time.strftime("%Y%m%d-%H%M%S")
+        key = f"models/regime/{cfg.symbol}/{ts}_regime_lgbm.pkl"
+        save_model(key, blob, metadata)
+        return key
     except Exception:
-        print("publish skipped")
+        return None
 
 def train_from_csv7(
     csv_path: Path | str, cfg: TrainConfig, *, limit_rows: int | None = None
@@ -179,15 +154,21 @@ def train_from_csv7(
     # Save local
     _save_local(model, cfg, metadata)
 
-    # Metrics + optional registry publish
-    preds = model.predict(X)
-    metrics = {
-        "accuracy": float(accuracy_score(y, preds)),
-        "f1": float(f1_score(y, preds, average="macro")),
-    }
-    fingerprint = _dataset_fingerprint(X, y)
-    config = {**vars(cfg), "outdir": str(cfg.outdir)}
-    _maybe_publish_registry(model, metadata, cfg, metrics, fingerprint, config)
+    # Optional registry publish
+    key_uploaded = None
+    try:
+        import io, joblib
+
+        buf = io.BytesIO()
+        joblib.dump(model, buf)
+        key_uploaded = _maybe_publish_registry(buf.getvalue(), metadata, cfg)
+        if key_uploaded:
+            print(f"[publish] Uploaded: {key_uploaded}")
+            print(f"[publish] Pointer:  {key_uploaded.rsplit('/',1)[0]}/LATEST.json")
+        else:
+            print("[publish] Skipped (no registry configured or --publish not set)")
+    except Exception as e:
+        print(f"[publish] ERROR: {e}")
 
     # Optional predictions CSV for inspection
     if cfg.write_predictions:
