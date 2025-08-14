@@ -28,14 +28,14 @@ class CryptoStrategy(bt.Strategy):
 
     Parameters
     ----------
-    signals : Iterable[int | float]
+    signals : Iterable[int | float], optional
         Sequence of trading signals aligned with the data feed. ``1``
         represents a long position, ``-1`` a short position and ``0``
-        means flat. This parameter is required and must not be
-        ``None``.
+        means flat. Defaults to an empty list. Passing ``None`` will
+        raise a :class:`ValueError`.
     """
 
-    params: ClassVar[dict[str, Any]] = {"signals": None}
+    params: ClassVar[dict[str, Any]] = {"signals": []}
 
     def __init__(self) -> None:
         if self.params.signals is None:
@@ -83,7 +83,8 @@ def run_backtest(
     signals : Iterable[int | float]
         Sequence of trade signals aligned to ``df``. ``1`` represents a
         long position, ``-1`` a short position and ``0`` flat. This
-        parameter is required and must not be ``None``.
+        parameter is required and must not be ``None``; passing ``None``
+        raises :class:`ValueError`.
     slippage : float, optional
         Percentage slippage applied to trades. Defaults to ``0.005``.
     costs : float, optional
@@ -95,6 +96,10 @@ def run_backtest(
         Dictionary including at least ``'start_value'`` and
         ``'final_value'`` of the portfolio.
     """
+
+    if signals is None:
+        msg = "signals parameter is required"
+        raise ValueError(msg)
 
     cerebro = bt.Cerebro()
     data = bt.feeds.PandasData(dataname=df)
