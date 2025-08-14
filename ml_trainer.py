@@ -354,7 +354,7 @@ def main() -> None:  # pragma: no cover - CLI entry
             try:
                 import optuna_optimizer as optuna_mod  # type: ignore
             except ImportError as exc:  # pragma: no cover - optional dependency
-                logger.warning("Optuna optimization unavailable: %s", exc)
+                logger.warning("Optuna optimisation unavailable: %s", exc)
                 optuna_mod = None
 
         if optuna_mod:
