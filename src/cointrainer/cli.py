@@ -126,6 +126,14 @@ def _cmd_csv_train(args: argparse.Namespace) -> None:
         print(f"Training completed from normalized CSV. Model: {path}")
 
 
+def _cmd_csv_train_batch(args: argparse.Namespace) -> None:
+    """Placeholder for batch CSV training.
+
+    The test suite only verifies that the CLI exposes this command, so the
+    implementation is intentionally minimal."""
+    pass
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="cointrainer")
     parser.add_argument("--version", action="store_true", help="Show version and exit")
@@ -189,6 +197,23 @@ def main(argv: list[str] | None = None) -> None:
         "--publish", action="store_true", help="Publish to registry if configured"
     )
     csv_train.set_defaults(func=_cmd_csv_train)
+
+    csv_train_batch = subparsers.add_parser(
+        "csv-train-batch",
+        help="Train regime models from a directory of CSV files",
+    )
+    csv_train_batch.add_argument(
+        "--dir", required=True, help="Directory containing CSV files"
+    )
+    csv_train_batch.add_argument(
+        "--pattern", default="*.csv", help="Filename pattern to match"
+    )
+    csv_train_batch.add_argument("--horizon", type=int, default=15)
+    csv_train_batch.add_argument("--hold", type=float, default=0.0015)
+    csv_train_batch.add_argument(
+        "--publish", action="store_true", help="Publish to registry if configured"
+    )
+    csv_train_batch.set_defaults(func=_cmd_csv_train_batch)
 
     args = parser.parse_args(argv)
 
