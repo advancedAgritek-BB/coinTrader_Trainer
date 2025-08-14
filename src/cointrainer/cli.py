@@ -390,6 +390,24 @@ def main(argv: list[str] | None = None) -> None:
     csv_train_batch.add_argument("--n-jobs", type=int, default=None)
     csv_train_batch.set_defaults(func=_cmd_csv_train_batch)
 
+    ab = sub.add_parser(
+        "autobacktest",
+        help="Continuous loop: retrain+backtest on updates, optional publish.",
+    )
+    ab.add_argument("--file", required=True)
+    ab.add_argument("--symbol", required=True)
+    ab.add_argument("--horizon", type=int, default=15)
+    ab.add_argument("--hold", type=float, default=0.0015)
+    ab.add_argument("--open-thr", type=float, default=0.55)
+    ab.add_argument("--interval-sec", type=int, default=900)
+    ab.add_argument("--limit-rows", type=int, default=1000000)
+    ab.add_argument("--fee-bps", type=float, default=2.0)
+    ab.add_argument("--slip-bps", type=float, default=0.0)
+    ab.add_argument("--device-type", default="gpu", choices=["cpu","gpu","cuda"])
+    ab.add_argument("--max-bin", type=int, default=63)
+    ab.add_argument("--n-jobs", type=int, default=0)
+    ab.add_argument("--publish", action="store_true")
+    ab.add_argument("--outdir", default="out/autobacktest")
     op = sub.add_parser(
         "optimize",
         help="Search best training+backtest settings for a symbol on a CSV.",
@@ -470,6 +488,26 @@ def main(argv: list[str] | None = None) -> None:
             print("0.1.0")
         return
 
+    if args.cmd == "autobacktest":
+        from cointrainer.backtest.continuous import loop_autobacktest
+        from pathlib import Path
+
+        loop_autobacktest(
+            csv_path=Path(args.file),
+            symbol=args.symbol.upper(),
+            horizon=args.horizon,
+            hold=args.hold,
+            open_thr=args.open_thr,
+            interval_sec=args.interval_sec,
+            limit_rows=args.limit_rows,
+            fee_bps=args.fee_bps,
+            slip_bps=args.slip_bps,
+            device_type=args.device_type,
+            max_bin=args.max_bin,
+            n_jobs=args.n_jobs,
+            publish=args.publish,
+            outdir=Path(args.outdir),
+        )
     if args.cmd == "optimize":
         from pathlib import Path
 
