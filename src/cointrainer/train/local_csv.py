@@ -157,7 +157,8 @@ def train_from_csv7(
     # Optional registry publish
     key_uploaded = None
     try:
-        import io, joblib
+        import io
+        import joblib
 
         buf = io.BytesIO()
         joblib.dump(model, buf)

@@ -1,12 +1,15 @@
 from __future__ import annotations
-import json, time
-from pathlib import Path
-from typing import Optional
 
-from cointrainer.backtest.run import backtest_csv
+import io
+import json
+from pathlib import Path
+import time
+
+import joblib
+
 from cointrainer.backtest.optimize import _train_one
+from cointrainer.backtest.run import backtest_csv
 from cointrainer.registry import save_model  # optional publish
-import io, joblib
 
 def loop_autobacktest(
     csv_path: Path,
