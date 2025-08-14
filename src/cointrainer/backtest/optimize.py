@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
 import json
 from pathlib import Path
 from typing import Any
@@ -8,8 +7,6 @@ from typing import Any
 import pandas as pd
 
 from cointrainer.backtest.run import backtest_csv
-from cointrainer.io.csv7 import read_csv7
-from cointrainer.train.local_csv import TrainConfig, train_from_csv7
 
 
 def _train_one(
@@ -38,37 +35,6 @@ def _train_one(
 
 
 __all__ = ["_train_one"]
-    device_type: str = "gpu",
-    max_bin: int = 63,
-    n_jobs: int | None = 0,
-    limit_rows: int | None = None,
-) -> Path:
-    cfg = TrainConfig(
-        symbol=symbol,
-        horizon=horizon,
-        hold=hold,
-        outdir=outdir,
-        publish_to_registry=False,
-    )
-    df = None
-    try:
-        df = pd.read_csv(csv_path, parse_dates=[0], index_col=0).sort_index()
-    except Exception:
-        df = read_csv7(csv_path)
-    if limit_rows and limit_rows > 0:
-        df = df.tail(int(limit_rows))
-        tmp = outdir / f"{symbol}_tmp.normalized.csv"
-        tmp.parent.mkdir(parents=True, exist_ok=True)
-        df.to_csv(tmp, index=True)
-        csv_path = tmp
-
-    cfg.device_type = device_type  # type: ignore[attr-defined]
-    cfg.max_bin = max_bin  # type: ignore[attr-defined]
-    cfg.n_jobs = n_jobs  # type: ignore[attr-defined]
-
-    model, meta = train_from_csv7(csv_path, cfg)
-    path = cfg.outdir / f"{symbol.lower()}_regime_lgbm.pkl"
-    return path
 
 
 def optimize_grid(
