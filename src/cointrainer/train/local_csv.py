@@ -84,6 +84,10 @@ def _maybe_publish_registry(model_bytes: bytes, metadata: dict, cfg: TrainConfig
         return None
 
 def train_from_csv7(
+    csv_path: Path | str, cfg: TrainConfig, limit_rows: int | None = None
+) -> tuple[object, dict]:
+    df = read_csv7(csv_path)
+    if limit_rows is not None:
     csv_path: Path | str, cfg: TrainConfig, *, limit_rows: int | None = None
 ) -> tuple[object, dict]:
     df = read_csv7(csv_path)
