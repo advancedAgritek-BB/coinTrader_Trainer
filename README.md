@@ -118,6 +118,43 @@ Models in local_models/<symbol>_regime_lgbm.pkl
 
 Summary in local_models/batch_train_summary.json
 
+## Backtesting & Auto‑optimization
+
+### One-off backtest
+```bash
+cointrainer backtest --file ./data/XRPUSD_1m.normalized.csv --symbol XRPUSD \
+  --model ./local_models/xrpusd_regime_lgbm.pkl \
+  --open-thr 0.55 --fee-bps 2 --slip-bps 0 --position gated
+```
+Outputs reports to `out/backtests/<SYMBOL>/`.
+
+On Windows:
+
+```powershell
+python -m cointrainer.cli backtest `
+  --file .\data\XRPUSD_1m.normalized.csv `
+  --symbol XRPUSD `
+  --model .\local_models\xrpusd_regime_lgbm.pkl `
+  --open-thr 0.55 --fee-bps 2 --position gated
+```
+
+### Grid search optimizer
+```bash
+cointrainer optimize --file ./data/XRPUSD_1m.normalized.csv --symbol XRPUSD \
+  --horizons 15 30 60 --holds 0.001 0.0015 0.002 --open-thrs 0.52 0.55 0.58 \
+  --positions gated sized --fee-bps 2 --slip-bps 0
+```
+Creates `out/opt/<SYMBOL>/leaderboard.csv` and `best.json`.
+
+### Continuous autobacktest
+```bash
+# retrain + backtest every 15 minutes, publish latest model/pointer
+cointrainer autobacktest --file ./data/XRPUSD_1m.normalized.csv --symbol XRPUSD \
+  --horizon 15 --hold 0.0015 --open-thr 0.55 --interval-sec 900 --publish
+```
+
+GPU: add `--device-type gpu --max-bin 63 --n-jobs 0` to the commands above for Radeon acceleration.
+
 ### Runtime usage
 
 ```python
