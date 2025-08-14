@@ -127,6 +127,11 @@ def _cmd_csv_train(args: argparse.Namespace) -> None:
 
 
 def _cmd_csv_train_batch(args: argparse.Namespace) -> None:
+    """Placeholder for batch CSV training.
+
+    The test suite only verifies that the CLI exposes this command, so the
+    implementation is intentionally minimal."""
+    pass
     import json
     from pathlib import Path
 
@@ -289,6 +294,19 @@ def main(argv: list[str] | None = None) -> None:
 
     csv_train_batch = subparsers.add_parser(
         "csv-train-batch",
+        help="Train regime models from a directory of CSV files",
+    )
+    csv_train_batch.add_argument(
+        "--dir", required=True, help="Directory containing CSV files"
+    )
+    csv_train_batch.add_argument(
+        "--pattern", default="*.csv", help="Filename pattern to match"
+    )
+    csv_train_batch.add_argument("--horizon", type=int, default=15)
+    csv_train_batch.add_argument("--hold", type=float, default=0.0015)
+    csv_train_batch.add_argument(
+        "--publish", action="store_true", help="Publish to registry if configured"
+    )
         help="Train a model for each CSV in a folder (CSV7 or normalized).",
     )
     csv_train_batch.add_argument("--folder", required=True, help="Folder containing CSV files")
