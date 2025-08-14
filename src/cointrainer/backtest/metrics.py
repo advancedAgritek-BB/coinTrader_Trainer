@@ -1,6 +1,8 @@
 from __future__ import annotations
+
 import numpy as np
 import pandas as pd
+
 
 def drawdown_curve(equity: pd.Series) -> pd.Series:
     peak = equity.cummax()
@@ -42,15 +44,21 @@ def hit_rate(ret_per_trade: pd.Series) -> float:
     wins = (ret_per_trade > 0).sum()
     return float(wins / len(ret_per_trade))
 
-def summarize(equity: pd.Series, net_ret: pd.Series, trades_idx: pd.Index, periods_per_year: float) -> dict:
+def summarize(
+    equity: pd.Series,
+    net_ret: pd.Series,
+    trades_idx: pd.Index,
+    periods_per_year: float,
+) -> dict:
     dd = max_drawdown(equity)
     trades = len(trades_idx)
+    cagr_val = cagr(equity, periods_per_year)
     return {
-        "cagr": cagr(equity, periods_per_year),
+        "cagr": cagr_val,
         "sharpe": sharpe(net_ret, periods_per_year),
         "sortino": sortino(net_ret, periods_per_year),
         "max_drawdown": dd,
-        "calmar": (cagr(equity, periods_per_year) / abs(dd)) if dd != 0 else 0.0,
+        "calmar": (cagr_val / abs(dd)) if dd != 0 else 0.0,
         "turnover": float(trades / len(equity)),
         "trades": int(trades),
         "trades_per_day": float(trades / (len(equity) / (60 * 24))),  # for 1m bars
