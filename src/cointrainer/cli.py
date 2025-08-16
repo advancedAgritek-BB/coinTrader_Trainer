@@ -390,6 +390,30 @@ def main(argv: list[str] | None = None) -> None:
     csv_train_batch.add_argument("--n-jobs", type=int, default=None)
     csv_train_batch.set_defaults(func=_cmd_csv_train_batch)
 
+    agg = sub.add_parser(
+        "csv-train-aggregate",
+        help="Aggregate many CSVs and train a single GLOBAL model (default) or per-pair models.",
+    )
+    agg.add_argument("--folder", required=True)
+    agg.add_argument("--glob", default="*.csv")
+    agg.add_argument("--recursive", action="store_true")
+    agg.add_argument("--global-symbol", default="GLOBAL")
+    agg.add_argument("--per-pair", action="store_true")
+    agg.add_argument("--horizon", type=int, default=15)
+    agg.add_argument("--hold", type=float, default=0.0015)
+    agg.add_argument("--limit-rows-per-file", type=int, default=None)
+    agg.add_argument("--cap-rows-per-pair", type=int, default=None)
+    agg.add_argument("--max-total-rows", type=int, default=None)
+    agg.add_argument("--downsample-flat", type=float, default=None)
+    agg.add_argument("--device-type", default="gpu", choices=["cpu","gpu","cuda"])
+    agg.add_argument("--gpu-platform-id", type=int, default=None)
+    agg.add_argument("--gpu-device-id", type=int, default=None)
+    agg.add_argument("--max-bin", type=int, default=63)
+    agg.add_argument("--gpu-use-dp", action="store_true")
+    agg.add_argument("--n-jobs", type=int, default=0)
+    agg.add_argument("--publish", action="store_true")
+    agg.add_argument("--outdir", default="local_models")
+
     ab = sub.add_parser(
         "autobacktest",
         help="Continuous loop: retrain+backtest on updates, optional publish.",
@@ -443,7 +467,11 @@ def main(argv: list[str] | None = None) -> None:
     bt.add_argument("--file", required=True)
     bt.add_argument("--symbol", required=True)
     bt.add_argument("--model", default=None, help="Path to local .pkl model")
-    bt.add_argument("--from-registry", action="store_true", help="Load model from Supabase (LATEST.json)")
+    bt.add_argument(
+        "--from-registry",
+        action="store_true",
+        help="Load model from Supabase (LATEST.json)",
+    )
     bt.add_argument("--open-thr", type=float, default=0.55)
     bt.add_argument("--close-thr", type=float, default=None)
     bt.add_argument("--fee-bps", type=float, default=2.0)
@@ -485,9 +513,44 @@ def main(argv: list[str] | None = None) -> None:
             print("0.1.0")
         return
 
-    if args.cmd == "autobacktest":
-        from cointrainer.backtest.continuous import loop_autobacktest
+    if args.cmd == "csv-train-aggregate":
         from pathlib import Path
+
+        from cointrainer.train.global_model import GlobalTrainConfig, train_aggregate
+
+        cfg = GlobalTrainConfig(
+            horizon=args.horizon,
+            hold=args.hold,
+            outdir=Path(args.outdir),
+            publish_to_registry=args.publish,
+            global_symbol=args.global_symbol.upper(),
+            per_pair=args.per_pair,
+            limit_rows_per_file=args.limit_rows_per_file,
+            cap_rows_per_pair=args.cap_rows_per_pair,
+            max_total_rows=args.max_total_rows,
+            downsample_flat=args.downsample_flat,
+            device_type=args.device_type,
+            gpu_platform_id=args.gpu_platform_id,
+            gpu_device_id=args.gpu_device_id,
+            max_bin=args.max_bin,
+            gpu_use_dp=args.gpu_use_dp,
+            n_jobs=args.n_jobs,
+        )
+        summary = train_aggregate(
+            folder=Path(args.folder),
+            glob=args.glob,
+            recursive=args.recursive,
+            cfg=cfg,
+        )
+        import json
+
+        print(json.dumps(summary, indent=2))
+        return
+
+    if args.cmd == "autobacktest":
+        from pathlib import Path
+
+        from cointrainer.backtest.continuous import loop_autobacktest
 
         loop_autobacktest(
             csv_path=Path(args.file),
@@ -508,12 +571,12 @@ def main(argv: list[str] | None = None) -> None:
     if args.cmd == "optimize":
         from pathlib import Path
 
+        from cointrainer.backtest.optimize import optimize_grid
         from cointrainer.backtest.optuna_opt import (
             OptunaConfig,
             optimize_optuna,
             publish_best_model,
         )
-        from cointrainer.backtest.optimize import optimize_grid
 
         csv_path = Path(args.file)
         symbol = args.symbol.upper()
@@ -544,7 +607,7 @@ def main(argv: list[str] | None = None) -> None:
                 key = publish_best_model(csv_path, symbol, outdir, res["best"])
                 print(f"[optimize] Published best model to: {key}")
             return
-        except RuntimeError as e:
+        except RuntimeError:
             print("[optimize] Optuna not available → falling back to grid search")
             res = optimize_grid(
                 csv_path=csv_path,
@@ -565,8 +628,9 @@ def main(argv: list[str] | None = None) -> None:
             print("[optimize-grid] leaderboard:", res["leaderboard"])
             return
     if args.cmd == "backtest":
-        from cointrainer.backtest.run import backtest_csv
         from pathlib import Path
+
+        from cointrainer.backtest.run import backtest_csv
         prefix = None
         if args.from_registry:
             prefix = f"models/regime/{args.symbol.upper()}"
