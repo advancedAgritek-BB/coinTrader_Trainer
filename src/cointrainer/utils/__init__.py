@@ -6,6 +6,7 @@ from .pairs import (
     slug_from_canonical,
 )
 
+
 __all__ = [
     "derive_symbol_from_filename",
     "is_csv7",

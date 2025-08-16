@@ -7,10 +7,9 @@ import numpy as np
 import pandas as pd
 
 from cointrainer.io.csv7 import read_csv7
-from cointrainer.utils.batch import iter_csv_files, is_csv7, is_normalized_csv
+from cointrainer.utils.batch import iter_csv_files, is_csv7, is_normalized_csv, derive_symbol_from_filename  # noqa: F401
 from cointrainer.utils.pairs import canonical_pair_from_filename, slug_from_canonical
-from cointrainer.train.local_csv import make_features, make_labels, FEATURE_LIST
-
+from cointrainer.train.local_csv import make_features, make_labels, FEATURE_LIST, _save_local, _maybe_publish_registry  # noqa: F401
 
 @dataclass
 class GlobalTrainConfig:
@@ -63,7 +62,6 @@ def _fit_lgbm(X: np.ndarray, y: np.ndarray, cfg: GlobalTrainConfig):
     clf.fit(X, y)
     return clf
 
-
 def _read_any(path: Path) -> pd.DataFrame:
     if is_normalized_csv(path):
         df = pd.read_csv(path, parse_dates=[0], index_col=0).sort_index()
@@ -75,7 +73,6 @@ def _read_any(path: Path) -> pd.DataFrame:
         return pd.read_csv(path, parse_dates=[0], index_col=0).sort_index()
     except Exception:
         return read_csv7(path)
-
 
 def _prepare_xy_for_file(path: Path, cfg: GlobalTrainConfig, rng: np.random.RandomState) -> Tuple[pd.DataFrame, pd.Series]:
     df = _read_any(path)
@@ -98,7 +95,6 @@ def _prepare_xy_for_file(path: Path, cfg: GlobalTrainConfig, rng: np.random.Rand
 
     return X, y
 
-
 def _save_and_maybe_publish(model, meta: dict, slug: str, cfg: GlobalTrainConfig) -> Tuple[Path, Optional[str]]:
     # File names like: regime_lgbm_BTC-USDT.pkl  (global => regime_lgbm_GLOBAL.pkl)
     cfg.outdir.mkdir(parents=True, exist_ok=True)
@@ -120,7 +116,6 @@ def _save_and_maybe_publish(model, meta: dict, slug: str, cfg: GlobalTrainConfig
         save_model(key, buf.getvalue(), meta)
         key_uploaded = key
     return local_path, key_uploaded
-
 
 def train_aggregate(
     folder: Path,
