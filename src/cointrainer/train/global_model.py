@@ -36,6 +36,7 @@ class GlobalTrainConfig:
     n_jobs: Optional[int] = 0
     random_state: int = 42
 
+
 def _fit_lgbm(X: np.ndarray, y: np.ndarray, cfg: GlobalTrainConfig):
     import lightgbm as lgb
     params = dict(
