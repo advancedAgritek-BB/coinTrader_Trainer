@@ -258,6 +258,31 @@ def _cmd_csv_train_batch(args: argparse.Namespace) -> None:
     print(f"Summary: {outdir / 'batch_train_summary.json'}")
 
 
+def _cmd_csv_train_aggregate(args: argparse.Namespace) -> None:
+    from cointrainer.train.global_model import GlobalTrainConfig, train_aggregate
+
+    cfg = GlobalTrainConfig(
+        horizon=args.horizon,
+        hold=args.hold,
+        outdir=Path(args.outdir),
+        publish_to_registry=args.publish,
+        global_symbol=args.global_symbol,
+        per_pair=args.per_pair,
+        limit_rows_per_file=args.limit_rows_per_file,
+        cap_rows_per_pair=args.cap_rows_per_pair,
+        max_total_rows=args.max_total_rows,
+        downsample_flat=args.downsample_flat,
+        device_type=args.device_type,
+        gpu_platform_id=args.gpu_platform_id,
+        gpu_device_id=args.gpu_device_id,
+        max_bin=args.max_bin,
+        gpu_use_dp=args.gpu_use_dp,
+        n_jobs=args.n_jobs,
+        random_state=args.random_state,
+    )
+    train_aggregate(Path(args.folder), args.glob, args.recursive, cfg)
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="cointrainer")
     parser.add_argument("--version", action="store_true", help="Show version and exit")
@@ -390,6 +415,63 @@ def main(argv: list[str] | None = None) -> None:
     csv_train_batch.add_argument("--n-jobs", type=int, default=None)
     csv_train_batch.set_defaults(func=_cmd_csv_train_batch)
 
+    csv_train_agg = sub.add_parser(
+        "csv-train-aggregate",
+        help="Aggregate many CSVs into one training run (global or per-pair).",
+    )
+    csv_train_agg.add_argument(
+        "--folder", required=True, help="Folder containing CSV files"
+    )
+    csv_train_agg.add_argument(
+        "--glob", default="*.csv", help="Glob pattern (default: *.csv)"
+    )
+    csv_train_agg.add_argument(
+        "--recursive", action="store_true", help="Recurse into subfolders"
+    )
+    csv_train_agg.add_argument(
+        "--per-pair", action="store_true", help="Train one model per pair"
+    )
+    csv_train_agg.add_argument(
+        "--global-symbol", default="GLOBAL", help="Symbol for global model"
+    )
+    csv_train_agg.add_argument(
+        "--limit-rows-per-file", type=int, default=None,
+        help="Tail rows per file (optional)",
+    )
+    csv_train_agg.add_argument(
+        "--cap-rows-per-pair", type=int, default=None,
+        help="Cap rows per pair (optional)",
+    )
+    csv_train_agg.add_argument(
+        "--max-total-rows", type=int, default=None,
+        help="Max total rows across all files",
+    )
+    csv_train_agg.add_argument(
+        "--downsample-flat", type=float, default=None,
+        help="Fraction of y==0 rows to keep",
+    )
+    csv_train_agg.add_argument(
+        "--horizon", type=int, default=15, help="Label horizon in bars"
+    )
+    csv_train_agg.add_argument(
+        "--hold", type=float, default=0.0015, help="Hold band (e.g., 0.0015)"
+    )
+    csv_train_agg.add_argument(
+        "--publish", action="store_true", help="Publish to registry if configured"
+    )
+    csv_train_agg.add_argument(
+        "--outdir", default="local_models", help="Where to write model(s)"
+    )
+    csv_train_agg.add_argument(
+        "--device-type", default="gpu", choices=["cpu", "gpu", "cuda"]
+    )
+    csv_train_agg.add_argument("--gpu-platform-id", type=int, default=None)
+    csv_train_agg.add_argument("--gpu-device-id", type=int, default=None)
+    csv_train_agg.add_argument("--max-bin", type=int, default=63)
+    csv_train_agg.add_argument("--gpu-use-dp", action="store_true")
+    csv_train_agg.add_argument("--n-jobs", type=int, default=0)
+    csv_train_agg.add_argument("--random-state", type=int, default=42)
+    csv_train_agg.set_defaults(func=_cmd_csv_train_aggregate)
     agg = sub.add_parser(
         "csv-train-aggregate",
         help="Aggregate many CSVs and train a single GLOBAL model (default) or per-pair models.",
