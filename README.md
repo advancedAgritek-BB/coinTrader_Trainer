@@ -118,6 +118,45 @@ Models in local_models/<symbol>_regime_lgbm.pkl
 
 Summary in local_models/batch_train_summary.json
 
+## Global vs Per‑Pair Models
+
+**Default (recommended): Global model**  
+Train one unified `regime_lgbm` over many pairs/timeframes. This tends to generalize better and keeps CT2.0 simpler.
+
+```bash
+# aggregate many CSVs (CSV7 or normalized) into one training run
+cointrainer csv-train-aggregate --folder ./my_csvs --glob "*.csv" \
+  --horizon 15 --hold 0.0015 \
+  --device-type gpu --max-bin 63 --n-jobs 0 \
+  --global-symbol GLOBAL --publish
+# -> local_models/regime_lgbm_GLOBAL.pkl
+# -> Supabase: models/regime/GLOBAL/<ts>_regime_lgbm_GLOBAL.pkl + LATEST.json
+```
+
+Optional: Per‑pair models
+If you want hyper‑optimized models for high‑value tokens, enable --per-pair:
+
+```bash
+cointrainer csv-train-aggregate --folder ./my_csvs --glob "*.csv" --per-pair \
+  --horizon 15 --hold 0.0015 \
+  --device-type gpu --max-bin 63 --n-jobs 0 \
+  --publish
+# -> local_models/regime_lgbm_BTC-USDT.pkl (and others)
+# -> Supabase: models/regime/BTC-USDT/<ts>_regime_lgbm_BTC-USDT.pkl + LATEST.json
+```
+
+How CT2.0 picks models
+
+Global: set CT_SYMBOL=GLOBAL and call runtime predict(...) (the loader reads models/regime/GLOBAL/LATEST.json).
+Per‑pair: set CT_SYMBOL=<PAIR-SLUG> (e.g., BTC-USDT, SOL-USDC).
+The runtime already reorders features from LATEST.json.feature_list. No code changes are required in CT2.0 to switch between global and per‑pair—just set the correct CT_SYMBOL.
+
+Tips for large datasets
+
+Use --limit-rows-per-file and/or --cap-rows-per-pair for fast first runs (e.g., 500k rows per file, 3M total).
+Use --downsample-flat 0.5 to reduce the majority “flat” class; we retain all ±1 labels.
+Keep GPU on: --device-type gpu --max-bin 63.
+
 ## Optimizer (Optuna)
 
 Run a study with walk‑forward CV, pruning, and GPU acceleration:
