@@ -1,11 +1,13 @@
 from __future__ import annotations
+
+import os
 from dataclasses import dataclass
-from typing import Literal, Optional
+from io import BytesIO
+from typing import Literal
+
 import numpy as np
 import pandas as pd
-from io import BytesIO
 
-from crypto_bot.config import Config  # must exist from earlier steps
 from cointrainer import registry as _registry
 
 Action = Literal["long", "flat", "short"]
@@ -15,7 +17,7 @@ Action = Literal["long", "flat", "short"]
 class Prediction:
     action: Action
     score: float
-    regime: Optional[str] = None
+    regime: str | None = None
     meta: dict | None = None
 
 
@@ -39,10 +41,18 @@ def _baseline(features: pd.DataFrame) -> Prediction:
     s = price.ewm(span=21, adjust=False).mean().iloc[-1]
     cross = float(np.sign(f - s))
     if r >= 65 and cross >= 0:
-        return Prediction("long", float(min(1.0, 0.5 + (r - 65) / 35 + 0.25 * cross)), meta={"source":"fallback"})
+        return Prediction(
+            "long",
+            float(min(1.0, 0.5 + (r - 65) / 35 + 0.25 * cross)),
+            meta={"source": "fallback"},
+        )
     if r <= 35 and cross <= 0:
-        return Prediction("short", float(min(1.0, 0.5 + (35 - r) / 35 + 0.25 * (-cross))), meta={"source":"fallback"})
-    return Prediction("flat", 0.5, meta={"source":"fallback"})
+        return Prediction(
+            "short",
+            float(min(1.0, 0.5 + (35 - r) / 35 + 0.25 * (-cross))),
+            meta={"source": "fallback"},
+        )
+    return Prediction("flat", 0.5, meta={"source": "fallback"})
 
 
 def _load_model_from_bytes(blob: bytes):
@@ -57,10 +67,11 @@ def _load_model_from_bytes(blob: bytes):
 
 def predict(features: pd.DataFrame) -> Prediction:
     """
-    Load latest model per Config.REGIME_PREFIX. On any failure, return a baseline Prediction.
+    Load latest model per CT_SYMBOL (default GLOBAL). On any failure, return a baseline Prediction.
     Align features to feature_list and map classes via label_order when available.
     """
-    prefix = Config.REGIME_PREFIX
+    symbol = os.getenv("CT_SYMBOL", "GLOBAL").upper()
+    prefix = f"models/regime/{symbol}"
     # Try registry
     try:
         meta = _registry.load_pointer(prefix)  # may raise
