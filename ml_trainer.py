@@ -53,6 +53,13 @@ try:  # pragma: no cover - optional scheduling helper
 except Exception:  # pragma: no cover - module not available
     schedule_retrain = None  # type: ignore
 
+try:  # pragma: no cover - optional meme sniping trainer
+    from trainers.meme_features import detect_meme_csv_columns
+    from trainers.meme_trainer import train_meme_regime
+except Exception:  # pragma: no cover - trainer may be absent
+    detect_meme_csv_columns = None  # type: ignore
+    train_meme_regime = None  # type: ignore
+
 import numpy as np
 import pandas as pd
 import yaml
@@ -197,6 +204,13 @@ def main() -> None:  # pragma: no cover - CLI entry
         action="store_true",
         help="Use Flower-based federated learning",
     )
+    train_p.add_argument("--input", help="Input CSV file for training")
+    train_p.add_argument("--symbol", help="Trading pair symbol")
+    train_p.add_argument(
+        "--no-publish",
+        action="store_true",
+        help="Skip uploading trained model",
+    )
     train_p.add_argument("--start-ts", help="Data start timestamp (ISO format)")
     train_p.add_argument("--end-ts", help="Data end timestamp (ISO format)")
     train_p.add_argument("--table", default="ohlc_data", help="Supabase table name")
@@ -239,6 +253,8 @@ def main() -> None:  # pragma: no cover - CLI entry
     rl_p.add_argument("--use-gpu", action="store_true", help="Enable GPU")
 
     args = parser.parse_args()
+    subcmd = args.command
+    model = getattr(args, "task", None)
 
     if args.command == "import-data":
         from examples.legacy_importers import importers
@@ -426,6 +442,34 @@ def main() -> None:  # pragma: no cover - CLI entry
                 )
             )
         else:
+            # --- BEGIN: meme sniping hook (add to ml_trainer.py) ---
+            if (
+                locals().get("subcmd") == "train"
+                and locals().get("model") == "regime"
+                and train_meme_regime is not None
+                and hasattr(args, "input")
+            ):
+                import pandas as _pd
+
+                try:
+                    _df_probe = _pd.read_csv(args.input, nrows=128)
+                    if detect_meme_csv_columns and detect_meme_csv_columns(_df_probe):
+                        print("[router] meme logs detected -> using meme sniping trainer")
+                        train_meme_regime(
+                            input_csv=args.input,
+                            symbol=getattr(args, "symbol", "SOL-MEME"),
+                            use_gpu=getattr(args, "use_gpu", False),
+                            federated=getattr(args, "federated", False),
+                            publish=not getattr(args, "no_publish", False),
+                        )
+                        raise SystemExit(0)
+                except Exception as _e:
+                    print(
+                        f"[router] meme detection failed: {_e} "
+                        "(falling back to default regime trainer)"
+                    )
+            # --- END: meme sniping hook ---
+
             X, y = _make_dummy_data()
             model, metrics = trainer_fn(
                 X,
@@ -533,9 +577,10 @@ def train_rl_model(
 def evaluate_rl_model(params: dict[str, Any], *, use_gpu: bool = False) -> None:
     """Download and evaluate the latest RL selector from :class:`ModelRegistry`."""
 
-    from rl.ppo_selector import CustomTradingEnv
-    from stable_baselines3 import PPO
     import torch
+    from stable_baselines3 import PPO
+
+    from rl.ppo_selector import CustomTradingEnv
 
     registry = ModelRegistry()
     name = params.get("model_name", "rl_selector")
