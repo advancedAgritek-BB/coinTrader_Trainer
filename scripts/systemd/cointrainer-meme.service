@@ -1,0 +1,26 @@
+[Unit]
+Description=CoinTrader Meme Sniping Trainer (daemon)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/coinTrader_Trainer
+Environment=MCT_INPUT=/opt/coinTrader_Trainer/solana_meme_logs.csv
+Environment=MCT_SYMBOL=SOL-MEME
+Environment=MCT_USE_GPU=1
+Environment=MCT_FEDERATED=0
+Environment=MCT_PUBLISH=1
+Environment=SUPABASE_URL=YOUR_URL
+Environment=SUPABASE_SERVICE_KEY=YOUR_SERVICE_KEY
+Environment=MODELS_BUCKET=models
+Environment=REGISTRY_PREFIX=models/regime
+ExecStart=/usr/bin/env python -m tools.meme_trainerd
+Restart=always
+RestartSec=10
+User=ct
+Group=ct
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
