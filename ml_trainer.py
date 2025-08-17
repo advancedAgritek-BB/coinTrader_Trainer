@@ -48,12 +48,6 @@ try:  # pragma: no cover - contextual bandit trainer
 except Exception:  # pragma: no cover - selector module may be missing
     bandit_train = None  # type: ignore
 
-try:  # pragma: no cover - optional RL helpers
-    from rl.evaluate import run as rl_evaluate
-    from rl.train import run as rl_train
-except Exception:  # pragma: no cover - RL modules may be absent
-    rl_train = rl_evaluate = None  # type: ignore
-
 try:  # pragma: no cover - optional scheduling helper
     from utils.token_registry import schedule_retrain
 except Exception:  # pragma: no cover - module not available
@@ -239,6 +233,11 @@ def main() -> None:  # pragma: no cover - CLI entry
         "--batch-size", type=int, default=1000, help="Insert batch size"
     )
 
+    rl_p = sub.add_parser("rl", help="Train or evaluate the RL selector")
+    rl_p.add_argument("action", choices=["train", "evaluate"], help="Action to perform")
+    rl_p.add_argument("--cfg", default="cfg.yaml", help="Config file path")
+    rl_p.add_argument("--use-gpu", action="store_true", help="Enable GPU")
+
     args = parser.parse_args()
 
     if args.command == "import-data":
@@ -275,6 +274,17 @@ def main() -> None:  # pragma: no cover - CLI entry
             table=table,
             symbol=args.symbol,
         )
+        return
+
+    if args.command == "rl":
+        cfg = load_cfg(args.cfg)
+        params = cfg.get("rl", {})
+        if args.action == "train":
+            X, y = _make_dummy_data()
+            _, metrics = train_rl_model(X, y, params, use_gpu=args.use_gpu)
+            print(f"RL training completed: {metrics}")
+        else:
+            evaluate_rl_model(params, use_gpu=args.use_gpu)
         return
 
     cfg = load_cfg(args.cfg)
@@ -491,6 +501,69 @@ def train_model() -> None:
     accuracy_gauge.set(metrics.get("accuracy", 0))
 
 
+def train_rl_model(
+    X: pd.DataFrame,
+    y: pd.Series | None,
+    params: dict[str, Any],
+    *,
+    use_gpu: bool = False,
+    profile_gpu: bool = False,
+):
+    """Train an RL selector using configuration parameters."""
+
+    if ppo_train is None:
+        raise RuntimeError("PPO trainer not available")
+
+    from rl.ppo_selector import CustomTradingEnv
+
+    def _make_env() -> CustomTradingEnv:
+        return CustomTradingEnv(X)
+
+    rl_bot = ppo_train(
+        _make_env,
+        use_gpu=use_gpu,
+        total_timesteps=int(params.get("total_timesteps", 10000)),
+        learning_rate=float(params.get("learning_rate", 3e-4)),
+        exploration=float(params.get("exploration", 0.0)),
+        model_name=params.get("model_name", "rl_selector"),
+    )
+    return rl_bot, {"timesteps": int(params.get("total_timesteps", 10000))}
+
+
+def evaluate_rl_model(params: dict[str, Any], *, use_gpu: bool = False) -> None:
+    """Download and evaluate the latest RL selector from :class:`ModelRegistry`."""
+
+    from rl.ppo_selector import CustomTradingEnv
+    from stable_baselines3 import PPO
+    import torch
+
+    registry = ModelRegistry()
+    name = params.get("model_name", "rl_selector")
+    path = f"{name}.zip"
+    try:
+        registry.download_file(path, path)
+    except Exception as exc:  # pragma: no cover - network errors
+        print(f"Download failed: {exc}")
+        return
+
+    device = "cuda" if use_gpu and torch.cuda.is_available() else "cpu"
+    rl_bot = PPO.load(path, device=device)
+    X, _ = _make_dummy_data()
+    env = CustomTradingEnv(X)
+    obs, _ = env.reset()
+    total = 0.0
+    for _ in range(params.get("eval_steps", 10)):
+        action, _ = rl_bot.predict(obs, deterministic=True)
+        obs, reward, done, _, _ = env.step(int(action))
+        total += reward
+        if done:
+            break
+    print(f"Evaluation total reward: {total}")
+
+
+TRAINERS["rl"] = (train_rl_model, "rl")
+
+
 def _generate_csv() -> str:
     """Generate a CSV of simulated trades via :func:`backtest`."""
     if backtest is None:
@@ -597,22 +670,19 @@ def _run_backtest() -> None:
 
 
 def _rl_train() -> None:
-    if rl_train is None:
-        print("RL training module not available")
-        return
-    try:  # pragma: no cover - optional
-        rl_train()
-    except Exception as exc:  # pragma: no cover - depends on external module
+    params = _CACHED_PARAMS or get_params(task="rl")
+    X, y = _make_dummy_data()
+    try:
+        train_rl_model(X, y, params, use_gpu=_MENU_USE_GPU)
+    except Exception as exc:  # pragma: no cover - depends on external deps
         print(f"RL training failed: {exc}")
 
 
 def _rl_evaluate() -> None:
-    if rl_evaluate is None:
-        print("RL evaluation module not available")
-        return
-    try:  # pragma: no cover - optional
-        rl_evaluate()
-    except Exception as exc:  # pragma: no cover - depends on external module
+    params = _CACHED_PARAMS or get_params(task="rl")
+    try:
+        evaluate_rl_model(params, use_gpu=_MENU_USE_GPU)
+    except Exception as exc:  # pragma: no cover - depends on external deps
         print(f"RL evaluation failed: {exc}")
 
 

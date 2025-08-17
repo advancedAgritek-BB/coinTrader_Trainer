@@ -61,3 +61,9 @@ backtest:
   commission: 0.001
   slippage: 0.005
   costs: 0.002
+
+rl:
+  # Reinforcement-learning selector settings
+  total_timesteps: 100000
+  learning_rate: 0.0003
+  exploration: 0.01

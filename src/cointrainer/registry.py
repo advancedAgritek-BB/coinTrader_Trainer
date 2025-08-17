@@ -147,6 +147,62 @@ class ModelRegistry:
         resp = table.upsert(entry, **params).execute()
         return resp.data[0]["id"]
 
+    def upload_file(
+        self,
+        path: str,
+        name: str,
+        metadata: dict[str, Any] | None = None,
+        *,
+        approved: bool = False,
+        conflict_key: str | None = None,
+    ) -> str:
+        """Upload an existing file under ``name``.
+
+        This helper allows non-picklable artifacts such as Stable-Baselines3
+        ``.zip`` models to be stored in Supabase Storage.  The file extension
+        from ``path`` is preserved when constructing the storage key.
+        """
+
+        ext = os.path.splitext(path)[1]
+        storage_path = f"{name}{ext}"
+        with open(path, "rb") as fh:
+            self.client.storage.from_(self.bucket).upload(storage_path, fh.read())
+
+        now = datetime.now(UTC).isoformat()
+        entry = {
+            "name": name,
+            "path": storage_path,
+            "metadata": metadata or {},
+            "approved": approved,
+            "created_at": now,
+            "updated_at": now,
+        }
+        table = self.client.table(self.table)
+        params = {"on_conflict": conflict_key} if conflict_key else {}
+        resp = table.upsert(entry, **params).execute()
+        return resp.data[0]["id"]
+
+    def download_file(self, path: str, dest: str) -> str:
+        """Download ``path`` from storage and write it to ``dest``.
+
+        Parameters
+        ----------
+        path:
+            Name of the file in the Supabase bucket.
+        dest:
+            Local destination where the file will be written.
+
+        Returns
+        -------
+        str
+            The ``dest`` path for convenience.
+        """
+
+        data = self.client.storage.from_(self.bucket).download(path)
+        with open(dest, "wb") as fh:
+            fh.write(data)
+        return dest
+
 
 # ---------------------------------------------------------------------------
 # New lightweight helpers ---------------------------------------------------
